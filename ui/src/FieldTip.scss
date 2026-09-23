@@ -1,0 +1,76 @@
+// Styling for the field-validation tooltips FieldTip.ts creates, scoped to the
+// `fieldTip` theme it applies. Self-contained (there is no global tippy.js base
+// stylesheet) so it styles only these tips and never the other themed,
+// arrow-less tippies (menus, async-search): a filled box with a pointer arrow,
+// its box/arrow geometry mirroring tippy.js' own tippy.css. The fill is the
+// --tippy-background-color token, defaulting to violet.
+.tippy-box[data-theme~='fieldTip'] {
+    position: relative;
+    background-color: var(--tippy-background-color, #5335e8);
+    color: #fff;
+    border-radius: var(--border-radius, 4px);
+    font-size: var(--font-md);
+    line-height: 1.4;
+    white-space: normal;
+    outline: 0;
+
+    .tippy-content {
+        position: relative;
+        padding: 5px 9px;
+        z-index: 1;
+    }
+
+    // Arrow: tippy positions the element (inline transform); these rules give it
+    // its triangle shape per placement. `currentColor` picks up the arrow's color
+    // (set to the box fill above) — the same mechanism tippy.css uses.
+    > .tippy-arrow {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        color: var(--tippy-background-color, #5335e8);
+    }
+    > .tippy-arrow::before {
+        content: '';
+        position: absolute;
+        border-color: transparent;
+        border-style: solid;
+    }
+    &[data-placement^='top'] > .tippy-arrow {
+        bottom: 0;
+    }
+    &[data-placement^='top'] > .tippy-arrow::before {
+        bottom: -7px;
+        left: 0;
+        border-width: 8px 8px 0;
+        border-top-color: currentColor;
+        transform-origin: center top;
+    }
+    &[data-placement^='bottom'] > .tippy-arrow {
+        top: 0;
+    }
+    &[data-placement^='bottom'] > .tippy-arrow::before {
+        top: -7px;
+        left: 0;
+        border-width: 0 8px 8px;
+        border-bottom-color: currentColor;
+        transform-origin: center bottom;
+    }
+    &[data-placement^='left'] > .tippy-arrow {
+        right: 0;
+    }
+    &[data-placement^='left'] > .tippy-arrow::before {
+        right: -7px;
+        border-width: 8px 0 8px 8px;
+        border-left-color: currentColor;
+        transform-origin: center left;
+    }
+    &[data-placement^='right'] > .tippy-arrow {
+        left: 0;
+    }
+    &[data-placement^='right'] > .tippy-arrow::before {
+        left: -7px;
+        border-width: 8px 8px 8px 0;
+        border-right-color: currentColor;
+        transform-origin: center right;
+    }
+}

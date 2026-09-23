@@ -1,0 +1,27 @@
+// Opt-in record-editor/detail-pane layout: `@use '@greendrake/theme/editor-rows';`
+// (the dashboard preset pulls it in). `.EditorRows` is the padded scrolling
+// pane, `.EditorRows__row` a label/value line. The classes are independent:
+// a component whose root layout diverges may adopt the rows alone.
+
+.EditorRows {
+    padding: var(--space-4);
+    overflow: auto;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.EditorRows__row {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-color-light);
+    > label {
+        min-width: 160px;
+        font-size: var(--font-xs);
+        opacity: 0.7;
+        padding-top: 2px;
+    }
+    > div {
+        flex-grow: 1;
+    }
+}

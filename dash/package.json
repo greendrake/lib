@@ -1,0 +1,66 @@
+{
+    "name": "@greendrake/dash",
+    "version": "0.1.0",
+    "description": "Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "dash"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/dash#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        },
+        "./vite": {
+            "types": "./src/vite.ts",
+            "default": "./src/vite.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": [
+        "*.scss"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/font-inter": "workspace:*",
+        "@greendrake/rpc": "workspace:*",
+        "@greendrake/service-state": "workspace:*",
+        "@greendrake/theme": "workspace:*",
+        "@greendrake/ui": "workspace:*",
+        "@greendrake/vite-preset": "workspace:*",
+        "@greendrake/vue-api": "workspace:*",
+        "@greendrake/vue-app": "workspace:*",
+        "@greendrake/vue-kit": "workspace:*"
+    },
+    "peerDependencies": {
+        "pinia": "^3.0.4",
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "pinia": "^3.0.4",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4",
+        "vue-tsc": "^2.2.0"
+    }
+}

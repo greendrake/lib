@@ -1,0 +1,63 @@
+// The full dashboard-app preset: palette + native-control skin + editor-row
+// layout + the shell styling a dashboard would otherwise write for itself.
+// Opt in via
+// `@use '@greendrake/theme/dashboard';` (after `@use '@greendrake/theme'`).
+@use 'dashboard-palette';
+@use 'form-controls';
+@use 'editor-rows';
+@use 'mixins' as *;
+
+@include page-vignette;
+
+:root {
+    --border-radius: 4px;
+    --icon-size: 18px;
+    // Denser base than the document default: dashboards are dense,
+    // information-first surfaces.
+    --font-md: 14px;
+    // Required by the ui .spinner ring contract (see README).
+    --spinner-side-color: var(--form-background);
+}
+
+html,
+body {
+    height: 100vh;
+    overflow: hidden;
+}
+
+body {
+    padding: 0;
+    margin: 0;
+}
+
+a:hover {
+    color: var(--link-color-hover);
+}
+
+label {
+    font-size: var(--font-xs);
+    font-weight: 500;
+    opacity: 0.7;
+}
+
+// Headings read as panel/section dividers rather than page titles — every
+// dashboard panel opens with one, and detail views nest h2/h3 under it.
+h1,
+h2,
+h3 {
+    font-weight: 500;
+}
+
+h1 {
+    font-size: var(--font-2xl);
+    line-height: 36px;
+    margin: var(--space-5) 0 var(--space-3);
+}
+
+h2 {
+    border-bottom: 1px solid var(--border-color-light);
+    margin: var(--space-4) 0 var(--space-2);
+    opacity: 0.8;
+    font-size: var(--font-xl);
+    line-height: 28px;
+}

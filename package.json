@@ -1,0 +1,40 @@
+{
+    "name": "greendrake-lib",
+    "private": true,
+    "type": "module",
+    "workspaces": [
+        "css-reset",
+        "dash",
+        "dev-config",
+        "domains",
+        "e2e",
+        "examples/service-pair/api",
+        "examples/service-pair/dash",
+        "fonts/inter",
+        "rpc",
+        "rpc-server",
+        "scss-kit",
+        "server",
+        "service-state",
+        "theme",
+        "ui",
+        "ui-data",
+        "util",
+        "vite-preset",
+        "vue-api",
+        "vue-app",
+        "vue-kit"
+    ],
+    "scripts": {
+        "check": "bun run --filter '*' check",
+        "lint": "eslint .",
+        "test": "bun test domains/test util/test rpc/test vite-preset/test vue-api/test rpc-server/test service-state/test server/test examples/service-pair/api/test",
+        "e2e:browsers": "(cd examples/service-pair/dash && bunx playwright install --with-deps chromium)",
+        "e2e": "(cd examples/service-pair/dash && bun --bun playwright test)"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "eslint": "^9.22.0"
+    }
+}

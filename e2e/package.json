@@ -1,0 +1,52 @@
+{
+    "name": "@greendrake/e2e",
+    "version": "0.1.0",
+    "description": "Playwright kit for single-page apps: config factories, a same-origin crawler, a clipped-content detector, a polling helper and a layout checker",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "e2e"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/e2e#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        },
+        "./poll": {
+            "types": "./src/pollUntil.ts",
+            "default": "./src/pollUntil.ts"
+        }
+    },
+    "files": [
+        "src",
+        "bin"
+    ],
+    "bin": {
+        "check-layout": "./bin/check-layout.mjs"
+    },
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "peerDependencies": {
+        "@playwright/test": ">=1.49.0"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@playwright/test": "1.60.0",
+        "typescript": "6.0.3"
+    }
+}

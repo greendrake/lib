@@ -1,0 +1,95 @@
+@mixin monospace {
+    font-family: monospace, monospace;
+}
+
+@mixin disabled {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: default;
+    user-select: none;
+}
+
+@mixin apply-props($props) {
+    @each $prop, $value in $props {
+        #{$prop}: #{$value};
+    }
+}
+
+// In-control affordances shared by select-shaped controls (SelectBox, app
+// picker triggers) so their anatomy cannot drift apart.
+
+// The × clear button rendered inside a control, before the chevron. Its glyph
+// size rides one custom property so every control including this mixin tracks
+// the same value.
+//
+// The box is held at the WCAG 2.2 target-size minimum (24×24, SC 2.5.8) while
+// the glyph keeps its own size — a bare × sized to its font is a ~12px target
+// that axe flags as a serious violation.
+//
+// The negative block margin lets that 24px box grow into the control's own
+// padding instead of stretching the control: a populated control must stay the
+// same height as an empty one beside it (--input-height, one text line plus
+// padding). The box still sits entirely within the control's border, so
+// nothing overflows visually.
+@mixin control-clear {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    min-height: 24px;
+    margin-block: calc((var(--line-height-tight, 18px) - 24px) / 2);
+    border: none;
+    background: transparent;
+    padding: 0;
+    color: inherit;
+    font-size: var(--control-clear-font-size, 18px);
+    line-height: 1;
+    opacity: 0.5;
+    &:hover {
+        opacity: 1;
+    }
+}
+
+// Dropdown-trigger / drill chevron built with borders — no icon dependency.
+// The margin re-centres the glyph optically: the arrow's visual mass sits in
+// the half of the rotated box it points from.
+@mixin control-chevron($point: down) {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    opacity: 0.6;
+    @if $point == right {
+        margin: 0 3px 0 2px;
+        transform: rotate(-45deg);
+    } @else {
+        margin: 0 2px 3px;
+        transform: rotate(45deg);
+    }
+}
+
+// Requires the global `spinner` keyframes and the --spinner-color/--spinner-side-color
+// custom properties (@greendrake/theme provides the keyframes; palettes provide the colors).
+@mixin img-spinner($size: 24px) {
+    position: relative;
+    &::before {
+        content: '';
+        box-sizing: border-box;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: $size;
+        height: $size;
+        margin-top: calc($size / -2);
+        margin-left: calc($size / -2);
+        border-radius: 50%;
+        border: 2px solid var(--spinner-color);
+        border-top-color: var(--spinner-side-color);
+        animation: spinner 0.6s linear infinite;
+    }
+    img {
+        position: relative;
+    }
+}

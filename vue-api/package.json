@@ -1,0 +1,53 @@
+{
+    "name": "@greendrake/vue-api",
+    "version": "0.1.0",
+    "description": "Vue binding of @greendrake/rpc: loading-state wiring, response cache, error-UX pipeline, silent calls, live bindings to server push",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "vue-api"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/vue-api#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/rpc": "workspace:*",
+        "@greendrake/ui": "workspace:*",
+        "@greendrake/util": "workspace:*",
+        "@greendrake/vue-kit": "workspace:*"
+    },
+    "peerDependencies": {
+        "pinia": "^3.0.4",
+        "vue": "^3.5.34"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "pinia": "^3.0.4",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-tsc": "^2.2.0"
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "name": "@greendrake/domains",
+    "version": "0.1.0",
+    "description": "Email and domain-name validation backed by the IANA TLD list",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "domains"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/domains#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "tsc --noEmit",
+        "update-tlds": "bun scripts/update-tlds.ts"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "typescript": "6.0.3"
+    }
+}

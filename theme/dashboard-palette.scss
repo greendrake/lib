@@ -1,0 +1,44 @@
+// Default dashboard palette: opt-in via `@use '@greendrake/theme/dashboard-palette';`.
+@use '@greendrake/scss-kit' as kit;
+@use 'mixins' as *;
+
+@include light-dark(
+    (
+        --font-color: #222,
+        --background-color: #ddd,
+        --form-background: #f5f5f5,
+        --form-background-hover: #fff,
+        --border-color: #555,
+        --border-color-light: #999,
+        --border-color-hover: #000,
+        --link-color-hover: #000,
+        --light-switch: kit.icon-svg('moonstar'),
+        --spinner-color: #ccc,
+        --page-background: #e6e6e6,
+        --page-vignette-color: #cdcdcd
+    ),
+    (
+        --font-color: #eee,
+        --background-color: #222,
+        --form-background: #222,
+        --form-background-hover: #000,
+        --border-color: #aaa,
+        --border-color-light: #666,
+        --border-color-hover: #fff,
+        --link-color-hover: #fff,
+        --light-switch: kit.icon-svg('sun'),
+        --spinner-color: #ccc,
+        --page-background: #202020,
+        --page-vignette-color: #0c0c0c
+    )
+);
+
+// Modal chrome vars consumed by @greendrake/ui's Modal — part of the default
+// dashboard look (the dark-glass window over a dimmed backdrop).
+:root {
+    --modal-background: var(--background-color);
+    --modal-box-shadow: rgba(255, 255, 255, 0.5) 0px 4px 25px;
+    --modal-border-radius: var(--border-radius);
+    --modal-backdrop-filter: brightness(0.4);
+    --modal-window-backdrop-filter: blur(8px);
+}

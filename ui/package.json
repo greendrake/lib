@@ -1,0 +1,52 @@
+{
+    "name": "@greendrake/ui",
+    "version": "0.1.0",
+    "description": "Vue 3 component library: form controls, modals, search, tabs, toasts, layout",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "ui"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/ui#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/domains": "workspace:*",
+        "@greendrake/scss-kit": "workspace:*",
+        "@greendrake/util": "workspace:*",
+        "vue-tippy": "^6.7.1"
+    },
+    "peerDependencies": {
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4",
+        "vue-tsc": "^2.2.0"
+    }
+}

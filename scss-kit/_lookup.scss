@@ -1,0 +1,9 @@
+@use 'sass:map';
+
+// Internal: map lookup erring hard on unknown keys. Not forwarded from the package index.
+@function lookup($map, $key, $kind) {
+    @if not map.has-key($map, $key) {
+        @error 'Unknown #{$kind} "#{$key}". Known: #{map.keys($map)}';
+    }
+    @return map.get($map, $key);
+}

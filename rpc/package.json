@@ -1,0 +1,43 @@
+{
+    "name": "@greendrake/rpc",
+    "version": "0.1.0",
+    "description": "RPC client over JSON: typed method-map API, HTTP and reconnecting WebSocket transports, pluggable codec and headers, TTL response cache",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "rpc"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/rpc#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/util": "workspace:*"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "typescript": "6.0.3"
+    }
+}

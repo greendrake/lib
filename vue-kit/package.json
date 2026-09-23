@@ -1,0 +1,51 @@
+{
+    "name": "@greendrake/vue-kit",
+    "version": "0.1.0",
+    "description": "Vue/Pinia building blocks: app loading state, media queries, collection-store factory",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "vue-kit"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/vue-kit#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/scss-kit": "workspace:*",
+        "@greendrake/util": "workspace:*"
+    },
+    "peerDependencies": {
+        "pinia": "^3.0.4",
+        "vue": "^3.5.34"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "pinia": "^3.0.4",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-tsc": "^2.2.0"
+    }
+}

@@ -1,0 +1,63 @@
+{
+    "name": "@greendrake/theme",
+    "version": "0.1.0",
+    "description": "Design tokens, document-level element styling, a light/dark theming mixin and an opt-in dashboard palette",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "theme"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/theme#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "_index.scss",
+    "exports": {
+        ".": {
+            "sass": "./_index.scss",
+            "default": "./_index.scss"
+        },
+        "./mixins": {
+            "sass": "./_mixins.scss",
+            "default": "./_mixins.scss"
+        },
+        "./dashboard-palette": {
+            "sass": "./dashboard-palette.scss",
+            "default": "./dashboard-palette.scss"
+        },
+        "./form-controls": {
+            "sass": "./form-controls.scss",
+            "default": "./form-controls.scss"
+        },
+        "./editor-rows": {
+            "sass": "./editor-rows.scss",
+            "default": "./editor-rows.scss"
+        },
+        "./dashboard": {
+            "sass": "./dashboard.scss",
+            "default": "./dashboard.scss"
+        }
+    },
+    "files": [
+        "_index.scss",
+        "_mixins.scss",
+        "dashboard-palette.scss",
+        "form-controls.scss",
+        "editor-rows.scss",
+        "dashboard.scss"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/css-reset": "workspace:*",
+        "@greendrake/scss-kit": "workspace:*"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*"
+    }
+}

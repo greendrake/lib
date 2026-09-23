@@ -1,0 +1,27 @@
+@use 'sass:list';
+
+// Emits one @font-face per (weight, style) entry.
+// $faces: (weight: (style: url)), e.g. (400: (normal: url('./fonts/X-Regular.woff2'), italic: url('./fonts/X-Italic.woff2'))).
+// The url() literals must be written in the calling package's own .scss file so that
+// Vite rebases them relative to that file when consuming the package from node_modules.
+@mixin font-faces($family, $faces, $display: swap) {
+    @each $weight, $styles in $faces {
+        @each $style, $file in $styles {
+            @font-face {
+                font-family: $family;
+                src: $file format('woff2');
+                font-weight: $weight;
+                font-style: $style;
+                font-display: $display;
+            }
+        }
+    }
+}
+
+// Opt-in document-default font: registering faces (font-faces above) deliberately
+// does NOT touch :root — consumers adopt a family explicitly via this mixin.
+@mixin use-as-default($family, $fallbacks...) {
+    :root {
+        font-family: list.join(($family,), $fallbacks, $separator: comma);
+    }
+}

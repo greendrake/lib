@@ -1,0 +1,54 @@
+{
+    "name": "@greendrake/service-state",
+    "version": "0.1.0",
+    "description": "A backend service as a state machine (OFF/STARTING/ON/STOPPING/ERROR): the wire contract both halves share, and the server-side machine behind it",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "service-state"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/service-state#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        },
+        "./server": {
+            "types": "./src/server.ts",
+            "default": "./src/server.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "peerDependencies": {
+        "@greendrake/rpc-server": "workspace:*"
+    },
+    "peerDependenciesMeta": {
+        "@greendrake/rpc-server": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@greendrake/rpc-server": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "typescript": "6.0.3"
+    }
+}

@@ -1,0 +1,34 @@
+{
+    "name": "@greendrake/example-service-dash",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Example service-state dashboard: one control, live over a WebSocket",
+    "type": "module",
+    "scripts": {
+        "dev": "bun --bun vite --mode dev --host",
+        "build": "bun --bun vite build --mode prod",
+        "preview": "bun --bun vite preview --mode dev",
+        "check": "vue-tsc --noEmit",
+        "e2e": "bun --bun playwright test"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/dash": "workspace:*",
+        "@greendrake/rpc": "workspace:*",
+        "@greendrake/service-state": "workspace:*",
+        "@greendrake/vue-api": "workspace:*",
+        "pinia": "^3.0.4",
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@greendrake/e2e": "workspace:*",
+        "@greendrake/vite-preset": "workspace:*",
+        "@playwright/test": "1.60.0",
+        "sass-embedded": "^1.83.4",
+        "typescript": "6.0.3",
+        "vite": "^8.2.1",
+        "vue-tsc": "^2.2.0"
+    }
+}

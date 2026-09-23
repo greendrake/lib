@@ -1,0 +1,3 @@
+@use '@greendrake/scss-kit' as kit;
+
+@include kit.use-as-default('Inter', Helvetica, Arial, sans-serif);

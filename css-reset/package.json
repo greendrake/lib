@@ -1,0 +1,34 @@
+{
+    "name": "@greendrake/css-reset",
+    "version": "0.1.0",
+    "description": "Modern CSS reset (adapted from Josh Comeau's and Andy Bell's resets)",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "css-reset"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/css-reset#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "_index.scss",
+    "exports": {
+        ".": {
+            "sass": "./_index.scss",
+            "default": "./_index.scss"
+        }
+    },
+    "files": [
+        "_index.scss"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*"
+    }
+}

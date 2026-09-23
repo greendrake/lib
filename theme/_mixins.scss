@@ -1,0 +1,138 @@
+@use '@greendrake/scss-kit' as kit;
+
+$max-content-width: 850px;
+
+// Applies the $light / $dark custom-property maps under the .light/.dark :root
+// classes, falling back to prefers-color-scheme when neither class is set.
+@mixin light-dark($light, $dark) {
+    :root.light {
+        @include kit.apply-props($light);
+    }
+
+    @media screen and (prefers-color-scheme: light) {
+        :root:not(.dark) {
+            @include kit.apply-props($light);
+        }
+    }
+
+    :root.dark {
+        @include kit.apply-props($dark);
+    }
+
+    @media screen and (prefers-color-scheme: dark) {
+        :root:not(.light) {
+            @include kit.apply-props($dark);
+        }
+    }
+}
+
+// Page-canvas vignette: a flat tone at the centre falling off to a darker
+// edge tone, painted with an inset box shadow on a fixed overlay rather than
+// a radial gradient — Firefox's WebRender can mis-render the singular centre
+// pixel of a page-sized radial gradient as a stray bright dot that comes and
+// goes with window moves/resizes; a shadow has no degenerate point. Reads
+// --page-background / --page-vignette-color from the palette.
+//
+// It hangs off <html>, not <body>: an element has exactly one ::before, and
+// body's belongs to the full-page loading spinner (`body.spinner::before`, see
+// _index.scss). Sharing it made the two fight — the spinner ring inherited the
+// vignette's page-sized inset shadow, and the vignette vanished for the
+// duration of every page load. The canvas is html's job anyway; it already
+// carries the page background above.
+@mixin page-vignette {
+    html {
+        // Also covers the overscroll gutter, which no fixed layer reaches.
+        background-color: var(--page-background);
+        &::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            @include page-canvas;
+        }
+    }
+}
+
+// The canvas as a paintable layer: flat tone plus vignette. Anything that must
+// READ as the page rather than as a panel paints this over a viewport-anchored
+// box (`position: fixed; inset: 0`) and then masks itself down to the part it
+// needs — page-scrim below is that construction. Same construction over the
+// same box as the canvas above, so the painted region matches the page pixel
+// for pixel, vignette falloff included, and its edges are the mask's business
+// alone.
+// The blur is sized against the SHORT viewport side, and modestly: a radius
+// approaching the box's own width leaves the falloffs from opposite edges
+// overlapping everywhere, so the gradient washes out into a flat tone — and
+// engines diverge sharply in that saturated regime (WebKit floods the layer
+// with the shadow colour outright, which is what a phone shows). 30vmin keeps
+// every viewport shape well inside the range Chromium and WebKit rasterise
+// identically.
+@mixin page-canvas {
+    background-color: var(--page-background);
+    box-shadow: inset 0 0 30vmin var(--page-vignette-color);
+}
+
+// The backing for a bar stuck over scrolling content — a sticky header or
+// footer — that must not read as a panel bolted onto the page. It is not a
+// colour of its own but a second copy of the page canvas on its own
+// viewport-anchored box, masked down to the strip the bar occupies: where it is
+// opaque it is indistinguishable from the page behind it, vignette falloff
+// included. Sits behind the bar's own content (z-index -1 inside the stacking
+// context the bar's z-index opens), so nothing about the bar's children moves.
+//
+// $edge is the viewport edge the bar is stuck to. The mask holds full opacity
+// for $solid from that edge — the band the bar's content occupies — then takes
+// $ramp to reach clear, so content scrolls into view behind the bar with no
+// edge to see.
+@mixin page-scrim($edge, $solid, $ramp) {
+    @if $edge != top and $edge != bottom {
+        @error 'page-scrim: $edge must be top or bottom, got #{$edge}';
+    }
+    // The gradient runs from the far edge toward $edge, so its opaque stop
+    // lands on the bar.
+    $away: top;
+    @if $edge == top {
+        $away: bottom;
+    }
+    &::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        @include page-canvas;
+        mask-image: linear-gradient(to #{$away}, #000 #{$solid}, transparent calc(#{$solid} + #{$ramp}));
+    }
+}
+
+@mixin button-colors {
+    background: var(--button-background);
+    &:hover {
+        filter: brightness(120%);
+    }
+}
+
+@mixin wider-than-max-content {
+    @media (min-width: $max-content-width) {
+        @content;
+    }
+}
+
+@mixin overlay-icon-button($size: 24px) {
+    position: absolute;
+    width: $size;
+    height: $size;
+    border-radius: var(--border-radius);
+    background: var(--overlay-button-bg);
+    opacity: 0.5;
+    color: #fff;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    line-height: $size;
+    font-size: calc($size * 0.55);
+    &:hover {
+        opacity: 1;
+    }
+}

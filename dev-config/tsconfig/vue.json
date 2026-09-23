@@ -1,0 +1,16 @@
+{
+    "extends": "./base.json",
+    "compilerOptions": {
+        "jsx": "preserve",
+        "jsxImportSource": "vue"
+    },
+    "vueCompilerOptions": {
+        "strictTemplates": true,
+        // strictTemplates rejects data-* attributes by default; they are
+        // standard HTML and several @greendrake/ui components rely on them
+        // (e.g. CurrencyInput's data-currency). This must live in the shared
+        // config: packages consuming ui via the source condition type-check
+        // its SFCs under their own vueCompilerOptions.
+        "dataAttributes": ["data-*"]
+    }
+}

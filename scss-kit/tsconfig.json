@@ -1,0 +1,5 @@
+{
+    "extends": "@greendrake/dev-config/tsconfig/base.json",
+    "compilerOptions": { "types": ["bun"] },
+    "include": ["src", "scripts"]
+}

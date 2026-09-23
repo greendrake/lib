@@ -1,0 +1,40 @@
+import { minify } from 'html-minifier-terser'
+import type { Plugin } from 'vite'
+
+// Substitutes build-time values into index.html before Vite processes it —
+// e.g. a generated bootstrap snippet, a build hash, PWA metadata. Keys are
+// matched literally (convention: __NAME__).
+export const htmlPlaceholders = (map: Record<string, string>): Plugin => {
+    const keys = Object.keys(map)
+    if (!keys.length) {
+        throw new Error('htmlPlaceholders: empty placeholder map')
+    }
+    const pattern = new RegExp(keys.map(key => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+    return {
+        name: 'greendrake-html-placeholders',
+        transformIndexHtml: {
+            order: 'pre',
+            handler: html => html.replace(pattern, match => map[match])
+        }
+    }
+}
+
+// Production-only HTML minification — strips comments and collapses
+// whitespace in index.html, and runs inline scripts/styles through
+// terser/CSS minification. Dev keeps the source readable.
+export const htmlMinify = (): Plugin => ({
+    name: 'greendrake-html-minify',
+    apply: 'build',
+    transformIndexHtml: {
+        order: 'post',
+        handler: html =>
+            minify(html, {
+                collapseWhitespace: true,
+                removeComments: true,
+                minifyJS: true,
+                minifyCSS: true,
+                useShortDoctype: true,
+                removeRedundantAttributes: true
+            })
+    }
+})

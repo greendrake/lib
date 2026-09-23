@@ -1,0 +1,35 @@
+// GENERATED from src/breakpoints.json by scripts/generate.ts — do not edit, regenerate via `bun run generate`.
+// A breakpoint value is the inclusive upper bound of the viewport range below it:
+// "below" matches width <= value; "above" matches width >= value + 1px.
+// narrow (600): the content/wide-screen boundary — a viewport is "wide" from 601px up.
+@use 'lookup' as *;
+
+$breakpoints: (
+    'tooNarrow': 320px,
+    'narrow': 600px
+);
+
+@function breakpoint($name) {
+    @return lookup($breakpoints, $name, 'breakpoint');
+}
+
+@mixin respond-below($name) {
+    $max: breakpoint($name);
+    @media (max-width: $max) {
+        @content;
+    }
+}
+
+@mixin respond-above($name) {
+    $min: breakpoint($name) + 1px;
+    @media (min-width: $min) {
+        @content;
+    }
+}
+
+@mixin respond-above-height($name) {
+    $min: breakpoint($name) + 1px;
+    @media (min-height: $min) {
+        @content;
+    }
+}

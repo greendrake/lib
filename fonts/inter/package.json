@@ -1,0 +1,44 @@
+{
+    "name": "@greendrake/font-inter",
+    "version": "0.1.0",
+    "description": "Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "fonts/inter"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/fonts/inter#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "main.scss",
+    "exports": {
+        ".": {
+            "sass": "./main.scss",
+            "default": "./main.scss"
+        },
+        "./default": {
+            "sass": "./default.scss",
+            "default": "./default.scss"
+        }
+    },
+    "files": [
+        "main.scss",
+        "default.scss",
+        "fonts",
+        "OFL.txt"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/scss-kit": "workspace:*"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*"
+    }
+}

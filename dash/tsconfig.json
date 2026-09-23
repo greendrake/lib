@@ -1,0 +1,4 @@
+{
+    "extends": "@greendrake/dev-config/tsconfig/vue.json",
+    "include": ["src"]
+}

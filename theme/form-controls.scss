@@ -1,0 +1,48 @@
+// Opt-in native form-control skin: `@use '@greendrake/theme/form-controls';`.
+// The block a dashboard would otherwise write into its own main.scss.
+// Relies on the palette vars (--form-background, --border-color*, --font-color)
+// plus --border-radius, which stays app-supplied (see README).
+
+button,
+input,
+select,
+textarea {
+    border-radius: var(--border-radius);
+    color: var(--font-color);
+    background: var(--form-background);
+    border: 1px solid var(--border-color);
+}
+
+button {
+    cursor: pointer;
+    padding: var(--space-1) var(--space-4);
+    &:hover:not(:disabled) {
+        border-color: var(--border-color-hover);
+        background-color: var(--form-background-hover);
+    }
+    &:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+}
+
+input,
+select,
+textarea {
+    padding: var(--space-1) var(--space-2);
+    &:focus {
+        outline: none;
+        border-color: var(--border-color-hover);
+        background-color: var(--form-background-hover);
+    }
+}
+
+// Small in-control variant of the theme's .spinner ring (action buttons while
+// their async action is in flight): the sole size knob is --spinner-size, so the
+// ring geometry stays owned by the base rule.
+button.spinner {
+    pointer-events: none;
+    cursor: default;
+    color: transparent !important;
+    --spinner-size: 24px;
+}

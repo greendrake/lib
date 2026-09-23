@@ -1,0 +1,46 @@
+{
+    "name": "@greendrake/dev-config",
+    "version": "0.1.0",
+    "description": "TypeScript, ESLint and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than rule sets to copy",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "dev-config"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/dev-config#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "exports": {
+        "./tsconfig/base.json": "./tsconfig/base.json",
+        "./tsconfig/vue.json": "./tsconfig/vue.json",
+        "./tsconfig/node.json": "./tsconfig/node.json",
+        "./eslint": "./eslint.config.js",
+        "./prettier": "./prettier.config.js"
+    },
+    "files": [
+        "tsconfig",
+        "eslint.config.js",
+        "prettier.config.js"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "prettier": "./prettier.config.js",
+    "dependencies": {
+        "@eslint/js": "^9.17.0",
+        "@stylistic/eslint-plugin": "^5.10.0",
+        "eslint": "^9.22.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-vue": "^9.32.0",
+        "globals": "^15.14.0",
+        "typescript-eslint": "^8.19.0",
+        "vue-eslint-parser": "^9.4.3"
+    },
+    "peerDependencies": {
+        "typescript": "^6"
+    }
+}

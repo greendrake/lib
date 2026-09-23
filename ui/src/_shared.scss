@@ -1,0 +1,22 @@
+// Package-internal SCSS shared between components (app themes never import this).
+
+// Repositions the theme's base `.spinner::before` pseudo-element as a small
+// indicator vertically centered at the element's right edge.
+// top/bottom both 0 + auto block-margin centers a fixed-height absolutely
+// positioned element vertically without depending on the container's height.
+// Can't use `transform: translateY(-50%)` here — the base spinner rule
+// animates `transform: rotate` and the two would clash.
+@mixin spinner-inline-right($right) {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    top: 0;
+    bottom: 0;
+    // Reset the base spinner's centring margins: block:auto centres vertically
+    // against top/bottom:0; inline:0 clears the base's negative margin-left so
+    // right-edge anchoring lands where $right places it.
+    margin-block: auto;
+    margin-inline: 0;
+    right: $right;
+    left: unset;
+}

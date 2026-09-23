@@ -1,0 +1,174 @@
+// This entry EMITS global CSS (the reset, base element styles, the :root
+// design tokens). It is the app-level base — `@use` it ONCE from the app's
+// main.scss. A component that needs only a mixin must `@use
+// '@greendrake/theme/mixins'` (side-effect-free); importing this module from a
+// per-component <style> re-emits the reset into a late stylesheet that
+// overrides the app's own form-control skin.
+@use '@greendrake/css-reset';
+@use '@greendrake/scss-kit' as kit;
+@use 'mixins';
+@forward 'mixins';
+
+:root {
+    // Feeds ui's TheWrap width cap; single-sourced from the SCSS constant the
+    // wider-than-max-content mixin also uses.
+    --max-content-width: #{mixins.$max-content-width};
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 28px;
+    --font-xs: 11px;
+    --font-sm: 13px;
+    --font-md: 16px;
+    --font-lg: 20px;
+    --font-xl: 24px;
+    --font-2xl: 32px;
+
+    // The safe-area insets, as custom properties because that is the only form
+    // both platforms can deliver — everything downstream reads these and stays
+    // platform-agnostic. iOS and browsers resolve them from env() right here.
+    // The Android shell cannot: Chromium's env() reports display cutouts alone,
+    // never the system bars, so it is 0 on a phone whose status bar merely
+    // overlays the WebView — which from Android 15 is every phone, the window
+    // being edge-to-edge with no way to opt out. There Capacitor's built-in
+    // SystemBars plugin writes the real window insets onto <html> as inline
+    // styles of these same names, and inline beats this rule, so the override
+    // needs nothing declared for it. (It writes 0 in the case where it has
+    // already padded the WebView itself — either way these stay the insets the
+    // page must still spend.)
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+
+    --overlay-button-bg: rgb(0 0 0 / 60%);
+    --overlay-button-bg-hover: rgb(0 0 0 / 85%);
+
+    --error-color: #ff4800;
+    --warning-color: #890095;
+    --accent-color: #0aa13e;
+
+    // Single source of truth for spinner ring size — the default centred
+    // spinner shown at the middle of a loading UI. The small in-control variant
+    // overrides this (see button.spinner in form-controls).
+    --spinner-size: 40px;
+}
+
+body {
+    color: var(--font-color);
+    font-size: var(--font-md);
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
+}
+
+p,
+ol,
+ul,
+li {
+    margin: 6px 0;
+}
+
+p {
+    font-size: var(--font-md);
+}
+
+a,
+a span,
+a em {
+    color: var(--link-color);
+}
+
+a[href^='http'] {
+    padding-inline-end: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cg stroke='%23666' stroke-width='1.5' fill='none' fill-rule='evenodd' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='17 13.5 17 19.5 5 19.5 5 7.5 11 7.5'%3E%3C/polyline%3E%3Cpath d='M14,4.5 L20,4.5 L20,10.5 M20,4.5 L11,13.5'%3E%3C/path%3E%3C/g%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    // background-position takes no logical keywords, so the RTL side is stated.
+    background-position: right center;
+    background-size: 16px;
+    [dir='rtl'] & {
+        background-position: left center;
+    }
+}
+
+ul {
+    list-style-type: square;
+}
+
+ol,
+ul {
+    padding-inline-start: 32px;
+}
+
+blockquote {
+    border-inline-start: 8px solid #b8b5b9;
+    padding-inline-start: var(--space-4);
+    margin-inline-start: var(--space-4);
+    color: var(--blockquote-colour);
+    p,
+    em,
+    strong,
+    li {
+        color: var(--blockquote-colour);
+    }
+}
+
+.withUnderQuote p:last-child {
+    color: var(--font-color);
+}
+
+.hidden {
+    visibility: hidden;
+}
+
+.display-none {
+    display: none;
+}
+
+.contents {
+    display: contents;
+}
+
+.disabled,
+[inert] {
+    @include kit.disabled;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner:not(.splash) {
+    position: relative;
+    &::before {
+        content: '';
+        box-sizing: border-box;
+        position: absolute;
+        border-radius: 50%;
+        z-index: kit.z('spinner');
+        border: 2px solid var(--spinner-color);
+        border-top-color: var(--spinner-side-color);
+        animation: spinner 0.6s linear infinite;
+        top: 50%;
+        left: 50%;
+        // Size from the single-source token, centred via negative
+        // half-margins. Applies to any host element — div, section, aside,
+        // ul — rather than a fixed list of them.
+        width: var(--spinner-size);
+        height: var(--spinner-size);
+        margin-top: calc(var(--spinner-size) / -2);
+        margin-left: calc(var(--spinner-size) / -2);
+    }
+}
+
+// Full-page spinner: pin to the viewport centre rather than the host element.
+// Size and centring come from the base rule above. body::before belongs to
+// this spinner alone — the page vignette hangs off html::before precisely so
+// the two can never share one pseudo-element (page-vignette in _mixins.scss).
+body:not(.splash).spinner::before {
+    position: fixed;
+}

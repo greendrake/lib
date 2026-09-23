@@ -1,0 +1,45 @@
+{
+    "name": "@greendrake/rpc-server",
+    "version": "0.1.0",
+    "description": "RPC server over JSON for bun: method dispatch with auth, nonce and Standard Schema argument validation, HTTP and WebSocket transports, connection registry and server push",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "rpc-server"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/rpc-server#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/rpc": "workspace:*",
+        "@standard-schema/spec": "^1.1.0"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "typescript": "6.0.3"
+    }
+}

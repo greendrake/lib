@@ -1,0 +1,26 @@
+{
+    "name": "@greendrake/example-service-api",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Example service-state backend: the mocked service, its dispatch table and the bun server that exposes it over HTTP and WebSocket",
+    "type": "module",
+    "scripts": {
+        "dev": "bun --watch src/main.ts",
+        "start": "bun src/main.ts",
+        "check": "tsc --noEmit",
+        "test": "bun test"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/rpc-server": "workspace:*",
+        "@greendrake/server": "workspace:*",
+        "@greendrake/service-state": "workspace:*",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@greendrake/rpc": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "typescript": "6.0.3"
+    }
+}

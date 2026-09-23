@@ -1,0 +1,43 @@
+@use '@greendrake/scss-kit' as kit;
+
+@include kit.font-faces(
+    'Inter',
+    (
+        100: (
+            normal: url('./fonts/Inter-Thin.woff2'),
+            italic: url('./fonts/Inter-ThinItalic.woff2')
+        ),
+        200: (
+            normal: url('./fonts/Inter-ExtraLight.woff2'),
+            italic: url('./fonts/Inter-ExtraLightItalic.woff2')
+        ),
+        300: (
+            normal: url('./fonts/Inter-Light.woff2'),
+            italic: url('./fonts/Inter-LightItalic.woff2')
+        ),
+        400: (
+            normal: url('./fonts/Inter-Regular.woff2'),
+            italic: url('./fonts/Inter-Italic.woff2')
+        ),
+        500: (
+            normal: url('./fonts/Inter-Medium.woff2'),
+            italic: url('./fonts/Inter-MediumItalic.woff2')
+        ),
+        600: (
+            normal: url('./fonts/Inter-SemiBold.woff2'),
+            italic: url('./fonts/Inter-SemiBoldItalic.woff2')
+        ),
+        700: (
+            normal: url('./fonts/Inter-Bold.woff2'),
+            italic: url('./fonts/Inter-BoldItalic.woff2')
+        ),
+        800: (
+            normal: url('./fonts/Inter-ExtraBold.woff2'),
+            italic: url('./fonts/Inter-ExtraBoldItalic.woff2')
+        ),
+        900: (
+            normal: url('./fonts/Inter-Black.woff2'),
+            italic: url('./fonts/Inter-BlackItalic.woff2')
+        )
+    )
+);

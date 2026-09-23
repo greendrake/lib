@@ -1,0 +1,48 @@
+{
+    "name": "@greendrake/ui-data",
+    "version": "0.1.0",
+    "description": "Data-heavy dashboard components: virtualized InfiniteScrollTable, CrudPanel/MasterDetail, record editing and the admin-CRUD kit",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "ui-data"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/ui-data#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/scss-kit": "workspace:*",
+        "@greendrake/ui": "workspace:*"
+    },
+    "peerDependencies": {
+        "vue": "^3.5.34"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-tsc": "^2.2.0"
+    }
+}
