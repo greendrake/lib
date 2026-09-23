@@ -1,8 +1,8 @@
 # @greendrake packages
 
-Both halves of a TypeScript application that talks to itself over a socket. On the frontend, the `@greendrake/*` packages a Vue 3 + Vite single-page app — a dashboard in particular — composes from: an RPC client and its Vue binding, an SPA bootstrap, a dashboard shell, a component library with data-heavy widgets, design tokens and SCSS primitives, and the Vite, TypeScript, ESLint and Playwright configuration that builds and tests them. On the backend, the server end of the same wire format, and the scaffolding a service binary needs around it.
+TypeScript packages for building web applications — Vue 3 + Vite frontends, bun backends, and the typed wire between them. Each addresses one recurring problem, and an application takes only the ones it has: an RPC client and server over HTTP and WebSocket with live server push, and a Vue binding for it; an SPA bootstrap and a dashboard shell; a component library with data-heavy widgets; design tokens and SCSS primitives; service scaffolding with health probes and a graceful shutdown; and the Vite, TypeScript, ESLint and Playwright configuration that builds and tests the result.
 
-They are published for anyone building that kind of thing, and developed against applications that exercise them rather than in the abstract. This repository is a one-way mirror of their source, synchronised from the monorepo those applications live in; releases go to npm from there, all packages at one version. Issues are welcome here; a pull request is applied upstream and arrives back with the next sync.
+They are developed against real applications rather than in the abstract, and published for anyone whose application has the problems they solve. This repository is a one-way mirror of their source, synchronised from the monorepo they are developed in; releases go to npm from there, all packages at one version. Issues are welcome here; a pull request is applied upstream and arrives back with the next sync.
 
 ## Packages
 
@@ -47,7 +47,7 @@ Styles are Sass, imported by bare specifier (`@use '@greendrake/theme'`); `@gree
 
 ## A pair, end to end
 
-[`examples/service-pair`](examples/service-pair) is a complete dashboard and the backend it talks to, built from nothing but these packages: a dispatch table with per-method auth and schema-validated arguments, an HTTP endpoint and a WebSocket one over it, health probes and a graceful shutdown, and a Vue dashboard whose one control follows the service's state live rather than polling for it. It has its own test at both levels — the API driven by the client the dashboard bundles, and the whole thing through a browser — and CI runs both on every push here.
+[`examples/service-pair`](examples/service-pair) shows several of the packages working together — a demonstration, not the edge of what they are for. It is a complete dashboard and the backend it talks to, built from nothing but these packages: a dispatch table with per-method auth and schema-validated arguments, an HTTP endpoint and a WebSocket one over it, health probes and a graceful shutdown, and a Vue dashboard whose one control follows the service's state live rather than polling for it. It has its own test at both levels — the API driven by the client the dashboard bundles, and the whole thing through a browser — and CI runs both on every push here.
 
 Each package's README documents the rest: the wire format, transports and live bindings (`@greendrake/rpc`, `@greendrake/rpc-server`, `@greendrake/vue-api`), the dispatch table and push registry (`@greendrake/rpc-server`), the service binary's probes and shutdown (`@greendrake/server`), the components and their styling contract (`@greendrake/ui`, `@greendrake/theme`), the data table and CRUD kit (`@greendrake/ui-data`), the app bootstrap (`@greendrake/vue-app`, `@greendrake/dash`) and the Playwright kit (`@greendrake/e2e`).
 
