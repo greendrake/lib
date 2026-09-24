@@ -1,7 +1,7 @@
 import { createApp, ref, watch, watchEffect, type App as VueApp, type Component, type Plugin } from 'vue'
 import { createPinia, type PiniaPlugin } from 'pinia'
 import { createRouter, createWebHistory, type NavigationGuardReturn, type RouteLocationNormalized, type RouteRecordRaw, type Router } from 'vue-router'
-import { getReadyStatePromise } from '@greendrake/util'
+import { getReadyStatePromise } from '@greendrake/util/browser'
 import { configureApiUX, useExceptionState } from '@greendrake/vue-api'
 import { useAppState } from '@greendrake/vue-kit'
 import { preload, takePrimed } from './prefetch'

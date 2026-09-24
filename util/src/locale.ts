@@ -8,4 +8,4 @@
 // be able to disagree.
 export const RTL_LANGUAGES: readonly string[] = ['ar', 'fa', 'he', 'ur', 'ps', 'sd', 'ug', 'yi']
 
-export const isRTLLocale = (tag: string): boolean => RTL_LANGUAGES.includes(tag.split('-')[0])
+export const isRTLLocale = (tag: string): boolean => RTL_LANGUAGES.includes(tag.replace(/-.*/, ''))

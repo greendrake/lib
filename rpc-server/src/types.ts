@@ -97,7 +97,9 @@ export type ClientMethods<M extends Methods> = {
 // response with its request, and the frames the server pushes unasked.
 export interface WsResponse extends RpcResponse {
     type: 'response'
-    id?: string
+    // Undefined answering a frame whose id could not be read — one that did
+    // not parse — and dropped from the wire by JSON, like an absent one.
+    id?: string | undefined
 }
 
 export interface EventFrame {

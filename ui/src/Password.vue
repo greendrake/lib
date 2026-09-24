@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, nextTick } from 'vue'
-import { hasFinePointer } from '@greendrake/util'
+import { hasFinePointer } from '@greendrake/util/browser'
 import FixAndroidTyping from './FixAndroidTyping'
 
 const showPassword = ref(false)

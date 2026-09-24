@@ -11,7 +11,7 @@ export class RpcClient<M extends MethodMapConstraint<M> = MethodMap> {
     // Supplies the caller's UI language tag per request. Evaluated per call,
     // like HttpTransport's headers provider, so a locale switch takes effect on
     // the next call rather than at construction.
-    readonly #locale?: () => string | undefined
+    readonly #locale: (() => string | undefined) | undefined
 
     constructor(transport: Transport, locale?: () => string | undefined) {
         this.transport = transport

@@ -25,7 +25,7 @@ export class HttpTransport implements Transport {
         const response = await safeFetch(this.#options.url, {
             ...this.#options.requestInit,
             method: 'POST',
-            headers: this.#options.headers?.(),
+            headers: this.#options.headers?.() ?? {},
             body: this.#codec.encode(JSON.stringify(request))
         })
         const text = this.#codec.decode(await response.text())

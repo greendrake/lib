@@ -23,7 +23,7 @@ export interface VueSpaOptions {
     // Compile-time globals; values are serialized automatically (strings become
     // string literals, booleans become true/false, objects become object
     // literals — e.g. the ApiTargetEnv carried by __API_TARGET_ENV__).
-    define?: Record<string, string | number | boolean | object | null | undefined>
+    define?: Record<string, string | number | boolean | object | null | undefined> | undefined
     // Extra scss @use resolution roots (e.g. the app's src/scss).
     scssLoadPaths?: string[]
     // 'env' (default): the strict VITE_PORT convention, required when the dev
@@ -48,10 +48,10 @@ export interface VueSpaOptions {
     // source-shipped by construction — an app with source packages of its own
     // names them here, and must name the @greendrake scope again if it uses
     // any.
-    sourcePackages?: string[]
+    sourcePackages?: string[] | undefined
     // Deep-merged last over the preset — the escape hatch for anything
     // app-specific (server.proxy, extra plugins, build tweaks).
-    overrides?: UserConfig
+    overrides?: UserConfig | undefined
 }
 
 // The libraries the app and every component package it renders must share one
@@ -89,11 +89,11 @@ export const vueSpa =
         // none (and never serves) must not be made to produce one.
         const portPin = command === 'serve' && options.port !== false ? { port: typeof options.port === 'number' ? options.port : requirePort(), strictPort: true } : undefined
         const base: UserConfig = {
-            define: options.define && Object.fromEntries(Object.entries(options.define).map(([key, value]) => [key, JSON.stringify(value)])),
+            ...(options.define && { define: Object.fromEntries(Object.entries(options.define).map(([key, value]) => [key, JSON.stringify(value)])) }),
             plugins: [vue(), hmrCircularImportGuard(), ...(options.staticRoots?.length ? [staticRootsPlugin(options.staticRoots)] : []), ...(options.htmlPlaceholders ? [htmlPlaceholders(options.htmlPlaceholders)] : []), ...(options.htmlMinify ? [htmlMinify()] : [])],
-            server:
-                command === 'serve'
-                    ? {
+            ...(command === 'serve'
+                ? {
+                      server: {
                           ...portPin,
                           // '..' reaches the workspace an app sits directly
                           // inside. Anything the dev server must read from
@@ -104,10 +104,11 @@ export const vueSpa =
                           // refused.
                           fs: { allow: ['..', ...(options.staticRoots ?? []).map(root => root.dir)] }
                       }
-                    : undefined,
+                  }
+                : {}),
             // vite preview also loads with command 'serve'; pin it to the same
             // port convention so E2E runs are deterministic.
-            preview: portPin,
+            ...(portPin && { preview: portPin }),
             resolve: {
                 alias: { '@': path.resolve(options.dirname, './src') },
                 dedupe: FRAMEWORK
@@ -131,13 +132,13 @@ export const vueSpa =
                 exclude: allDeps.filter(isSourcePackage),
                 include: [...new Set([...FRAMEWORK.filter(name => allDeps.includes(name)), ...nestedDependencies(options.dirname, deps, isSourcePackage)])]
             },
-            css: options.scssLoadPaths
-                ? {
-                      preprocessorOptions: {
-                          scss: { loadPaths: options.scssLoadPaths }
-                      }
-                  }
-                : undefined,
+            ...(options.scssLoadPaths && {
+                css: {
+                    preprocessorOptions: {
+                        scss: { loadPaths: options.scssLoadPaths }
+                    }
+                }
+            }),
             build: {
                 rolldownOptions: {
                     output: {

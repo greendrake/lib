@@ -1,0 +1,8 @@
+{
+    // The one file here that runs outside a browser, and so the one a
+    // consumer's vite config compiles under that consumer's own options — under
+    // bun, which is what runs a vite config that imports TypeScript from here.
+    "extends": ["@greendrake/dev-config/tsconfig/node.json", "@greendrake/dev-config/tsconfig/strict.json"],
+    "compilerOptions": { "types": ["bun"] },
+    "include": ["src/vite.ts"]
+}

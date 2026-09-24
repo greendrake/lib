@@ -18,6 +18,7 @@
         "./tsconfig/base.json": "./tsconfig/base.json",
         "./tsconfig/vue.json": "./tsconfig/vue.json",
         "./tsconfig/node.json": "./tsconfig/node.json",
+        "./tsconfig/strict.json": "./tsconfig/strict.json",
         "./eslint": "./eslint.config.js",
         "./prettier": "./prettier.config.js"
     },

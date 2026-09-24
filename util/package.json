@@ -20,6 +20,10 @@
         ".": {
             "types": "./src/main.ts",
             "default": "./src/main.ts"
+        },
+        "./browser": {
+            "types": "./src/browser.ts",
+            "default": "./src/browser.ts"
         }
     },
     "files": [

@@ -8,7 +8,7 @@ The server half of the [`@greendrake/rpc`](../rpc) wire format: one dispatch tab
 bun add @greendrake/rpc-server
 ```
 
-TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d.ts`). Extend `@greendrake/dev-config/tsconfig/base.json` with `"types": ["bun"]` — base rather than the node config because `@greendrake/rpc`, the client this serves and whose wire types it imports, is the same code a browser runs and needs the DOM lib.
+TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d.ts`). Extend `@greendrake/dev-config/tsconfig/node.json` with `"types": ["bun"]`, and `strict.json` over it if you like: this package checks itself under both, without the DOM lib, so neither it nor `@greendrake/rpc` — the client this serves, whose wire types it imports — asks anything of your options.
 
 ## A service, whole
 

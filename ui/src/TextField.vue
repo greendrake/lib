@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, inject, type Component } from 'vue'
-import { hasFinePointer } from '@greendrake/util'
+import { hasFinePointer } from '@greendrake/util/browser'
 import FieldTip from './FieldTip'
 import FixAndroidTyping from './FixAndroidTyping'
 import { validationScopeKey } from './validationScope'

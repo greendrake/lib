@@ -42,7 +42,7 @@ export const staticRoots = (roots: StaticRoot[]): Plugin => ({
 
     configureServer(server) {
         server.middlewares.use((req, res, next) => {
-            const url = (req.url ?? '').split('?')[0]
+            const url = (req.url ?? '').replace(/\?.*/, '')
             const root = roots.find(r => url.startsWith(`${r.urlPath}/`))
             if (!root) {
                 next()

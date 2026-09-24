@@ -36,7 +36,7 @@
         "access": "public"
     },
     "scripts": {
-        "check": "vue-tsc --noEmit"
+        "check": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.vite.json"
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {

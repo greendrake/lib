@@ -151,7 +151,7 @@ document.documentElement.dir = isRTLLocale(navigator.language) ? 'rtl' : 'ltr'
 
 ## DOM and geolocation
 
-Importable in Node; these touch `document`, `window` and `navigator` only when called.
+The `./browser` entry, apart from the rest because their types are the DOM lib's: a program that type-checks without it — a bun service reaching this package through `@greendrake/rpc` — never compiles them. Importable in Node all the same; they touch `document`, `window` and `navigator` only when called.
 
 - `getReadyStatePromise()` — resolves when `document.readyState` reaches `'complete'` (immediately if it already has); one shared promise per module instance.
 - `hasFinePointer()` — `matchMedia('(hover: hover) and (pointer: fine)')`: true where the primary input is a mouse or trackpad rather than a finger. Serves as a proxy for "focusing a field will not raise an on-screen keyboard", which no platform exposes directly.
@@ -159,7 +159,7 @@ Importable in Node; these touch `document`, `window` and `navigator` only when c
 - `getUserLocation(): Promise<UserLocation>` — `navigator.geolocation.getCurrentPosition` with `timeout: LOCATION_TIMEOUT_MS` (5000) and `maximumAge: LOCATION_MAX_AGE_MS` (60000); resolves `{ latitude, longitude }`, rejects with the geolocation error, or with `Error('Location unknown')` when the position carries no coords. The two constants are exported so an app that obtains the position from a platform API instead uses the same numbers.
 
 ```ts
-import { getReadyStatePromise, getUserLocation, hasFinePointer, toggleFullscreen } from '@greendrake/util'
+import { getReadyStatePromise, getUserLocation, hasFinePointer, toggleFullscreen } from '@greendrake/util/browser'
 
 await getReadyStatePromise()
 if (hasFinePointer()) input.focus()

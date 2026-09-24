@@ -12,13 +12,15 @@ bun add -d @greendrake/dev-config
 
 ## TypeScript
 
-Three tsconfig entries, each with `noEmit`: they configure type-checking (`tsc --noEmit`, `vue-tsc --noEmit`), not emit — bundling is Vite's job.
+Three tsconfig entries, each with `noEmit`, and an overlay for any of them: they configure type-checking (`tsc --noEmit`, `vue-tsc --noEmit`), not emit — bundling is Vite's job.
 
 `./tsconfig/base.json` is the common ground: `target` and `module` `ESNext`, `moduleResolution: "bundler"`, `lib: ["ESNext", "DOM", "DOM.Iterable"]`, `strict`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `verbatimModuleSyntax`, `isolatedModules`, `esModuleInterop`, `skipLibCheck`, `resolveJsonModule`, `noEmit`. Framework-free browser libraries extend it directly.
 
 `./tsconfig/vue.json` extends `base.json` with `jsx: "preserve"` and `jsxImportSource: "vue"`, and sets `vueCompilerOptions` for vue-tsc: `strictTemplates: true` plus `dataAttributes: ["data-*"]`. Strict templates reject `data-*` attributes by default; they are standard HTML and several `@greendrake/ui` components rely on them. The allowance lives in the shared config rather than in `@greendrake/ui` because a package consuming `@greendrake/ui` source type-checks its SFCs under the consumer's own `vueCompilerOptions`. Vue apps and Vue component libraries extend it.
 
 `./tsconfig/node.json` extends `base.json` with `lib: ["ESNext"]` (no DOM) and `types: ["node"]`; the consumer supplies `@types/node`. Node-only packages — tooling, scripts, servers — extend it.
+
+`./tsconfig/strict.json` is the overlay: `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noImplicitOverride` and `noImplicitReturns`, and nothing else, extended after one of the three (`"extends": ["@greendrake/dev-config/tsconfig/node.json", "@greendrake/dev-config/tsconfig/strict.json"]`). A package that ships source is compiled under whatever options its consumer runs, since TypeScript checks every file in a program under one set; the packages a service imports — `util`, `rpc`, `rpc-server`, `service-state` — and what a vite config imports — `vite-preset`, and `@greendrake/dash/vite` — check themselves under this overlay, so a consumer that turns these on compiles them as they are.
 
 ### Ambient types
 

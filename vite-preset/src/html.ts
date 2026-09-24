@@ -14,7 +14,7 @@ export const htmlPlaceholders = (map: Record<string, string>): Plugin => {
         name: 'greendrake-html-placeholders',
         transformIndexHtml: {
             order: 'pre',
-            handler: html => html.replace(pattern, match => map[match])
+            handler: html => html.replace(pattern, match => map[match] ?? match)
         }
     }
 }

@@ -1,0 +1,10 @@
+{
+    // An overlay rather than a base: extended after one of the others, as
+    // ["…/node.json", "…/strict.json"], it adds these and changes nothing else.
+    "compilerOptions": {
+        "exactOptionalPropertyTypes": true,
+        "noUncheckedIndexedAccess": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true
+    }
+}

@@ -10,7 +10,7 @@
 // engines with partial inert support, with first/last Tab wrapping), initial
 // focus moves into the modal, and closing restores focus to the invoker.
 // Centralised here — not per-modal — so only the top-most modal ever traps.
-import { hasFinePointer } from '@greendrake/util'
+import { hasFinePointer } from '@greendrake/util/browser'
 
 type CloseHandler = () => void
 

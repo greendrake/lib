@@ -19,7 +19,7 @@ export const clientIp = <T>(request: Request, server: Server<T>): string => {
     if (forwarded) {
         // The left-most entry is the original client; the rest are the proxies
         // it passed through.
-        return forwarded.split(',')[0].trim()
+        return forwarded.replace(/,.*/, '').trim()
     }
     return request.headers.get('x-real-ip') ?? server.requestIP(request)?.address ?? ''
 }
