@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/scss-kit",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Framework-free SCSS primitives: breakpoints (single-sourced with TS via codegen), z-layer map, icon-mask registry, @font-face generator, misc mixins",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

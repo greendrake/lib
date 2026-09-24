@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/server",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Service-binary scaffolding for bun: dependency health probes with /healthz + /readyz, CORS, and the SIGTERM-driven graceful-shutdown sequence",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

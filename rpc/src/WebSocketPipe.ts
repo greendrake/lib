@@ -30,13 +30,13 @@ const DEFAULT_RECONNECT_DELAY_MS = 3000
 export class WebSocketPipe extends Emitter<WebSocketPipeEvents> {
     readonly #url: string
     readonly #delayMs: (attempt: number) => number
-    #ws?: WebSocket
+    #ws: WebSocket | undefined
     #promise?: Promise<void>
     // A reconnect waiting out its delay: the timer to cancel, and the resolver
     // that advances the armed promise into the attempt. Set only while
     // waiting — cleared the moment the attempt starts — so its presence is
     // exactly the condition reconnectNow() acts on.
-    #scheduledReconnect?: { timer: ReturnType<typeof setTimeout>; start: () => void }
+    #scheduledReconnect: { timer: ReturnType<typeof setTimeout>; start: () => void } | undefined
     #attempt = 0
     #disposed = false
 

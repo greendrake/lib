@@ -1,5 +1,8 @@
 {
-    "extends": "@greendrake/dev-config/tsconfig/base.json",
+    // What a service's own config looks like, with the overlay on: this one
+    // program compiles rpc-server, server, service-state and — through the
+    // tests — rpc together, the way a strict consumer would.
+    "extends": ["@greendrake/dev-config/tsconfig/node.json", "@greendrake/dev-config/tsconfig/strict.json"],
     "compilerOptions": { "types": ["bun"] },
     "include": ["src", "test"]
 }

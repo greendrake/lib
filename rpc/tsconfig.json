@@ -1,4 +1,4 @@
 {
-    "extends": "@greendrake/dev-config/tsconfig/base.json",
+    "extends": ["@greendrake/dev-config/tsconfig/base.json", "@greendrake/dev-config/tsconfig/strict.json"],
     "include": ["src", "test"]
 }

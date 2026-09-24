@@ -28,7 +28,7 @@ const ensureDecimals = (n: string, precision: number): string => {
 </script>
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { hasFinePointer } from '@greendrake/util'
+import { hasFinePointer } from '@greendrake/util/browser'
 
 const props = withDefaults(
     defineProps<{

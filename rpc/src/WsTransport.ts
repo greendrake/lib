@@ -58,7 +58,7 @@ interface PendingCall {
 export class WsTransport<PEvents extends PushMapConstraint<PEvents> = Record<never, never>, PData extends PushMapConstraint<PData> = Record<never, never>> implements Transport {
     readonly pipe: WebSocketPipe
     readonly #codec: Codec
-    readonly #auth?: WsAuthStrategy
+    readonly #auth: WsAuthStrategy | undefined
     // Who this transport is to be bound as — cached the moment the credential
     // is handed over, not once a bind succeeds. It states what every
     // connection of this transport should authenticate as, independently of
@@ -70,7 +70,7 @@ export class WsTransport<PEvents extends PushMapConstraint<PEvents> = Record<nev
     // each connection binds exactly once — authenticate() and the reconnect
     // handler converge on this record rather than both putting an auth frame
     // on the same socket.
-    #binding?: { token: string; done: Promise<unknown> }
+    #binding: { token: string; done: Promise<unknown> } | undefined
     // In-flight calls keyed by request id. A dropped socket never delivers
     // their responses, so they are failed explicitly on close.
     readonly #pending = new Map<string, PendingCall>()

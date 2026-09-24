@@ -11,7 +11,7 @@ export class NotFoundError extends OneOutcomeError {
     // gone — leaving anything that matches on codes (session teardown, the
     // bubbled-error list) unable to see a `*_NOT_FOUND` at all. Absent when the
     // app raises a not-found of its own, from a route that resolved to nothing.
-    readonly code?: string
+    readonly code: string | undefined
 
     constructor(code?: string) {
         super('Not found')

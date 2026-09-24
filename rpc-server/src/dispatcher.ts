@@ -20,7 +20,7 @@ export interface Dispatcher {
     // Exposed because the transports resolve credentials of their own — a
     // bearer header, a query parameter at the WebSocket handshake, an in-band
     // auth frame — before there is a request to dispatch.
-    readonly auth?: AuthResolver
+    readonly auth: AuthResolver | undefined
     dispatch(request: IncomingRequest, context: CallContext): Promise<RpcResponse>
 }
 
@@ -41,10 +41,10 @@ export const createDispatcher = (methods: Methods, options: DispatcherOptions = 
             }
             // Own properties only: a method named `toString` or `constructor`
             // is not a method this service serves.
-            if (!Object.hasOwn(methods, request.method)) {
+            const def = Object.hasOwn(methods, request.method) ? methods[request.method] : undefined
+            if (def === undefined) {
                 return failure('UNKNOWN_METHOD')
             }
-            const def = methods[request.method]
             if (def.auth !== 'none') {
                 if (context.auth.userId === null) {
                     return failure('AUTH_REQUIRED')

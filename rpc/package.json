@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/rpc",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "RPC client over JSON: typed method-map API, HTTP and reconnecting WebSocket transports, pluggable codec and headers, TTL response cache",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

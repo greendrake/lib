@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/ui-data",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Data-heavy dashboard components: virtualized InfiniteScrollTable, CrudPanel/MasterDetail, record editing and the admin-CRUD kit",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

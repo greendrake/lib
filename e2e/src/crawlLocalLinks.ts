@@ -5,7 +5,7 @@ import { expect, type Page } from '@playwright/test'
 // fail on any uncaught page error. Returns the visited paths for reporting.
 
 const hasFileExtension = (url: string): boolean => {
-    const pathname = url.split('?')[0].split('#')[0]
+    const pathname = url.replace(/[?#].*/, '')
     const lastSegment = pathname.split('/').pop()
     return !!lastSegment && lastSegment.includes('.') && !lastSegment.startsWith('.')
 }
@@ -100,7 +100,7 @@ export const crawlLocalLinks = async (page: Page, origin: string): Promise<strin
         // Collect same-origin page links for the crawl queue.
         const links = await page.evaluate(() => {
             const fileExt = (url: string): boolean => {
-                const pathname = url.split('?')[0].split('#')[0]
+                const pathname = url.replace(/[?#].*/, '')
                 const lastSegment = pathname.split('/').pop()
                 return !!lastSegment && lastSegment.includes('.') && !lastSegment.startsWith('.')
             }

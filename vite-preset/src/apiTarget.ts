@@ -17,9 +17,11 @@
 export interface ApiTargetEnv {
     // True under `vite dev` (command === 'serve'); false in production builds.
     dev: boolean
-    apiPort?: string
-    publicFeHost?: string
-    publicApiHost?: string
+    // Undefined as readily as absent: each is an environment variable, which
+    // is either set or not.
+    apiPort?: string | undefined
+    publicFeHost?: string | undefined
+    publicApiHost?: string | undefined
     // Endpoint paths appended to the resolved origin (defaults /v1/api and
     // /v1/ws). A backend that routes POST at the host root sets apiPath: ''.
     apiPath?: string

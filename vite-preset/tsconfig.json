@@ -1,5 +1,5 @@
 {
-    "extends": "@greendrake/dev-config/tsconfig/node.json",
+    "extends": ["@greendrake/dev-config/tsconfig/node.json", "@greendrake/dev-config/tsconfig/strict.json"],
     "compilerOptions": {
         // node.json pins "types" to node only; the unit tests need bun:test.
         "types": ["node", "bun"]

@@ -11,7 +11,7 @@ export interface StalenessEvents {
 // drops and 'stale' fires. Events fire only on transitions.
 export class StalenessDetector extends Emitter<StalenessEvents> {
     #ttlMs: number
-    #timeout?: ReturnType<typeof setTimeout>
+    #timeout: ReturnType<typeof setTimeout> | undefined
     #fresh = false
 
     constructor(ttlMs: number) {

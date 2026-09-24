@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 
 // The parts of a package.json this walk reads.
@@ -16,11 +16,14 @@ export interface DeclaredDependencies {
 }
 
 // Where the installer put a package: the nearest node_modules at or above
-// `from` holding it.
+// `from` holding it, as the real path behind whatever link reached it. That is
+// where its own dependencies are found from — an isolated install (bun's, pnpm's)
+// puts them beside the package's real directory, not beside the link an app's
+// node_modules holds — and it is what Node and Vite resolve from too.
 const packageDir = (from: string, name: string): string => {
     for (let dir = from; ; dir = path.dirname(dir)) {
         const candidate = path.join(dir, 'node_modules', name)
-        if (existsSync(path.join(candidate, 'package.json'))) return candidate
+        if (existsSync(path.join(candidate, 'package.json'))) return realpathSync(candidate)
         if (path.dirname(dir) === dir) throw new Error(`${name} is declared but not installed anywhere above ${from}`)
     }
 }

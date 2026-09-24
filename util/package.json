@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/util",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, misc",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -20,6 +20,10 @@
         ".": {
             "types": "./src/main.ts",
             "default": "./src/main.ts"
+        },
+        "./browser": {
+            "types": "./src/browser.ts",
+            "default": "./src/browser.ts"
         }
     },
     "files": [

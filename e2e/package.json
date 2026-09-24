@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/e2e",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Playwright kit for single-page apps: config factories, a same-origin crawler, a clipped-content detector, a polling helper and a layout checker",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

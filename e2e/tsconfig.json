@@ -1,5 +1,7 @@
 {
-    "extends": "@greendrake/dev-config/tsconfig/base.json",
+    // The DOM lib stays: the crawler and the clipped-content check hand
+    // functions to page.evaluate, which run in the browser under test.
+    "extends": ["@greendrake/dev-config/tsconfig/base.json", "@greendrake/dev-config/tsconfig/strict.json"],
     "compilerOptions": { "types": ["bun"] },
     "include": ["src"]
 }

@@ -20,7 +20,7 @@ export interface CacheLookup {
 // in-session.
 export class ResponseCache {
     readonly #config: CacheConfig
-    readonly #scope?: () => string | undefined
+    readonly #scope: (() => string | undefined) | undefined
     readonly #entries = new Map<string, CacheEntry>()
 
     // `scope` names the request property that is not an argument yet decides

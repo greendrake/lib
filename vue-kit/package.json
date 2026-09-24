@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/vue-kit",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Vue/Pinia building blocks: app loading state, media queries, collection-store factory",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

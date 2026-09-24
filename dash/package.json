@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/dash",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -36,7 +36,7 @@
         "access": "public"
     },
     "scripts": {
-        "check": "vue-tsc --noEmit"
+        "check": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.vite.json"
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {

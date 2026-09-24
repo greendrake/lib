@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { vueSpa, type VueSpaOptions } from '../src/main'
@@ -47,7 +47,9 @@ const appRoot = ({ dependencies = {}, devDependencies = {}, installed = {}, miss
 }
 
 // `build` rather than `serve`, so the VITE_PORT requirement stays out of it.
-const optimizeDeps = (fixture: Fixture, options: Partial<VueSpaOptions> = {}) => vueSpa({ dirname: appRoot(fixture), ...options })({ command: 'build', mode: 'prod' }).optimizeDeps
+const optimizeDepsAt = (root: string, options: Partial<VueSpaOptions> = {}) => vueSpa({ dirname: root, ...options })({ command: 'build', mode: 'prod' }).optimizeDeps
+
+const optimizeDeps = (fixture: Fixture, options: Partial<VueSpaOptions> = {}) => optimizeDepsAt(appRoot(fixture), options)
 
 // An app whose own source packages are a scope of its own, so what is pinned
 // into the pre-bundle can be read off the fixture rather than off the default.
@@ -189,6 +191,23 @@ describe('which dependencies are pinned into the pre-bundle', () => {
             ACME
         )?.include
         expect(include).toEqual(['@acme/editor > rooted'])
+    })
+
+    test('found beside the real directory of a package an isolated install links in', () => {
+        // bun's and pnpm's layout: the app's node_modules holds a link into a
+        // store, and what the linked package depends on sits beside its real
+        // directory there — nowhere above the link itself.
+        const root = appRoot({ dependencies: { '@acme/ui': '1.0.0' }, missing: ['@acme/ui'] })
+        const store = path.join(root, 'node_modules', '.store', 'node_modules')
+        const install = (name: string, manifest: Manifest): void => {
+            mkdirSync(path.join(store, name), { recursive: true })
+            writeFileSync(path.join(store, name, 'package.json'), JSON.stringify({ name, ...manifest }))
+        }
+        install('@acme/ui', { dependencies: { 'tooltip-lib': '6.0.0' } })
+        install('tooltip-lib', {})
+        mkdirSync(path.join(root, 'node_modules', '@acme'))
+        symlinkSync(path.join(store, '@acme', 'ui'), path.join(root, 'node_modules', '@acme', 'ui'))
+        expect(optimizeDepsAt(root, ACME)?.include).toEqual(['@acme/ui > tooltip-lib'])
     })
 
     test('a source package declared but never installed is an error, not a gap in the list', () => {

@@ -10,7 +10,7 @@ export interface SelectBoxOption<T extends string | number = string | number> {
 </script>
 <script setup lang="ts" generic="T extends string | number">
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
-import { hasFinePointer } from '@greendrake/util'
+import { hasFinePointer } from '@greendrake/util/browser'
 import { messages } from './messages'
 
 // Single-select dropdown: string|number values, optional clear button,
