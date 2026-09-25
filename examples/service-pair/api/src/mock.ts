@@ -4,6 +4,10 @@ import type { ServiceCommand, ServiceImplementation, ServiceState } from '@green
 // that STARTING and STOPPING are states a person sees, rather than frames.
 export const TRANSITION_MS = 3000
 
+// What the service is called on the wire: what a dashboard's control names to
+// reach it, and what its pushes carry.
+export const MOCK_SERVICE = 'mock'
+
 export interface MockService extends ServiceImplementation {
     // Arm the next `start` or `stop` to fail, so ERROR is reachable without
     // breaking anything. The `mock.fail_next` method exposes it.

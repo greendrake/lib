@@ -7,7 +7,12 @@ const tabs: DashTab[] = [
         id: 'service',
         label: 'Service',
         component: ServiceStateControl,
-        props: { api, transport }
+        props: {
+            // The name the API registers its mocked service under.
+            service: 'mock',
+            api,
+            transport
+        }
     }
 ]
 

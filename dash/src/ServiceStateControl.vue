@@ -19,7 +19,8 @@ const COMMANDS: Partial<Record<ServiceState, StateCommand>> = {
 // One backend service, live: its state, why it failed if it did, and the one
 // command that state accepts. The state comes from the server's pushes, so
 // every operator watching sees the same thing at the same time — including
-// transitions somebody else started.
+// transitions somebody else started. Several controls can share one api and
+// transport, each following the service it names.
 import { computed, onMounted, ref } from 'vue'
 import { Loading } from '@greendrake/ui'
 import { SERVICE_STATE_EVENT, type ServiceStatePushes, type ServiceStatus } from '@greendrake/service-state'
@@ -27,6 +28,10 @@ import type { WsTransport } from '@greendrake/rpc'
 import { backgroundCall, useLive, type ApiClient, type CallOptions } from '@greendrake/vue-api'
 
 const props = defineProps<{
+    // Which of the backend's services this is: every call names it, and it is
+    // what this control's pushes are told apart by on a socket shared with
+    // others.
+    service: string
     api: ApiClient<ServiceStateMethods>
     transport: WsTransport<ServiceStatePushes>
 }>()
@@ -37,13 +42,18 @@ const busy = ref(false)
 const command = computed(() => (status.value ? COMMANDS[status.value.state] : undefined))
 
 const read = async (call?: CallOptions): Promise<void> => {
-    status.value = await props.api.call('service.status', [], call)
+    status.value = await props.api.call('service.status', [{ service: props.service }], call)
 }
 
 onMounted(() => read())
 
 useLive(props.transport, {
-    events: { [SERVICE_STATE_EVENT]: { apply: (data: ServiceStatus) => (status.value = data) } },
+    events: {
+        [SERVICE_STATE_EVENT]: {
+            when: (data: ServiceStatus) => data.service === props.service,
+            apply: (data: ServiceStatus) => (status.value = data)
+        }
+    },
     // A socket that dropped missed whatever changed while it was gone, and the
     // state it comes back to may be nothing like the one it left. In the
     // background: nobody asked for this read.
@@ -51,7 +61,7 @@ useLive(props.transport, {
 })
 
 const run = async (method: StateCommand['method']): Promise<void> => {
-    status.value = await props.api.call(method, [], { pending: busy })
+    status.value = await props.api.call(method, [{ service: props.service }], { pending: busy })
 }
 </script>
 <template>
