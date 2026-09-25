@@ -6,6 +6,7 @@
 /// <reference path="./styles.d.ts" />
 import './style.scss'
 import type { RouteRecordRaw } from 'vue-router'
+import { apiUXHooks } from '@greendrake/vue-api'
 import { createSpaApp, type SpaApp } from '@greendrake/vue-app'
 import DashRoot from './DashRoot.vue'
 
@@ -27,7 +28,8 @@ export const createDash = (config: DashConfig): SpaApp => {
         root: DashRoot,
         rootProps: { splash: config.splash, suspense: config.suspense },
         routes: config.routes,
-        ready: config.ready
+        ready: config.ready,
+        ...apiUXHooks
     })
     app.run()
     return app

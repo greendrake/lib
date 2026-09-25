@@ -34,13 +34,12 @@ export default defineConfig(
 | `scssLoadPaths` | Extra `@use` resolution roots for Sass (e.g. the app's `src/scss`). |
 | `port` | `'env'` (default): `VITE_PORT` is required whenever a server starts. A number pins that port. `false` disables pinning, for an app served on any free port. |
 | `htmlPlaceholders` | Literal substitutions applied to `index.html` before Vite processes it (see `htmlPlaceholders` below). |
-| `htmlMinify` | Minify `index.html`, inline scripts and styles included, in production builds. |
 | `staticRoots` | Directories outside the app served at public URL prefixes (see `staticRoots` below). |
 | `overrides` | A `UserConfig` deep-merged last — the escape hatch for `server.proxy`, extra plugins, build tweaks. |
 
 What the preset sets:
 
-- plugins: `@vitejs/plugin-vue` and the HMR circular-import guard, plus the `staticRoots`, `htmlPlaceholders` and `htmlMinify` plugins when their options are given;
+- plugins: `@vitejs/plugin-vue` and the HMR circular-import guard, plus the `staticRoots` and `htmlPlaceholders` plugins when their options are given;
 - `server.port`/`preview.port` from `VITE_PORT` with `strictPort`, for `vite dev` and `vite preview` only — builds run in deploy contexts that never define a dev port;
 - `server.fs.allow`: the parent of the app root (a workspace), and every static root's directory;
 - `resolve.alias`: `@` → `<dirname>/src`; `resolve.dedupe`: `vue`, `pinia`, `vue-router` — each must also be a direct dependency of the app, or Vite fails to resolve it;
@@ -87,10 +86,6 @@ import { loadAppEnv, requirePort, envBool, deriveImageBaseUrl, apiTargetEnv, bui
 ### `htmlPlaceholders(map)`
 
 Substitutes build-time values into `index.html` before Vite processes it — a generated inline script, a build hash, PWA metadata. Keys are matched literally (convention: `__NAME__`); an empty map is an error. `vueSpa`'s `htmlPlaceholders` option installs it.
-
-### `htmlMinify()`
-
-Production-only: collapses whitespace, strips comments, minifies inline JS and CSS in `index.html`. Dev keeps the source readable. Installed by the `htmlMinify` option.
 
 ### `staticRoots(roots)` and `staticRootFiles(root)`
 

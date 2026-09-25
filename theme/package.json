@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/theme",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Design tokens, document-level element styling, a light/dark theming mixin and an opt-in dashboard palette",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

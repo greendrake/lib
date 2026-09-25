@@ -8,7 +8,7 @@ SPA bootstrap for Vue 3: one `createSpaApp()` call assembles the Vue app, Pinia 
 bun add @greendrake/vue-app vue vue-router pinia
 ```
 
-Builds on `@greendrake/vue-kit` (the app loading state), `@greendrake/vue-api` (error UX) and `@greendrake/util`.
+Builds on `@greendrake/vue-kit` (the app loading state) and `@greendrake/util`.
 
 ## `createSpaApp(options)`
 
@@ -39,8 +39,18 @@ app.run()
 | `routeClasses` | Maintain a `route-<name>` class on `<body>` for per-route styling. |
 | `beforeRoute(to, from)` | Runs before every navigation, ahead of the route's data fetch. A returned redirect, `RouteLocation` or `false` short-circuits; `undefined`/`true` proceed. |
 | `ready` | `() => Promise[]` — init work the boot splash must outlast (config fetch, locale load). |
+| `onRouter(router)` | Runs once the router exists, before mount — for a layer that navigates on its own account, such as an error UX's "go home". |
+| `onBootError(error)` | Where a failed boot is reported (see Boot sequence). Without it the failure is rethrown as an unhandled rejection. |
 
 An unknown option is an error.
+
+With `@greendrake/vue-api`, spread its `apiUXHooks` into the options: the not-found toast's "To the home page" then navigates through this router — which also lets stores and other non-component modules navigate home without importing the app module — and a failed boot shows as that package's error toast.
+
+```ts
+import { apiUXHooks } from '@greendrake/vue-api'
+
+createSpaApp({ root: Root, routes, ...apiUXHooks })
+```
 
 The returned `SpaApp`:
 
@@ -52,9 +62,7 @@ The returned `SpaApp`:
 
 ### Boot sequence
 
-The global loading slot (`useAppState` from `@greendrake/vue-kit`) is held from construction. `index.html` ships `<body class="splash">`, so the pre-JS splash is visible before the watcher takes over; while the slot is held the body carries `splash` (first load) or `spinner` (later), and both are removed when it clears. `run()` mounts, awaits `ready()` plus document readiness, waits for the first paint to commit, and releases the slot. A failed `ready` still settles `initDone` — nothing downstream may wait forever behind a splash that never lifts — and hands the error to `@greendrake/vue-api`'s exception state, which shows it.
-
-`@greendrake/vue-api`'s "navigate home" sink is wired to the router here, so stores and other non-component modules can navigate home without importing the app module.
+The global loading slot (`useAppState` from `@greendrake/vue-kit`) is held from construction. `index.html` ships `<body class="splash">`, so the pre-JS splash is visible before the watcher takes over; while the slot is held the body carries `splash` (first load) or `spinner` (later), and both are removed when it clears. `run()` mounts, awaits `ready()` plus document readiness, waits for the first paint to commit, and releases the slot. A failed `ready` still settles `initDone` — nothing downstream may wait forever behind a splash that never lifts — and hands the error to `onBootError`.
 
 Scroll behaviour: back/forward restores the saved position; a hash scrolls to its element; any other navigation starts at the top.
 

@@ -8,6 +8,7 @@
         "dev-config",
         "domains",
         "e2e",
+        "eslint-config",
         "examples/service-pair/api",
         "examples/service-pair/dash",
         "fonts/inter",
@@ -33,7 +34,7 @@
         "e2e": "(cd examples/service-pair/dash && bun --bun playwright test)"
     },
     "devDependencies": {
-        "@greendrake/dev-config": "workspace:*",
+        "@greendrake/eslint-config": "workspace:*",
         "@types/bun": "^1.3.5",
         "eslint": "^9.22.0"
     }

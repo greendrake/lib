@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/rpc-server",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "RPC server over JSON for bun: method dispatch with auth, nonce and Standard Schema argument validation, HTTP and WebSocket transports, connection registry and server push",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

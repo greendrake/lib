@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/service-state",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "A backend service as a state machine (OFF/STARTING/ON/STOPPING/ERROR): the wire contract both halves share, and the server-side machine behind it",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

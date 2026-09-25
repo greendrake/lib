@@ -10,7 +10,7 @@ They are developed against real applications rather than in the abstract, and pu
 
 | Package | What it is |
 | --- | --- |
-| [`@greendrake/dev-config`](dev-config) | TypeScript, ESLint and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than rule sets to copy |
+| [`@greendrake/dev-config`](dev-config) | TypeScript and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy |
 | [`@greendrake/css-reset`](css-reset) | Modern CSS reset (adapted from Josh Comeau's and Andy Bell's resets) |
 | [`@greendrake/domains`](domains) | Email and domain-name validation backed by the IANA TLD list |
 | [`@greendrake/scss-kit`](scss-kit) | Framework-free SCSS primitives: breakpoints (single-sourced with TS via codegen), z-layer map, icon-mask registry, @font-face generator, misc mixins |
@@ -26,6 +26,7 @@ They are developed against real applications rather than in the abstract, and pu
 | [`@greendrake/vue-app`](vue-app) | SPA bootstrap: app/pinia/router assembly, splash gate, route titles and body classes |
 | [`@greendrake/font-inter`](fonts/inter) | Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry |
 | [`@greendrake/dash`](dash) | Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs |
+| [`@greendrake/eslint-config`](eslint-config) | ESLint flat config for TypeScript + Vue 3 projects, to re-export or spread rather than a rule set to copy |
 
 ### Backend
 

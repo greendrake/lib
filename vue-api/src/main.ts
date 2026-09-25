@@ -1,6 +1,7 @@
 export { ApiClient, UnacceptableResultError, type ApiClientOptions, type CallOptions } from './ApiClient'
 export { useExceptionState, classifyException, type ExceptionKind, type FailOptions } from './exceptionState'
 export { configureApiUX, getGoHome, type ConnectionSource, type ErrorSink } from './uxConfig'
+export { apiUXHooks } from './apiUXHooks'
 export { useConnectivity } from './connectivity'
 export { retryWhenOnline } from './retryWhenOnline'
 export { backgroundCall, bindLive, useLive } from './live'

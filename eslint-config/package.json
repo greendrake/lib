@@ -1,0 +1,43 @@
+{
+    "name": "@greendrake/eslint-config",
+    "version": "0.3.0",
+    "description": "ESLint flat config for TypeScript + Vue 3 projects, to re-export or spread rather than a rule set to copy",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "eslint-config"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/eslint-config#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "index.js",
+    "exports": {
+        ".": "./index.js"
+    },
+    "files": [
+        "index.js"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@eslint/js": "^9.17.0",
+        "@stylistic/eslint-plugin": "^5.10.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-vue": "^9.32.0",
+        "globals": "^15.14.0",
+        "typescript-eslint": "^8.19.0"
+    },
+    "peerDependencies": {
+        "eslint": "^9",
+        "typescript": "^6"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*"
+    }
+}

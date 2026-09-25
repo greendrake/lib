@@ -8,11 +8,11 @@ export { envBool, deriveImageBaseUrl, loadAppEnv, requirePort, apiTargetEnv, bui
 // @greendrake/dash/vite) speak this package's vite types: a second vite
 // copy resolved downstream is a structurally unrelated set of the same names.
 export type { ConfigEnv, UserConfig, UserConfigFnObject } from 'vite'
-export { htmlPlaceholders, htmlMinify } from './html'
+export { htmlPlaceholders } from './html'
 export { resolveApiTarget, browserRuntime, type ApiTarget, type ApiTargetEnv, type ApiTargetRuntime } from './apiTarget'
 export { staticRoots, staticRootFiles, type StaticRoot } from './staticRoots'
 import { requirePort } from './env'
-import { htmlPlaceholders, htmlMinify } from './html'
+import { htmlPlaceholders } from './html'
 import { hmrCircularImportGuard } from './hmr'
 import { nestedDependencies, type DeclaredDependencies } from './sourceDeps'
 import { staticRoots as staticRootsPlugin, type StaticRoot } from './staticRoots'
@@ -34,8 +34,6 @@ export interface VueSpaOptions {
     // Build-time placeholder substitution in index.html (see the
     // htmlPlaceholders plugin) — e.g. injecting an inline bootstrap script.
     htmlPlaceholders?: Record<string, string>
-    // Minify index.html (incl. inline JS/CSS) in production builds.
-    htmlMinify?: boolean
     // Directories outside the app served at a public URL prefix — product
     // assets both stacks own (locale catalogues, content prose). Served by
     // middleware in dev and copied into dist/ at build, so the two modes
@@ -90,7 +88,7 @@ export const vueSpa =
         const portPin = command === 'serve' && options.port !== false ? { port: typeof options.port === 'number' ? options.port : requirePort(), strictPort: true } : undefined
         const base: UserConfig = {
             ...(options.define && { define: Object.fromEntries(Object.entries(options.define).map(([key, value]) => [key, JSON.stringify(value)])) }),
-            plugins: [vue(), hmrCircularImportGuard(), ...(options.staticRoots?.length ? [staticRootsPlugin(options.staticRoots)] : []), ...(options.htmlPlaceholders ? [htmlPlaceholders(options.htmlPlaceholders)] : []), ...(options.htmlMinify ? [htmlMinify()] : [])],
+            plugins: [vue(), hmrCircularImportGuard(), ...(options.staticRoots?.length ? [staticRootsPlugin(options.staticRoots)] : []), ...(options.htmlPlaceholders ? [htmlPlaceholders(options.htmlPlaceholders)] : [])],
             ...(command === 'serve'
                 ? {
                       server: {

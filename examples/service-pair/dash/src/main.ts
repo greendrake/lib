@@ -1,4 +1,5 @@
-import { ServiceStateControl, TabDashboard, createDash, type DashTab } from '@greendrake/dash'
+import { TabDashboard, createDash, type DashTab } from '@greendrake/dash'
+import { ServiceStateControl } from '@greendrake/dash/service-state'
 import { api, transport } from './api'
 
 const tabs: DashTab[] = [

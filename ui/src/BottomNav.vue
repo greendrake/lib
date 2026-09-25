@@ -67,6 +67,9 @@ const emit = defineEmits<{ select: [id: string] }>()
     border-top: 1px solid var(--border-color-light);
     &__tab {
         flex: 1 1 0;
+        // Holds the tab to its share of the bar however long its label, which
+        // the label's own clipping below depends on.
+        min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -116,6 +119,13 @@ const emit = defineEmits<{ select: [id: string] }>()
     &__label {
         font-size: var(--font-xs);
         line-height: 1;
+        // One line, always: a label that wrapped would lift its icon off the
+        // line the other tabs' icons sit on. One too long for its cell is cut
+        // short instead — visibly only; its accessible name stays whole.
+        max-width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
         // Follow the tab's own colour (muted when inactive, accent when active).
         // Without this the theme's global `a span` link tint paints every label
         // violet, so the active/inactive distinction collapses to just the icon.

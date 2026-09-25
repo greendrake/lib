@@ -18,7 +18,7 @@ createDash({
 })
 ```
 
-`createDash` returns the `SpaApp` (see `@greendrake/vue-app`), so a host can act on it after boot — open a WebSocket eagerly, say. Pass `suspense: true` when a route component has async setup — the splash then serves as the Suspense boundary's initial content, so there is no blank frame while the route resolves. `ready` takes init work the splash must outlast.
+`createDash` returns the `SpaApp` (see `@greendrake/vue-app`), so a host can act on it after boot — open a WebSocket eagerly, say. Pass `suspense: true` when a route component has async setup — the splash then serves as the Suspense boundary's initial content, so there is no blank frame while the route resolves. `ready` takes init work the splash must outlast. `@greendrake/vue-api`'s error UX is wired in (`apiUXHooks`).
 
 `TabDashboard` renders one panel at a time under a `TabBar`. The registry is the single source for the strip and the panels both: adding a tab is one row. Where a dashboard needs its routes code-split, keep the registry inside the lazily-imported route module, so a lightweight route does not pull in the dashboard panels.
 
@@ -29,12 +29,12 @@ Dashboard-wide styling — the denser `--font-md`, headings as section dividers,
 `ServiceStateControl` is a panel for one backend service that is `OFF`, `STARTING`, `ON`, `STOPPING` or `ERROR` — the state, why it failed if it did, and the one command that state accepts:
 
 ```ts
-import { ServiceStateControl } from '@greendrake/dash'
+import { ServiceStateControl } from '@greendrake/dash/service-state'
 
 const tabs: DashTab[] = [{ id: 'service', label: 'Service', component: ServiceStateControl, props: { api, transport } }]
 ```
 
-`api` is an `ApiClient<ServiceStateMethods>` and `transport` a `WsTransport<ServiceStatePushes>`; both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. The control reads the status once, then follows the server's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
+`api` is an `ApiClient<ServiceStateMethods>` and `transport` a `WsTransport<ServiceStatePushes>`; both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads the status once, then follows the server's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
 
 `ON` offers *Turn OFF*, `OFF` offers *Turn ON*, `ERROR` offers *Refresh*; `STARTING` and `STOPPING` offer nothing, there being no interfering with a transition already under way. The current state is on the root element as `data-state`, which is what the border colour is drawn from and what an end-to-end test asserts on. `examples/service-pair` is a complete dashboard and backend built on it.
 

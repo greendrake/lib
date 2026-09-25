@@ -7,7 +7,7 @@ import globals from 'globals'
 
 // The flat config for a TypeScript + Vue project. Re-export it directly, or
 // spread it and append overrides:
-//   import greendrake from '@greendrake/dev-config/eslint'
+//   import greendrake from '@greendrake/eslint-config'
 //   export default [...greendrake, { rules: { ... } }]
 export default [
     js.configs.recommended,

@@ -2,7 +2,6 @@ import { createApp, ref, watch, watchEffect, type App as VueApp, type Component,
 import { createPinia, type PiniaPlugin } from 'pinia'
 import { createRouter, createWebHistory, type NavigationGuardReturn, type RouteLocationNormalized, type RouteRecordRaw, type Router } from 'vue-router'
 import { getReadyStatePromise } from '@greendrake/util/browser'
-import { configureApiUX, useExceptionState } from '@greendrake/vue-api'
 import { useAppState } from '@greendrake/vue-kit'
 import { preload, takePrimed } from './prefetch'
 
@@ -38,6 +37,15 @@ export interface SpaAppOptions {
     beforeRoute?: (to: RouteLocationNormalized, from: RouteLocationNormalized) => Promise<NavigationGuardReturn> | NavigationGuardReturn
     // App init work the boot splash must outlast (config fetch, locale load…).
     ready?: () => Promise<unknown>[]
+    // Runs once the router exists, before anything mounts — for a layer that
+    // navigates on its own account, such as an error UX's "go home".
+    // @greendrake/vue-api's apiUXHooks supplies one.
+    onRouter?: (router: Router) => void
+    // Where a failed boot is reported: init work or document readiness
+    // rejecting. The splash lifts either way. Absent, the failure is rethrown
+    // as an unhandled rejection, which is where an app with no error UX of its
+    // own has it logged. @greendrake/vue-api's apiUXHooks supplies one.
+    onBootError?: (error: Error) => void
 }
 
 export interface SpaApp {
@@ -60,7 +68,7 @@ export interface SpaApp {
     setPageTitle(title?: string): void
 }
 
-const KNOWN_OPTIONS = new Set<keyof SpaAppOptions>(['root', 'rootProps', 'routes', 'plugins', 'piniaPlugins', 'defaultTitle', 'routeClasses', 'beforeRoute', 'ready'])
+const KNOWN_OPTIONS = new Set<keyof SpaAppOptions>(['root', 'rootProps', 'routes', 'plugins', 'piniaPlugins', 'defaultTitle', 'routeClasses', 'beforeRoute', 'ready', 'onRouter', 'onBootError'])
 
 // Route-level code splitting puts a network fetch between a navigation and the
 // component that serves it: vue-router awaits the `() => import(…)` loader once
@@ -134,16 +142,7 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
         routes: wrapLazyComponents(options.routes)
     })
 
-    // Wire vue-api's "navigate home" sink to this router. Living here (the
-    // router's owner) rather than in every app's main.ts also lets non-component
-    // modules (stores) navigate home via getGoHome() without importing the app
-    // module — an import back-edge that would put main.ts inside a circular
-    // import and break HMR.
-    configureApiUX({
-        goHome: () => {
-            void router.push('/')
-        }
-    })
+    options.onRouter?.(router)
 
     const appState = useAppState()
     // The boot slot: held from construction, released after init work and the
@@ -271,9 +270,12 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
             // initDone (the splash release below, content guards awaiting it)
             // would otherwise wait forever, leaving the failure invisible
             // behind a splash that never lifts. Settle first, then hand the
-            // error to the pipeline that knows how to show it.
+            // error to whatever shows it.
             settleInitDone()
-            useExceptionState().fail(e as Error)
+            if (!options.onBootError) {
+                throw e
+            }
+            options.onBootError(e as Error)
         })
         // The boot slot deliberately does NOT await router.isReady(): the first
         // navigation may never commit (a login gate parking it behind the auth

@@ -131,8 +131,10 @@ Retry re-runs the same call (the button reads "Trying..." until the retried atte
 Boot wiring, `configureApiUX({ errorSink?, goHome?, connectionSource? })`:
 
 - `errorSink: ErrorSink` — `(error, context?) => void`; receives `other`-kind failures and abnormal WebSocket closes (`WebSocketClosedError.isAbnormal`) for reporting. Nothing is reported without one.
-- `goHome` — the not-found toast's home action; default `location.assign('/')`. `@greendrake/vue-app` sets it to `router.push('/')`. `getGoHome()` returns the configured function for modules that navigate home outside a component.
+- `goHome` — the not-found toast's home action; default `location.assign('/')`. `getGoHome()` returns the configured function for modules that navigate home outside a component.
 - `connectionSource: ConnectionSource` — `{ readonly connected: boolean; onConnectionChange(listener) }`, read once when `useConnectivity` first materialises, so configure it before the store is first used. `@greendrake/rpc`'s `WsTransport` satisfies it as-is.
+
+`apiUXHooks` fills two `@greendrake/vue-app` `createSpaApp` options: `onRouter` sets `goHome` to `router.push('/')`, and `onBootError` shows a failed boot through `useExceptionState().fail`. Spread it into the options: `createSpaApp({ root, routes, ...apiUXHooks })`. The router is typed structurally (`{ push(to: string): unknown }`), so neither package depends on the other.
 
 ### Offline parking
 

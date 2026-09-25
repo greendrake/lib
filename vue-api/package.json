@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/vue-api",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Vue binding of @greendrake/rpc: loading-state wiring, response cache, error-UX pipeline, silent calls, live bindings to server push",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

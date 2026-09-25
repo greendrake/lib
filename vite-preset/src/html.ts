@@ -1,4 +1,3 @@
-import { minify } from 'html-minifier-terser'
 import type { Plugin } from 'vite'
 
 // Substitutes build-time values into index.html before Vite processes it —
@@ -19,23 +18,3 @@ export const htmlPlaceholders = (map: Record<string, string>): Plugin => {
         }
     }
 }
-
-// Production-only HTML minification — strips comments and collapses
-// whitespace in index.html, and runs inline scripts/styles through
-// terser/CSS minification. Dev keeps the source readable.
-export const htmlMinify = (): Plugin => ({
-    name: 'greendrake-html-minify',
-    apply: 'build',
-    transformIndexHtml: {
-        order: 'post',
-        handler: html =>
-            minify(html, {
-                collapseWhitespace: true,
-                removeComments: true,
-                minifyJS: true,
-                minifyCSS: true,
-                useShortDoctype: true,
-                removeRedundantAttributes: true
-            })
-    }
-})
