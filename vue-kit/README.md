@@ -17,7 +17,7 @@ bun add @greendrake/vue-kit vue pinia
 - `loadingCounter`, and the `isLoading` getter (`counter > 0`).
 - `setLoading(on)` — increments or decrements the counter.
 - `isFirstLoading` — `true` until the counter first empties; distinguishes the boot splash from later in-app spinners.
-- `hasNavigated` — a one-way latch set once a navigation has committed, i.e. once something usable is on screen (`@greendrake/vue-app` sets it from the router's `afterEach`). Distinct from `isFirstLoading`, which can flip with the screen still bare.
+- `hasNavigated` — a one-way latch set once a navigation has committed, i.e. once something usable is on screen (the app shell sets it from the router's `afterEach`). Distinct from `isFirstLoading`, which can flip with the screen still bare.
 
 ```ts
 import { useAppState } from '@greendrake/vue-kit'
@@ -31,7 +31,7 @@ try {
 }
 ```
 
-`@greendrake/vue-app` holds one slot for the boot sequence and releases it when the first render settles; `@greendrake/vue-api`'s `ApiClient` holds one per pending call.
+The usual holders: an app shell, one slot for the boot sequence, released when the first render settles; an API client, one per pending call.
 
 ## Media queries
 
@@ -46,7 +46,7 @@ const wide = useWideScreen()
 
 ## Colour mode
 
-The palette binds to the `light`/`dark` classes on `<html>` and falls back to `prefers-color-scheme` when neither is set (`@greendrake/theme`'s `light-dark` mixin). This module owns those classes, the saved preference (`localStorage` key `colorMode`) and the reactive `isDark` ref.
+The palette binds to the `light`/`dark` classes on `<html>` and falls back to `prefers-color-scheme` when neither is set. This module owns those classes, the saved preference (`localStorage` key `colorMode`) and the reactive `isDark` ref.
 
 ```ts
 // main.ts, before mount — so an explicit choice never flashes the OS palette first

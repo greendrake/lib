@@ -21,8 +21,7 @@ export interface LiveOptions<PEvents, PData> {
     // It owns its own errors: the binding awaits it only to know when the slot
     // is free, and interprets neither outcome. It must also not be served by a
     // response cache the missed pushes would have invalidated — invalidate,
-    // then read (see @greendrake/vue-api's bindLive, which carries that policy
-    // for app code).
+    // then read.
     resync?: () => Promise<unknown> | void
 }
 

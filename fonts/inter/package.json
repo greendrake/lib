@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/font-inter",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

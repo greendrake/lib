@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/dash",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

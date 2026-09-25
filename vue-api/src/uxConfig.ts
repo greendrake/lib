@@ -22,7 +22,7 @@ interface ApiUXConfig {
     // reporting — e.g. the visit subsystem's error channel.
     errorSink?: ErrorSink
     // Drives the not-found toast's "To the home page" action; typically
-    // router.push('/'). apiUXHooks wires it to a @greendrake/vue-app router.
+    // router.push('/'). apiUXHooks.onRouter wires it to the app's router.
     goHome?: () => void
     // Read once, when useConnectivity is first instantiated.
     connectionSource?: ConnectionSource

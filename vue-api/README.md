@@ -18,10 +18,10 @@ One module declares the typed method map, builds the transport and exports the c
 // src/api.ts
 import { HttpTransport } from '@greendrake/rpc'
 import { ApiClient } from '@greendrake/vue-api'
-import type { Host, ListResult, PageArgs, Vlan } from './types'
+import type { Host, HostQuery, ListResult, Vlan } from './types'
 
 export interface Methods {
-    'host.list': (query: PageArgs) => ListResult<Host>
+    'host.list': (query: HostQuery) => ListResult<Host>
     'host.get': (id: number) => Host
     'host.update': (record: { id: number } & Partial<Host>) => Host
     'host.delete': (args: { id: number }) => void
@@ -134,7 +134,7 @@ Boot wiring, `configureApiUX({ errorSink?, goHome?, connectionSource? })`:
 - `goHome` — the not-found toast's home action; default `location.assign('/')`. `getGoHome()` returns the configured function for modules that navigate home outside a component.
 - `connectionSource: ConnectionSource` — `{ readonly connected: boolean; onConnectionChange(listener) }`, read once when `useConnectivity` first materialises, so configure it before the store is first used. `@greendrake/rpc`'s `WsTransport` satisfies it as-is.
 
-`apiUXHooks` fills two `@greendrake/vue-app` `createSpaApp` options: `onRouter` sets `goHome` to `router.push('/')`, and `onBootError` shows a failed boot through `useExceptionState().fail`. Spread it into the options: `createSpaApp({ root, routes, ...apiUXHooks })`. The router is typed structurally (`{ push(to: string): unknown }`), so neither package depends on the other.
+`apiUXHooks` is `{ onRouter(router), onBootError(error) }`, for an app bootstrap that offers those two hooks: `onRouter` sets `goHome` to `router.push('/')` the moment the router exists, and `onBootError` shows a failed boot through `useExceptionState().fail`. The router is typed structurally (`{ push(to: string): unknown }`), so this package takes no router dependency.
 
 ### Offline parking
 
@@ -182,8 +182,8 @@ The mechanism — relevance, `apply` versus `resync`, the reconnect re-read, coa
 - Its failure neither interrupts nor vanishes. A `NotFoundError` is dropped (the entity went away while the socket was down; the next navigation says so), a `NetworkError` is dropped (the socket went again mid-read, and the binding's own reconnect rule re-reads when it returns), and anything else goes to the `errorSink` configured through `configureApiUX` — reported, never toasted.
 - It must read past a response cache the missed pushes would have invalidated: invalidate the entries the read would hit, then read, so the stale entry is repaired rather than stepped around.
 
-`backgroundCall` also serves a table's loader, which is where a panel's re-read actually calls the API — see `@greendrake/ui-data`'s loader contract:
+`backgroundCall` also serves any loader told whether anybody asked for its load — a table re-reading after a push, say, which is where a panel's re-read actually calls the API:
 
 ```ts
-const loader = listLoader((args, background) => api.call('admin.thread.list', [args], backgroundCall(background)))
+const load = (args: ListArgs, background: boolean) => api.call('admin.thread.list', [args], backgroundCall(background))
 ```

@@ -1,6 +1,6 @@
 # @greendrake/rpc
 
-Client for the `@greendrake/rpc` wire format, defined below and served by [`@greendrake/rpc-server`](../rpc-server): a typed method-map facade (`RpcClient`), an HTTP transport and a reconnecting WebSocket transport with server push, the error classes both transports map response codes to, a TTL response cache, and a pluggable payload codec. Framework-free; the Vue/Pinia binding (loading state, error UX, connectivity) is `@greendrake/vue-api`, built on this package.
+Client for the `@greendrake/rpc` wire format, defined below: a typed method-map facade (`RpcClient`), an HTTP transport and a reconnecting WebSocket transport with server push, the error classes both transports map response codes to, a TTL response cache, and a pluggable payload codec. Framework-free: loading state, error UX and connectivity belong to whatever UI binding is built on it.
 
 ## Install
 
@@ -12,7 +12,7 @@ TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d
 
 ## The wire
 
-This package and `@greendrake/rpc-server` are the two ends of one format; this section defines it. It is deliberately not JSON-RPC. One request envelope, one response envelope, JSON on both transports:
+This package is the client end of one format, and this section defines it for both ends. It is deliberately not JSON-RPC. One request envelope, one response envelope, JSON on both transports:
 
 ```ts
 interface RpcRequest {
@@ -178,7 +178,7 @@ The contract:
 - **Apply or resync.** `apply` folds the push in and nothing else happens. Without it the push runs `resync` — so `{}` means "every such push re-reads". A handler with neither `apply` nor a `resync` to fall back on throws at binding time.
 - **Reconnect.** `resync` also runs when the socket returns from a drop the binding witnessed: a connection has no memory, so what it missed is only recoverable by asking. The first connect after the binding is created is not a return from a drop. A binding without `resync` subscribes to nothing connection-related.
 - **Coalescing.** One `resync` at a time; pushes arriving during a run collapse into a single follow-up after it, however many there are — they ask the same question.
-- **No error policy.** The binding awaits `resync` only to know when the slot is free, and interprets neither outcome: `resync` owns its errors. It must also not be served by a response cache the missed pushes would have invalidated — invalidate the entries its read would hit, then read. (`@greendrake/vue-api`'s `bindLive` carries both rules for app code.)
+- **No error policy.** The binding awaits `resync` only to know when the slot is free, and interprets neither outcome: `resync` owns its errors. It must also not be served by a response cache the missed pushes would have invalidated — invalidate the entries its read would hit, then read.
 - **Release.** The returned function detaches every subscription and drops any pending follow-up; calling it twice is harmless.
 
 ## Errors
@@ -215,7 +215,7 @@ cache.prime('taxonomy.tree', [{ taxonomy: 'category' }], pushed) // seed from a 
 cache.clear() // everything, e.g. when the session identity changes
 ```
 
-`ttlFor(method)` returns the seconds for a listed method, `false` otherwise. `CacheConfig` and `CacheLookup` are the config and `get` result types. `RpcClient` holds no cache; `@greendrake/vue-api`'s `ApiClient` composes one and derives its nonce rule from the same endpoint list.
+`ttlFor(method)` returns the seconds for a listed method, `false` otherwise. `CacheConfig` and `CacheLookup` are the config and `get` result types. `RpcClient` holds no cache; a client that composes one derives its nonce rule from the same endpoint list.
 
 ## Codec
 

@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/domains",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Email and domain-name validation backed by the IANA TLD list",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

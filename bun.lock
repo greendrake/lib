@@ -12,14 +12,14 @@
     },
     "css-reset": {
       "name": "@greendrake/css-reset",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
       },
     },
     "dash": {
       "name": "@greendrake/dash",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/font-inter": "workspace:*",
         "@greendrake/rpc": "workspace:*",
@@ -51,14 +51,14 @@
     },
     "dev-config": {
       "name": "@greendrake/dev-config",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "peerDependencies": {
         "typescript": "^6",
       },
     },
     "domains": {
       "name": "@greendrake/domains",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "typescript": "6.0.3",
@@ -66,7 +66,7 @@
     },
     "e2e": {
       "name": "@greendrake/e2e",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "bin": {
         "check-layout": "./bin/check-layout.mjs",
       },
@@ -81,7 +81,7 @@
     },
     "eslint-config": {
       "name": "@greendrake/eslint-config",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@eslint/js": "^9.17.0",
         "@stylistic/eslint-plugin": "^5.10.0",
@@ -139,7 +139,7 @@
     },
     "fonts/inter": {
       "name": "@greendrake/font-inter",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/scss-kit": "workspace:*",
       },
@@ -149,7 +149,7 @@
     },
     "rpc": {
       "name": "@greendrake/rpc",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/util": "workspace:*",
       },
@@ -160,7 +160,7 @@
     },
     "rpc-server": {
       "name": "@greendrake/rpc-server",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/rpc": "workspace:*",
         "@standard-schema/spec": "^1.1.0",
@@ -173,7 +173,7 @@
     },
     "scss-kit": {
       "name": "@greendrake/scss-kit",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "@types/bun": "^1.3.5",
@@ -182,7 +182,7 @@
     },
     "server": {
       "name": "@greendrake/server",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "@types/bun": "^1.3.5",
@@ -191,7 +191,7 @@
     },
     "service-state": {
       "name": "@greendrake/service-state",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "@greendrake/rpc-server": "workspace:*",
@@ -207,7 +207,7 @@
     },
     "theme": {
       "name": "@greendrake/theme",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/css-reset": "workspace:*",
         "@greendrake/scss-kit": "workspace:*",
@@ -218,7 +218,7 @@
     },
     "ui": {
       "name": "@greendrake/ui",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/domains": "workspace:*",
         "@greendrake/scss-kit": "workspace:*",
@@ -239,7 +239,7 @@
     },
     "ui-data": {
       "name": "@greendrake/ui-data",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/scss-kit": "workspace:*",
         "@greendrake/ui": "workspace:*",
@@ -256,7 +256,7 @@
     },
     "util": {
       "name": "@greendrake/util",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "typescript": "6.0.3",
@@ -264,7 +264,7 @@
     },
     "vite-preset": {
       "name": "@greendrake/vite-preset",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@vitejs/plugin-vue": "^6.0.7",
       },
@@ -281,7 +281,7 @@
     },
     "vue-api": {
       "name": "@greendrake/vue-api",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/rpc": "workspace:*",
         "@greendrake/ui": "workspace:*",
@@ -302,7 +302,7 @@
     },
     "vue-app": {
       "name": "@greendrake/vue-app",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/util": "workspace:*",
         "@greendrake/vue-kit": "workspace:*",
@@ -323,7 +323,7 @@
     },
     "vue-kit": {
       "name": "@greendrake/vue-kit",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@greendrake/scss-kit": "workspace:*",
         "@greendrake/util": "workspace:*",

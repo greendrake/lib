@@ -4,7 +4,7 @@ import { ConnRegistry, clientIp, createDispatcher, httpHandler, keyAuthResolver,
 import type { ConnectionData } from '@greendrake/rpc-server'
 import { createServiceStateMachine } from '@greendrake/service-state/server'
 import { apiMethods } from './methods'
-import { createMockService } from './mock'
+import { MOCK_SERVICE, createMockService } from './mock'
 
 // How long a nonce is remembered, which is how long a retry of the same call
 // is recognised as a repeat rather than a second request.
@@ -26,7 +26,7 @@ export const startApi = async (options: ApiOptions): Promise<RunningService<Conn
     // state change reaches every dashboard watching, which is the whole point
     // of the pair.
     const registry = new ConnRegistry()
-    const machine = await createServiceStateMachine(mock, registry)
+    const machine = await createServiceStateMachine(MOCK_SERVICE, mock, registry)
 
     const dispatcher = createDispatcher(apiMethods(machine, mock), {
         auth: keyAuthResolver(options.adminKey, {

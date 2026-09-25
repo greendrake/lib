@@ -1,7 +1,7 @@
 import { ApiError } from '@greendrake/rpc-server'
 import type { AuthRequirement, EventSink, MethodDef } from '@greendrake/rpc-server'
 import { SERVICE_STATE_EVENT, TRANSITIONS } from './main'
-import type { ServiceCommand, ServiceState, ServiceStateMethods, ServiceStatus } from './main'
+import type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatus } from './main'
 
 // What a concrete service plugs in. `start` and `stop` resolve once the
 // service is up or down; rejecting puts the machine in ERROR with the
@@ -14,6 +14,9 @@ export interface ServiceImplementation {
 }
 
 export interface ServiceStateMachine {
+    // What the service is called on the wire: what a call names to reach it,
+    // and what each of its pushes carries.
+    readonly name: string
     status(): ServiceStatus
     // Return as soon as the transition has begun, with the in-flight status.
     // Where it ends up is the machine's next state, pushed to everyone — not
@@ -31,12 +34,17 @@ export interface ServiceStateMachine {
 // what a client that ignored the state gets told.
 const BUSY = 'SERVICE_BUSY'
 
+// A call naming a service the table does not serve. A `_NOT_FOUND` code, so
+// clients following rpc-server's convention treat it as not found.
+const NOT_FOUND = 'SERVICE_NOT_FOUND'
+
 // The service-state machine over a concrete implementation. Reads the service
 // before returning, so it never reports a state it has not verified — a
 // machine that assumed OFF at boot would have the dashboard show OFF for a
 // service that is up.
-export const createServiceStateMachine = async (service: ServiceImplementation, sink: EventSink): Promise<ServiceStateMachine> => {
+export const createServiceStateMachine = async (name: string, service: ServiceImplementation, sink: EventSink): Promise<ServiceStateMachine> => {
     let current: ServiceStatus = {
+        service: name,
         state: 'OFF',
         error: null,
         changed_at: Date.now()
@@ -45,6 +53,7 @@ export const createServiceStateMachine = async (service: ServiceImplementation, 
 
     const set = (state: ServiceState, error: string | null): ServiceStatus => {
         current = {
+            service: name,
             state,
             error,
             changed_at: Date.now()
@@ -90,6 +99,7 @@ export const createServiceStateMachine = async (service: ServiceImplementation, 
     }
 
     const machine: ServiceStateMachine = {
+        name,
         status: () => current,
         start: () => run('start'),
         stop: () => run('stop'),
@@ -101,16 +111,48 @@ export const createServiceStateMachine = async (service: ServiceImplementation, 
 
 // Derived from the client-facing contract rather than restated beside it: a
 // method added there has to be defined here before this compiles.
-export type ServiceStateMethodDefs = { [K in keyof ServiceStateMethods]: MethodDef<void, ReturnType<ServiceStateMethods[K]>> }
+export type ServiceStateMethodDefs = { [K in keyof ServiceStateMethods]: MethodDef<Parameters<ServiceStateMethods[K]>[0], ReturnType<ServiceStateMethods[K]>> }
 
-// The four methods, ready to merge into a dispatch table. Admin-only by
-// default: turning a service off is not a read.
-export const serviceStateMethods = (machine: ServiceStateMachine, auth: AuthRequirement = 'admin'): ServiceStateMethodDefs => ({
-    'service.status': { auth, handler: () => machine.status() },
-    'service.start': { auth, handler: () => machine.start() },
-    'service.stop': { auth, handler: () => machine.stop() },
-    'service.refresh': { auth, handler: () => machine.refresh() }
-})
+// The argument every method takes, checked for its shape. Whether it names a
+// service the table serves is the table's to say, as SERVICE_NOT_FOUND. Written
+// against Standard Schema directly, so this package carries no validator.
+const SERVICE_REF: NonNullable<MethodDef<ServiceRef>['args']> = {
+    '~standard': {
+        version: 1,
+        vendor: 'greendrake',
+        validate: value => (typeof value === 'object' && value !== null && 'service' in value && typeof value.service === 'string' ? { value: { service: value.service } } : { issues: [{ message: 'Expected the name of a service', path: ['service'] }] })
+    }
+}
+
+// The four methods over every machine given, ready to merge into a dispatch
+// table: one socket serves them all, each call naming its service. Admin-only
+// by default: turning a service off is not a read.
+export const serviceStateMethods = (machines: readonly ServiceStateMachine[], auth: AuthRequirement = 'admin'): ServiceStateMethodDefs => {
+    const byName = new Map(machines.map(machine => [machine.name, machine]))
+    if (byName.size !== machines.length) {
+        throw new Error(`serviceStateMethods: two machines share a name among ${machines.map(machine => machine.name).join(', ')}`)
+    }
+    // Each method is the same three steps — the argument checked, the service
+    // it names found, one thing asked of that service's machine — and differs
+    // only in what is asked.
+    const asking = (ask: (machine: ServiceStateMachine) => ServiceStatus | Promise<ServiceStatus>): MethodDef<ServiceRef, ServiceStatus> => ({
+        auth,
+        args: SERVICE_REF,
+        handler: (_ctx, { service }) => {
+            const machine = byName.get(service)
+            if (!machine) {
+                throw new ApiError(NOT_FOUND)
+            }
+            return ask(machine)
+        }
+    })
+    return {
+        'service.status': asking(machine => machine.status()),
+        'service.start': asking(machine => machine.start()),
+        'service.stop': asking(machine => machine.stop()),
+        'service.refresh': asking(machine => machine.refresh())
+    }
+}
 
 export { SERVICE_STATE_EVENT, SERVICE_STATES, TRANSITIONS } from './main'
-export type { ServiceCommand, ServiceState, ServiceStateMethods, ServiceStatePushes, ServiceStatus } from './main'
+export type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatePushes, ServiceStatus } from './main'

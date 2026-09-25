@@ -15,8 +15,8 @@
     }
 }
 
-// In-control affordances shared by select-shaped controls (SelectBox, app
-// picker triggers) so their anatomy cannot drift apart.
+// In-control affordances shared by select-shaped controls (select boxes, picker
+// triggers) so their anatomy cannot drift apart.
 
 // The × clear button rendered inside a control, before the chevron. Its glyph
 // size rides one custom property so every control including this mixin tracks
@@ -70,8 +70,8 @@
     }
 }
 
-// Requires the global `spinner` keyframes and the --spinner-color/--spinner-side-color
-// custom properties (@greendrake/theme provides the keyframes; palettes provide the colors).
+// Requires global `spinner` keyframes and the --spinner-color/--spinner-side-color
+// custom properties, all the app's to provide.
 @mixin img-spinner($size: 24px) {
     position: relative;
     &::before {

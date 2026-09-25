@@ -86,7 +86,7 @@ Data-URI SVG icons rendered through `mask-image`, so the element's `background-c
 - `icon-base` — emits `border: 0; display: inline-block; mask-repeat: no-repeat; background-color: var(--font-color); background-image: none`.
 - `icon` — `icon-base` plus `mask-position: center center` and `width`/`height` of `var(--icon-size)`.
 
-`--font-color` and `--icon-size` are read with no fallback; the consuming app defines them (`@greendrake/theme` documents the custom-property contract).
+`--font-color` and `--icon-size` are read with no fallback; the consuming app defines them.
 
 ```scss
 .eye-toggle {
@@ -125,7 +125,7 @@ Data-URI SVG icons rendered through `mask-image`, so the element's `background-c
 @include kit.use-as-default('Example', Helvetica, Arial, sans-serif);
 ```
 
-The `url()` literals must be written in the font package's own `.scss` file: Vite rebases them relative to that file when the package is consumed from `node_modules`, and only when the package is imported by bare specifier (never a `pkg:` URL, never with Sass's `NodePackageImporter` registered). `@greendrake/font-inter` is a font package built on exactly these two mixins.
+The `url()` literals must be written in the font package's own `.scss` file: Vite rebases them relative to that file when the package is consumed from `node_modules`, and only when the package is imported by bare specifier (never a `pkg:` URL, never with Sass's `NodePackageImporter` registered).
 
 ## Mixins
 
@@ -134,7 +134,7 @@ The `url()` literals must be written in the font package's own `.scss` file: Vit
 - `apply-props($props)` — emits each `key: value` pair of a map as a declaration.
 - `control-clear` — the × clear button rendered inside a select-shaped control, before the chevron: an inline-flex box held at the WCAG 2.2 target-size minimum (24×24, SC 2.5.8) with a negative block margin (computed from `var(--line-height-tight, 18px)`) so it grows into the control's padding instead of its height; glyph size `var(--control-clear-font-size, 18px)`; opacity 0.5, 1 on hover.
 - `control-chevron($point: down)` — a dropdown/drill chevron built from two borders (no icon dependency): 7×7px, `currentColor`, opacity 0.6, `transform` transition; `$point: right` rotates it to point right.
-- `img-spinner($size: 24px)` — a centred spinner `::before` on an `img` container. Requires the global `spinner` keyframes (provided by `@greendrake/theme`) and the `--spinner-color`/`--spinner-side-color` custom properties.
+- `img-spinner($size: 24px)` — a centred spinner `::before` on an `img` container. Requires global `spinner` keyframes and the `--spinner-color`/`--spinner-side-color` custom properties, all the app's to provide.
 
 ```scss
 .select-clear {

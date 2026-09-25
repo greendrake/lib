@@ -12,7 +12,7 @@ defineProps<{
     // every click in the field would be FORWARDED to it as a real click, so
     // clicking into the text would silently press Bold.
     //
-    // Such a control names itself (RichEditor's ariaLabel puts it on the
+    // Such a control names itself (a rich editor puts its aria-label on the
     // contenteditable), so the caption is left as plain text — no role="group",
     // which would only announce the name a second time.
     unlabelable?: boolean

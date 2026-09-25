@@ -33,8 +33,8 @@
     )
 );
 
-// Modal chrome vars consumed by @greendrake/ui's Modal — part of the default
-// dashboard look (the dark-glass window over a dimmed backdrop).
+// Modal chrome — part of the default dashboard look (the dark-glass window
+// over a dimmed backdrop).
 :root {
     --modal-background: var(--background-color);
     --modal-box-shadow: rgba(255, 255, 255, 0.5) 0px 4px 25px;

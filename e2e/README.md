@@ -19,7 +19,7 @@ import { spaPlaywright } from '@greendrake/e2e'
 export default spaPlaywright({ defaultPort: '5173' })
 ```
 
-The frontend port is `VITE_PORT`, falling back to `defaultPort` — the same pin `@greendrake/vite-preset` requires for `vite dev`, so the config targets the server the app actually started. Omit `defaultPort` in an app whose harness always supplies `VITE_PORT`: a missing port then throws rather than silently testing whatever happens to be listening on a default.
+The frontend port is `VITE_PORT`, falling back to `defaultPort` — the variable the app's own Vite config is expected to pin its dev server to, so the config targets the server the app actually started. Omit `defaultPort` in an app whose harness always supplies `VITE_PORT`: a missing port then throws rather than silently testing whatever happens to be listening on a default.
 
 What it returns (a `PlaywrightTestConfig` via `defineConfig`):
 

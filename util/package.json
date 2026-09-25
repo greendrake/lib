@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/util",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, misc",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

@@ -7,8 +7,17 @@ export const SERVICE_STATES = ['OFF', 'STARTING', 'ON', 'STOPPING', 'ERROR'] as 
 
 export type ServiceState = (typeof SERVICE_STATES)[number]
 
+// Which service a call is about. Every method takes it, so one socket serves
+// any number of services side by side.
+export interface ServiceRef {
+    service: string
+}
+
 // Wire shape: snake_case, as the envelope's own fields are.
 export interface ServiceStatus {
+    // The service this is the status of — what a push is told apart by, since
+    // every service's pushes arrive on the same socket.
+    service: string
     state: ServiceState
     // What went wrong, in ERROR. Null in every other state — a stale message
     // outliving the failure it describes is worse than none.
@@ -39,14 +48,15 @@ export type ServiceCommand = keyof typeof TRANSITIONS
 export const SERVICE_STATE_EVENT = 'service.state'
 
 // The methods a service-state backend serves. A dashboard hands this to its
-// ApiClient; the server derives its definitions from it.
+// typed client; the server derives its definitions from it.
 export interface ServiceStateMethods {
-    'service.status': () => ServiceStatus
-    'service.start': () => ServiceStatus
-    'service.stop': () => ServiceStatus
-    'service.refresh': () => ServiceStatus
+    'service.status': (ref: ServiceRef) => ServiceStatus
+    'service.start': (ref: ServiceRef) => ServiceStatus
+    'service.stop': (ref: ServiceRef) => ServiceStatus
+    'service.refresh': (ref: ServiceRef) => ServiceStatus
 }
 
 // Every state change reaches every connected socket: a service has one state,
-// and everyone watching it is watching the same thing.
+// and everyone watching it is watching the same thing. The status names its
+// service, so a socket watching several follows each by its name.
 export type ServiceStatePushes = { [SERVICE_STATE_EVENT]: ServiceStatus }

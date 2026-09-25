@@ -85,8 +85,8 @@ export const method = <A = void, R = unknown>(def: MethodDef<A, R>): MethodDef<A
 
 type MethodArgs<A> = [A] extends [void] ? [] : [args: A]
 
-// The client-side view of a dispatch table: the method map a dashboard hands
-// `ApiClient<…>`, derived from the definitions rather than restated beside
+// The client-side view of a dispatch table: the method map a frontend hands
+// its typed client, derived from the definitions rather than restated beside
 // them. The pair's typing meets here — a method whose argument shape or result
 // changes server-side stops compiling in the frontend that calls it.
 export type ClientMethods<M extends Methods> = {

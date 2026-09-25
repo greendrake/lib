@@ -86,9 +86,10 @@ export const nestedDependencies = (dirname: string, declared: DeclaredDependenci
         }
         // A peer is the app's to supply, so it counts only where the app does,
         // at runtime — the same reckoning, applied to what a package leaves to
-        // its consumer.
+        // its consumer. A source package among them is served raw like any
+        // other, and walked as the app's own declaration of it is.
         for (const peer of Object.keys(pkg.peerDependencies ?? {})) {
-            if (declared.runtime.includes(peer)) pin(here, dirname, peer)
+            if (declared.runtime.includes(peer) && !isSourcePackage(peer)) pin(here, dirname, peer)
         }
     }
     for (const name of declared.runtime) {

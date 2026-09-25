@@ -10,8 +10,8 @@
 @forward 'mixins';
 
 :root {
-    // Feeds ui's TheWrap width cap; single-sourced from the SCSS constant the
-    // wider-than-max-content mixin also uses.
+    // The content width cap for layout wrappers; single-sourced from the SCSS
+    // constant the wider-than-max-content mixin also uses.
     --max-content-width: #{mixins.$max-content-width};
     --space-1: 4px;
     --space-2: 8px;

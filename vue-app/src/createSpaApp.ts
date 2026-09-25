@@ -19,9 +19,9 @@ export interface SpaAppOptions {
     // plugin's composables during initial setup.
     plugins?: PluginArgs[]
     // Pinia plugins installed on the store instance before any store is used —
-    // e.g. per-user cache invalidation (@greendrake/vue-auth's perUserCachePlugin,
-    // which auto-registers any store defining a reset() action for session-swap
-    // reset). Applied before mount so every store instantiated later is covered.
+    // e.g. per-user cache invalidation, registering every store that defines a
+    // reset() action for a session swap. Applied before mount so every store
+    // instantiated later is covered.
     piniaPlugins?: PiniaPlugin[]
     // Joined with a route's own title as "<route title> | <default>". A
     // function is resolved inside the title effect, so a default that is a
@@ -39,12 +39,11 @@ export interface SpaAppOptions {
     ready?: () => Promise<unknown>[]
     // Runs once the router exists, before anything mounts — for a layer that
     // navigates on its own account, such as an error UX's "go home".
-    // @greendrake/vue-api's apiUXHooks supplies one.
     onRouter?: (router: Router) => void
     // Where a failed boot is reported: init work or document readiness
     // rejecting. The splash lifts either way. Absent, the failure is rethrown
     // as an unhandled rejection, which is where an app with no error UX of its
-    // own has it logged. @greendrake/vue-api's apiUXHooks supplies one.
+    // own has it logged.
     onBootError?: (error: Error) => void
 }
 
@@ -232,9 +231,9 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
     // per-page wiring and nothing to forget at a new push site. Any other
     // reactive state getTitle reads is tracked the same way.
     //
-    // A title that is not a function of route data (@greendrake/vue-content
-    // reads the rendered <h1>) comes in through setPageTitle instead; it
-    // overrides the derivation until the next navigation clears it.
+    // A title that is not a function of route data (one read off the rendered
+    // <h1>, say) comes in through setPageTitle instead; it overrides the
+    // derivation until the next navigation clears it.
     const titleOverride = ref<string>()
     const applyTitle = (title?: string): void => {
         const fallback = typeof options.defaultTitle === 'function' ? options.defaultTitle() : options.defaultTitle

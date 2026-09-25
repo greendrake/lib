@@ -17,7 +17,7 @@ export type PageArgs = {
 // exactly the methods with server-side search/sort support; the rest get the
 // bare offset/limit window. Extra filter fields ride the `fetch` closure, and
 // so does what a background read costs — the flag is handed on verbatim:
-//     listLoader((args, background) => api.call('admin.thread.list', [{ ...args, type }], backgroundCall(background)))
+//     listLoader((args, background) => listThreads({ ...args, type }, background))
 export const listLoader =
     <T>(fetch: (args: PageArgs, background: boolean) => Promise<LoaderResponse<T>>, sort?: SortState) =>
     (params: LoaderParams, _loading: Ref<boolean>, background: boolean): Promise<LoaderResponse<T>> =>

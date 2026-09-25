@@ -12,7 +12,7 @@ import type { MockService } from './mock'
 const failNext = z.object({ command: z.enum(['start', 'stop']) })
 
 export const apiMethods = (machine: ServiceStateMachine, mock: MockService) => ({
-    ...serviceStateMethods(machine),
+    ...serviceStateMethods([machine]),
     'mock.fail_next': method({
         auth: 'admin',
         args: failNext,

@@ -7,10 +7,9 @@
     "vueCompilerOptions": {
         "strictTemplates": true,
         // strictTemplates rejects data-* attributes by default; they are
-        // standard HTML and several @greendrake/ui components rely on them
-        // (e.g. CurrencyInput's data-currency). This must live in the shared
-        // config: packages consuming ui via the source condition type-check
-        // its SFCs under their own vueCompilerOptions.
+        // standard HTML, and components carry them. This must live in the
+        // shared config: a package consuming a component library's source
+        // type-checks its SFCs under its own vueCompilerOptions.
         "dataAttributes": ["data-*"]
     }
 }

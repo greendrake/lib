@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/dev-config",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "TypeScript and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

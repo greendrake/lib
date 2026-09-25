@@ -21,12 +21,33 @@ There is no build step and no `.d.ts`: `exports` points at `src/main.ts`, so the
 
 ## Styling contract
 
-Component styles are SCSS inside the SFCs and resolve `@greendrake/scss-kit` (breakpoints, z-layers, icon masks, control mixins) at compile time. Colours, spacing and typography come from CSS custom properties: the consuming app loads `@greendrake/theme` (tokens, document styling, the global `.spinner` rules that `AsyncAction`, `AsyncSearch`, `TreeView`, `ThumbnailGrid` and `Gallery` toggle) and defines the app-provided properties listed under "CSS custom property contract" in that package's README. Properties that README leaves to this package, each read with a local default:
+Component styles are SCSS inside the SFCs and resolve `@greendrake/scss-kit` (breakpoints, z-layers, icon masks, control mixins) at compile time; the custom properties those mixins read are listed in its README. Colours, spacing and typography come from CSS custom properties the consuming app defines. `AsyncAction`, `AsyncSearch`, `TreeView`, `ThumbnailGrid` and `Gallery` show progress by toggling a `spinner` class, which the app styles globally.
+
+Read with no fallback, so the app defines them:
+
+| Property | Read by |
+| --- | --- |
+| `--font-color` | text throughout: `AsyncSearch`, `BottomNav`, `Checkbox`, `Gallery`, `Modal`, `Password`, `SearchField`, `TreeView` |
+| `--background-color` | `AsyncSearch` narrow panel |
+| `--form-background`, `--form-background-hover` | control surfaces: `AsyncSearchResults`, `BottomNav`, `SegmentedControl`, `TabBar`, `ThumbnailGrid`, `TreeView` |
+| `--input-background` | `Checkbox` box |
+| `--border-color`, `--border-color-light`, `--border-color-hover` | control and container borders |
+| `--border-radius` | `AsyncSearch`, `AsyncSearchResults`, `Checkbox`, `ThumbnailGrid` (`FieldTip` falls back to 4px) |
+| `--accent-color` | active and checked states: `BottomNav`, `Checkbox`, `SegmentedControl`, `TabBar`, toasts |
+| `--space-1` … `--space-5` | spacing |
+| `--font-xs`, `--font-md`, `--font-lg` | `BottomNav` and `ThumbnailGrid` labels, `FieldTip`, `Modal` title |
+| `--line-height-normal` | `Password` |
+| `--modal-background`, `--modal-border-radius` | `Modal` window |
+
+Read with a local default:
 
 | Property | Read by | Default |
 | --- | --- | --- |
 | `--checkbox-size` | `Checkbox` box | 24px, set on `.Checkbox` |
 | `--switch-width`, `--switch-height`, `--switch-knob` | `Checkbox` with `switch` | 40px / 24px / `calc(var(--switch-height) - 4px)`, set on `.Checkbox--switch` |
+| `--modal-box-shadow`, `--modal-backdrop-filter`, `--modal-window-backdrop-filter`, `--modal-button-min-width` | `Modal` | per property |
+| `--circular-progress-arc`, `--circular-progress-label`, `--circular-progress-track` | `CircularProgress` | per property |
+| `--row-select-color`, `--tree-line-color` | `TreeView` | per property |
 | `--accent-contrast` | `SegmentedControl` active segment text | none |
 | `--font-color-muted` | `SelectBox` placeholder, `BottomNav` inactive tabs | `--vs-text-color` / `--font-color` |
 | `--bottomnav-height` | `BottomNav` bar height; bottom edge of the `AsyncSearch` narrow panel | none / 0px |
@@ -310,7 +331,7 @@ type ThumbnailGridLoader = (params: ThumbnailGridLoaderParams, loading: Ref<bool
 
 ### useSelection
 
-`useSelection<Id extends string | number>(items: Ref<Record<string, unknown>[]> | ComputedRef<...>, idField: string)` — flat, index-addressable multi-selection over an ordered list. Returns `{ selected: Set<Id> (shallowReactive), getId(index), indexOf(id), addRange(fromId, toId), toggle(id), replace(id), rangeTo(id) (from the anchor set by the last toggle/replace), moveCursor('up' | 'down', extend: boolean): number (returns the new cursor index), selectAll(), clear() }`. `TreeView` and `@greendrake/ui-data`'s `InfiniteScrollTable` use it.
+`useSelection<Id extends string | number>(items: Ref<Record<string, unknown>[]> | ComputedRef<...>, idField: string)` — flat, index-addressable multi-selection over an ordered list. Returns `{ selected: Set<Id> (shallowReactive), getId(index), indexOf(id), addRange(fromId, toId), toggle(id), replace(id), rangeTo(id) (from the anchor set by the last toggle/replace), moveCursor('up' | 'down', extend: boolean): number (returns the new cursor index), selectAll(), clear() }`. `TreeView` uses it.
 
 ### RowSelect
 
@@ -324,4 +345,4 @@ type ThumbnailGridLoader = (params: ThumbnailGridLoaderParams, loading: Ref<bool
 - `downsizeImage(file: File, opts?: { maxDimension?: number; maxSizeKB?: number; minQuality?: number }): Promise<File>` — re-encodes an oversized image as JPEG, scaling to `maxDimension` (2000) and stepping quality down until under `maxSizeKB` (1024) or `minQuality` (0.2). Non-images, files within both limits, and undecodable files pass through untouched.
 - `scrollToTop()` — `window.scroll({ top: 0 })`.
 - `focusIn(el: string | HTMLElement | null, selector?: string)` — focuses the element with that id, or the first `selector` match inside `el`, unless it already has focus.
-- `TOUCH_PAN_SLOP_PX` — 10; the travel a touch must cover before it counts as a directional gesture (shared with `@greendrake/ui-data`'s table panning).
+- `TOUCH_PAN_SLOP_PX` — 10; the travel a touch must cover before it counts as a directional gesture; exported so other gesture-arbitrating components share it.

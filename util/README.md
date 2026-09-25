@@ -151,7 +151,7 @@ document.documentElement.dir = isRTLLocale(navigator.language) ? 'rtl' : 'ltr'
 
 ## DOM and geolocation
 
-The `./browser` entry, apart from the rest because their types are the DOM lib's: a program that type-checks without it — a bun service reaching this package through `@greendrake/rpc` — never compiles them. Importable in Node all the same; they touch `document`, `window` and `navigator` only when called.
+The `./browser` entry, apart from the rest because their types are the DOM lib's: a program that type-checks without it — a bun service reaching this package through a dependency — never compiles them. Importable in Node all the same; they touch `document`, `window` and `navigator` only when called.
 
 - `getReadyStatePromise()` — resolves when `document.readyState` reaches `'complete'` (immediately if it already has); one shared promise per module instance.
 - `hasFinePointer()` — `matchMedia('(hover: hover) and (pointer: fine)')`: true where the primary input is a mouse or trackpad rather than a finger. Serves as a proxy for "focusing a field will not raise an on-screen keyboard", which no platform exposes directly.

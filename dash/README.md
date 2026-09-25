@@ -9,7 +9,7 @@ import { createDash, TabDashboard, type DashTab } from '@greendrake/dash'
 
 const tabs: DashTab[] = [
     { id: 'users', label: 'Users', component: UsersPanel },
-    { id: 'errors', label: 'FE errors', component: ErrorsPanel, props: { api } }
+    { id: 'logs', label: 'Logs', component: LogsPanel, props: { api } }
 ]
 
 createDash({
@@ -31,10 +31,13 @@ Dashboard-wide styling — the denser `--font-md`, headings as section dividers,
 ```ts
 import { ServiceStateControl } from '@greendrake/dash/service-state'
 
-const tabs: DashTab[] = [{ id: 'service', label: 'Service', component: ServiceStateControl, props: { api, transport } }]
+const tabs: DashTab[] = [
+    { id: 'web', label: 'Web', component: ServiceStateControl, props: { service: 'web', api, transport } },
+    { id: 'worker', label: 'Worker', component: ServiceStateControl, props: { service: 'worker', api, transport } }
+]
 ```
 
-`api` is an `ApiClient<ServiceStateMethods>` and `transport` a `WsTransport<ServiceStatePushes>`; both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads the status once, then follows the server's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
+`service` is the name the backend registered the service's machine under; `api` is an `ApiClient<ServiceStateMethods>` and `transport` a `WsTransport<ServiceStatePushes>`, and any number of controls share one of each. Both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads its service's status once, then follows that service's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
 
 `ON` offers *Turn OFF*, `OFF` offers *Turn ON*, `ERROR` offers *Refresh*; `STARTING` and `STOPPING` offer nothing, there being no interfering with a transition already under way. The current state is on the root element as `data-state`, which is what the border colour is drawn from and what an end-to-end test asserts on. `examples/service-pair` is a complete dashboard and backend built on it.
 

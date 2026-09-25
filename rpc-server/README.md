@@ -46,8 +46,6 @@ Bun.serve({
 })
 ```
 
-[`@greendrake/server`](../server) wraps that last call with health probes, CORS and a graceful-shutdown sequence; nothing here requires it.
-
 ## Methods
 
 A `MethodDef` is what a method requires of its caller, what its argument looks like, and what runs:
@@ -113,11 +111,11 @@ A codec applies to everything on the wire, in both directions, for a service who
 
 ```ts
 registry.emitToUser(userId, 'thread.updated', { id })  // {type:'event', event, data} to that user's sockets
-registry.broadcastEvent('service.state', status) // …to every socket
+registry.broadcastEvent('job.progress', progress) // …to every socket
 registry.broadcastData('telemetry', reading) // the bare {type, data} form
 ```
 
-Push-producing code takes the `EventSink` interface (`emitToUser` + `broadcastEvent`) rather than the class, so it can be driven by anything. On the client, `@greendrake/rpc`'s `liveBinding` — or `@greendrake/vue-api`'s `useLive` — subscribes to these, folds each push in or re-reads, and re-reads again after a dropped socket returns.
+Push-producing code takes the `EventSink` interface (`emitToUser` + `broadcastEvent`) rather than the class, so it can be driven by anything. On the client, `@greendrake/rpc`'s `liveBinding` subscribes to these, folds each push in or re-reads, and re-reads again after a dropped socket returns.
 
 ## Error codes
 
@@ -140,7 +138,7 @@ By convention a code ending `_NOT_FOUND` becomes a `NotFoundError` client-side, 
 
 ## The pair's typing
 
-`ClientMethods<M>` turns a dispatch table into the method map a client hands `RpcClient` or `ApiClient`:
+`ClientMethods<M>` turns a dispatch table into the method map a client hands `RpcClient`, or any typed client built on it:
 
 ```ts
 export const methods = { /* … */ }

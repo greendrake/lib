@@ -4,9 +4,9 @@ import vue from '@vitejs/plugin-vue'
 import { mergeConfig, type ConfigEnv, type UserConfig, type UserConfigFnObject } from 'vite'
 
 export { envBool, deriveImageBaseUrl, loadAppEnv, requirePort, apiTargetEnv, buildHash } from './env'
-// Re-exported so config factories building on vueSpa (e.g.
-// @greendrake/dash/vite) speak this package's vite types: a second vite
-// copy resolved downstream is a structurally unrelated set of the same names.
+// Re-exported so config factories building on vueSpa speak this package's
+// vite types: a second vite copy resolved downstream is a structurally
+// unrelated set of the same names.
 export type { ConfigEnv, UserConfig, UserConfigFnObject } from 'vite'
 export { htmlPlaceholders } from './html'
 export { resolveApiTarget, browserRuntime, type ApiTarget, type ApiTargetEnv, type ApiTargetRuntime } from './apiTarget'
@@ -28,8 +28,8 @@ export interface VueSpaOptions {
     scssLoadPaths?: string[]
     // 'env' (default): the strict VITE_PORT convention, required when the dev
     // server starts. A number: that port verbatim, for callers that resolved
-    // the app's env themselves (see @greendrake/dash/vite). false: no
-    // port pinning — for simple apps served on any free port.
+    // the app's env themselves. false: no port pinning — for simple apps
+    // served on any free port.
     port?: 'env' | number | false
     // Build-time placeholder substitution in index.html (see the
     // htmlPlaceholders plugin) — e.g. injecting an inline bootstrap script.

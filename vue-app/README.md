@@ -42,15 +42,7 @@ app.run()
 | `onRouter(router)` | Runs once the router exists, before mount — for a layer that navigates on its own account, such as an error UX's "go home". |
 | `onBootError(error)` | Where a failed boot is reported (see Boot sequence). Without it the failure is rethrown as an unhandled rejection. |
 
-An unknown option is an error.
-
-With `@greendrake/vue-api`, spread its `apiUXHooks` into the options: the not-found toast's "To the home page" then navigates through this router — which also lets stores and other non-component modules navigate home without importing the app module — and a failed boot shows as that package's error toast.
-
-```ts
-import { apiUXHooks } from '@greendrake/vue-api'
-
-createSpaApp({ root: Root, routes, ...apiUXHooks })
-```
+An unknown option is an error. A layer that navigates through `onRouter` holds the router from the moment it exists, so the stores and other non-component modules it serves can navigate without importing the app module.
 
 The returned `SpaApp`:
 

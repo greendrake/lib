@@ -111,6 +111,19 @@ describe('which dependencies are pinned into the pre-bundle', () => {
         expect(include).toEqual(['native-bridge'])
     })
 
+    test('nor a peer that is itself a source package, which is served raw like any other', () => {
+        // A package leaving a source package to the app as a peer: pinned, the
+        // peer would be pre-bundled, and its TypeScript read as JavaScript.
+        const include = optimizeDeps(
+            {
+                dependencies: { '@acme/dash': '1.0.0', '@acme/contract': '1.0.0' },
+                installed: { '@acme/dash': { peerDependencies: { '@acme/contract': '1.0.0' } } }
+            },
+            ACME
+        )?.include
+        expect(include).toEqual([])
+    })
+
     test('named through the whole chain, so an intermediate the app never declares still resolves', () => {
         const include = optimizeDeps(
             {

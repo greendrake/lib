@@ -2,7 +2,7 @@
 
 What a service binary needs around its request handler: health probes an orchestrator can route on, CORS, and the SIGTERM sequence that gets the process out of the way without dropping work. **Runs on [bun](https://bun.sh)** — it owns the `Bun.serve` call.
 
-It knows nothing about what the service serves; [`@greendrake/rpc-server`](../rpc-server) is one thing that can sit inside it, a plain `fetch` handler is another.
+It knows nothing about what the service serves: whatever sits inside it is a `fetch` handler.
 
 ## Install
 

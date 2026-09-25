@@ -53,7 +53,7 @@ export class WebSocketClosedError extends NetworkError {
     // socket went. A request that never left cannot have had an effect and is
     // always safe to re-issue; one that was in flight may have executed
     // server-side with only its response lost, so re-issuing it is a decision
-    // for the caller (see ApiClient's offline park).
+    // for the caller.
     readonly inFlight: boolean
     readonly #event: CloseEvent
 

@@ -21,8 +21,8 @@ export class RpcClient<M extends MethodMapConstraint<M> = MethodMap> {
     // The one way to invoke a method; every request carries a nonce for
     // server-side dedup. Omitting the nonce is only worth doing where a
     // response cache needs byte-identical requests to key on, and this client
-    // holds no cache — @greendrake/vue-api's ApiClient owns that rule, derived
-    // from the single list of cacheable methods it is configured with.
+    // holds no cache — a client composing one owns that rule, derived from the
+    // single list of cacheable methods it is configured with.
     call<K extends keyof M & string>(method: K, ...args: Parameters<M[K]>): Promise<Awaited<ReturnType<M[K]>>> {
         return this.#invoke(true, method, args)
     }

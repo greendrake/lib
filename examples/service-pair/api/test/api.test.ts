@@ -5,9 +5,12 @@ import type { ConnectionData } from '@greendrake/rpc-server'
 import { SERVICE_STATE_EVENT } from '@greendrake/service-state'
 import type { ServiceState, ServiceStatePushes, ServiceStatus } from '@greendrake/service-state'
 import { startApi } from '../src/service'
+import { MOCK_SERVICE } from '../src/mock'
 import type { ApiMethods } from '../src/methods'
 
 const KEY = 'test-admin-key'
+// What every service-state call names: the one service this API serves.
+const MOCK = { service: MOCK_SERVICE }
 // The mock's three seconds are for a person watching a dashboard; a test only
 // needs the transition to be observable.
 const TRANSITION_MS = 20
@@ -58,16 +61,16 @@ const until = async (seen: ServiceStatus[], state: ServiceState): Promise<void> 
 
 describe('the example API', () => {
     test('a call needs the admin credential', async () => {
-        await expect(httpClient().call('service.status')).rejects.toThrow(new ApiError('AUTH_REQUIRED'))
-        expect(await httpClient(KEY).call('service.status')).toMatchObject({ state: 'OFF' })
+        await expect(httpClient().call('service.status', MOCK)).rejects.toThrow(new ApiError('AUTH_REQUIRED'))
+        expect(await httpClient(KEY).call('service.status', MOCK)).toMatchObject({ service: MOCK_SERVICE, state: 'OFF' })
     })
 
     test('a full round trip, with every state change pushed to every socket', async () => {
         const [operator, onlooker] = await Promise.all([dashboard(), dashboard()])
 
-        expect(await operator.client.call('service.start')).toMatchObject({ state: 'STARTING' })
+        expect(await operator.client.call('service.start', MOCK)).toMatchObject({ state: 'STARTING' })
         await until(operator.seen, 'ON')
-        expect(await operator.client.call('service.stop')).toMatchObject({ state: 'STOPPING' })
+        expect(await operator.client.call('service.stop', MOCK)).toMatchObject({ state: 'STOPPING' })
         await until(operator.seen, 'OFF')
 
         expect(operator.seen.map(status => status.state)).toEqual(['STARTING', 'ON', 'STOPPING', 'OFF'])
@@ -81,11 +84,11 @@ describe('the example API', () => {
     test('a transition that fails leaves ERROR carrying why, and a refresh reads past it', async () => {
         const operator = await dashboard()
         await operator.client.call('mock.fail_next', { command: 'start' })
-        await operator.client.call('service.start')
+        await operator.client.call('service.start', MOCK)
         await until(operator.seen, 'ERROR')
 
         expect(operator.seen.at(-1)).toMatchObject({ state: 'ERROR', error: 'mock service failed to start' })
-        expect(await operator.client.call('service.refresh')).toMatchObject({ state: 'OFF', error: null })
+        expect(await operator.client.call('service.refresh', MOCK)).toMatchObject({ state: 'OFF', error: null })
         operator.close()
     })
 

@@ -21,7 +21,7 @@ No build step, no `.d.ts`: `exports` points at `src/main.ts` and the consumer's 
 
 ## Styling contract
 
-As for `@greendrake/ui`: the app loads `@greendrake/theme` and defines the app-provided custom properties its README lists. The table and panel additionally read the optional `--cell-padding`, `--list-row-padding`, `--row-border-bottom`, `--row-select-color` and `--row-select-color-hover` from that list, each with a fallback.
+As for `@greendrake/ui`: the app defines the custom properties that package's README lists as read with no fallback — this one reads a subset of them. The table and panel additionally read `--cell-padding`, `--list-row-padding`, `--row-border-bottom`, `--row-select-color` and `--row-select-color-hover`, each with a fallback.
 
 Layout: `InfiniteScrollTable` measures its own container to decide how many rows to render, so its height must flow top-down. Place it in a flex column whose items have `min-height: 0`, or pass `visibleHeight`; a content-driven height makes the measurement loop until every row is rendered.
 
@@ -46,7 +46,7 @@ type LoaderFunction<T> = (params: LoaderParams, loading: Ref<boolean>, backgroun
 
 `loading` is the table's spinner flag, handed to the loader to set around its call. The spinner also shows while the viewport overlaps rows not yet buffered, so a loader that never touches `loading` still gets one for gaps.
 
-`background` is true when nobody asked for the load — a live binding re-reading after a server push or a dropped connection (`refresh(true)`). What that means for the request is the loader's to decide; with `@greendrake/vue-api` it is `backgroundCall(background)`, a call that shows no spinner and raises no error prompt.
+`background` is true when nobody asked for the load — a live binding re-reading after a server push or a dropped connection (`refresh(true)`). What that means for the request is the loader's to decide — typically a call that shows no spinner and raises no error prompt.
 
 `T` must satisfy `Record<string, unknown>`, so declare row types as type aliases (`type User = { … }`), not interfaces: an interface carries no implicit index signature and is rejected where the table's generic is inferred.
 

@@ -25,8 +25,8 @@ const props = withDefaults(
         validateOnBlur?: boolean
         // The rich-text editor component rendered when type === 'rich'. It must
         // speak the same string v-model contract as this field. Supplied by the
-        // consumer (see @greendrake/ui-rich) so tiptap is bundled only where
-        // rich editing is actually used. Init-time contract: read once below.
+        // consumer so a rich-text editor is bundled only where rich editing is
+        // actually used. Init-time contract: read once below.
         richEditor?: Component
     }>(),
     {
