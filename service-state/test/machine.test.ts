@@ -49,10 +49,15 @@ const controllable = (): ServiceImplementation & { settle: (outcome?: Error) => 
     return service
 }
 
-// The machine settles its transitions and reads on microtasks. The next
-// macrotask comes after all of them, and setImmediate is one the fake clock
-// leaves alone.
-const settled = (): Promise<void> => new Promise(resolve => setImmediate(resolve))
+// Lets the machine's promise chains run to their end. Each is a few microtasks
+// deep — a check or transition settling, its handler, its `finally` — and the
+// microtask queue drains in order whatever the clock, so this needs no timer:
+// under bun's fake timers, a timer-based wait (even setImmediate) can hang.
+const settled = async (): Promise<void> => {
+    for (let tick = 0; tick < 10; tick++) {
+        await Promise.resolve()
+    }
+}
 
 // How old a reading may get before the machine takes another. Past anything a
 // test takes on the real clock, so only the tests on the fake one see a
