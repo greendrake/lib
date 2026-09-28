@@ -45,16 +45,19 @@ const unit = (name: string) => ({
 })
 
 // Each machine is named for the wire; the registry — any EventSink, and
-// @greendrake/rpc-server's ConnRegistry is one — is where its pushes go.
-const machines = await Promise.all([createServiceStateMachine('web', unit('web.service'), registry), createServiceStateMachine('worker', unit('worker.service'), registry)])
+// @greendrake/rpc-server's ConnRegistry is one — is where its pushes go; and
+// the last argument is how old a state it may answer with, in milliseconds.
+const machines = await Promise.all([createServiceStateMachine('web', unit('web.service'), registry, 30_000), createServiceStateMachine('worker', unit('worker.service'), registry, 30_000)])
 
 const methods = { ...serviceStateMethods(machines), ...whateverElse }
 ```
 
 The name is what a call's `{ service }` reaches the machine by and what its every status carries. The factory reads the service before returning, so the machine never reports a state it has not verified — one that assumed `OFF` at boot would have every dashboard showing `OFF` for a service that is up.
 
+Nor does it report one it verified too long ago. Nothing tells the machine when a service is changed by other hands — a unit stopped from a shell, a schedule that turns it off overnight — so `status` answers from its last reading only while that reading is younger than `maxAgeMs`, and otherwise reads the service again before it answers: a dashboard opened after a quiet spell is shown what the service is, not what it was. A transition that lands counts as a reading. Everyone asking while a read is under way waits for that one read. A transition under way and `ERROR` are the machine's own word rather than a reading, and are answered as they stand — `ERROR` until somebody asks for a `refresh`, because reading past it would take the why away before anyone saw it.
+
 `start` and `stop` **return as soon as the transition has begun**, with the in-flight status. Where it ends up is the machine's next state, pushed to everyone — not the caller's answer, because everyone watching needs it equally and one of them happening to have asked changes nothing. A hook that rejects lands the machine in `ERROR` carrying its message.
 
-One transition at a time, and each only from the state it is defined for. Anything else — `start` while already `ON`, `refresh` mid-transition — is refused with `SERVICE_BUSY`. A client showing the state never triggers it, because the state it is showing offers no such button.
+One transition at a time, and each only from the state it is defined for. Anything else — `start` while already `ON`, `refresh` mid-transition, `start` while a read is under way — is refused with `SERVICE_BUSY`. A client showing the state never triggers it, because the state it is showing offers no such button.
 
 `serviceStateMethods(machines, auth = 'admin')` returns the four `MethodDef`s over every machine given, so one dispatch table — and one socket — serves them all. A call's argument is checked for its shape before any machine is reached (`INVALID_ARGUMENT` on `service`); one naming a service the table does not serve is refused with `SERVICE_NOT_FOUND` — a `_NOT_FOUND` code, which clients following `@greendrake/rpc-server`'s convention treat as not found. Two machines under one name are refused as the table is built. Admin-only by default: turning a service off is not a read.
