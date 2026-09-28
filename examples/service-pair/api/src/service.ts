@@ -10,6 +10,11 @@ import { MOCK_SERVICE, createMockService } from './mock'
 // is recognised as a repeat rather than a second request.
 const NONCE_TTL_MS = 5 * 60 * 1000
 
+// How old a reading of the service may get before the machine takes another.
+// The mock changes only through the machine, but a real service is changed by
+// other hands too, and this is how long the machine may go without noticing.
+const MAX_AGE_MS = 5000
+
 export interface ApiOptions {
     port: number
     // The one credential this service knows. A real one would resolve tokens
@@ -26,7 +31,7 @@ export const startApi = async (options: ApiOptions): Promise<RunningService<Conn
     // state change reaches every dashboard watching, which is the whole point
     // of the pair.
     const registry = new ConnRegistry()
-    const machine = await createServiceStateMachine(MOCK_SERVICE, mock, registry)
+    const machine = await createServiceStateMachine(MOCK_SERVICE, mock, registry, MAX_AGE_MS)
 
     const dispatcher = createDispatcher(apiMethods(machine, mock), {
         auth: keyAuthResolver(options.adminKey, {
@@ -47,6 +52,7 @@ export const startApi = async (options: ApiOptions): Promise<RunningService<Conn
         checks: [{ name: 'service', check: () => mock.check().then(() => undefined) }],
         probeTimeoutMs: 2000,
         shutdown: { deadlineMs: 10_000, lameDuckMs: 0 },
+        drain: () => machine.close(),
         websocket: ws.handlers,
         fetch: async (request, server) => {
             const { pathname } = new URL(request.url)

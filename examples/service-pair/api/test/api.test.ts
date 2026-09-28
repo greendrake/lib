@@ -27,7 +27,9 @@ beforeAll(async () => {
     host = service.server.url.host
 })
 
-afterAll(() => void service.server.stop(true))
+// The service's own shutdown sequence, which is what stops the machine's
+// re-reads along with the listener.
+afterAll(async () => expect(await service.stop()).toBe('clean'))
 
 const httpClient = (token?: string): RpcClient<ApiMethods> => new RpcClient<ApiMethods>(new HttpTransport({ url: `http://${host}/v1/api`, headers: (): Record<string, string> => (token ? { Authorization: token } : {}) }))
 

@@ -6,7 +6,9 @@ import type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, Ser
 // What a concrete service plugs in. `start` and `stop` resolve once the
 // service is up or down; rejecting puts the machine in ERROR with the
 // rejection's message. `check` reports what the service is actually doing
-// right now, read from the service rather than remembered.
+// right now, read from the service rather than remembered, and must settle
+// promptly: a refresh waits on it, and the next re-read is timed from when it
+// settles, so a check that never does leaves the state as it last stood.
 export interface ServiceImplementation {
     start(): Promise<void>
     stop(): Promise<void>
@@ -17,6 +19,8 @@ export interface ServiceStateMachine {
     // What the service is called on the wire: what a call names to reach it,
     // and what each of its pushes carries.
     readonly name: string
+    // What the service was last read as, or what its last transition left it
+    // as — kept current by the machine's own re-reads (see the factory).
     status(): ServiceStatus
     // Return as soon as the transition has begun, with the in-flight status.
     // Where it ends up is the machine's next state, pushed to everyone — not
@@ -24,8 +28,12 @@ export interface ServiceStateMachine {
     // of them happening to have asked changes nothing.
     start(): ServiceStatus
     stop(): ServiceStatus
-    // Re-read the service and adopt what it reports.
+    // Re-read the service and adopt what it reports, joining a read already
+    // under way — one begun since the last transition — rather than asking
+    // the service again.
     refresh(): Promise<ServiceStatus>
+    // Stop re-reading the service, for a process shutting down.
+    close(): void
 }
 
 // The command a state is in no position to take. One code covers both cases —
@@ -41,15 +49,35 @@ const NOT_FOUND = 'SERVICE_NOT_FOUND'
 // The service-state machine over a concrete implementation. Reads the service
 // before returning, so it never reports a state it has not verified — a
 // machine that assumed OFF at boot would have the dashboard show OFF for a
-// service that is up.
-export const createServiceStateMachine = async (name: string, service: ServiceImplementation, sink: EventSink): Promise<ServiceStateMachine> => {
+// service that is up. Nor does it later: nothing tells the machine when a
+// service is changed by other hands — a unit stopped from a shell, a schedule
+// that turns it off overnight — so it reads the service again whenever its
+// last reading is `maxAgeMs` old, and pushes what changed to everyone
+// watching, open dashboards included. A transition that lands counts as a
+// reading. A transition under way and ERROR are the machine's own word rather
+// than a reading, and are not read past — ERROR until somebody asks for a
+// refresh, because reading past it would take the why away before anyone saw
+// it.
+export const createServiceStateMachine = async (name: string, service: ServiceImplementation, sink: EventSink, maxAgeMs: number): Promise<ServiceStateMachine> => {
     let current: ServiceStatus = {
         service: name,
         state: 'OFF',
         error: null,
         changed_at: Date.now()
     }
-    let inFlight = false
+    let transitioning = false
+    // Counts the transitions begun. A read that began before the latest one
+    // reports what the service was before it, so its answer is dropped rather
+    // than adopted over the transition's.
+    let transitions = 0
+    // The read under way and the transition count it began under. A refresh
+    // or re-read asked while it is out joins it rather than asking the service
+    // again — unless a transition has begun since, which makes it a reading of
+    // the past: then a fresh read goes out, and the old one is dropped when it
+    // settles.
+    let reading: { promise: Promise<ServiceStatus>; under: number } | undefined
+    let nextRead: ReturnType<typeof setTimeout> | undefined
+    let closed = false
 
     const set = (state: ServiceState, error: string | null): ServiceStatus => {
         current = {
@@ -66,12 +94,23 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
     // a poll against a steady service is silent.
     const adopt = (state: ServiceState, error: string | null): ServiceStatus => (state === current.state && error === current.error ? current : set(state, error))
 
+    // The next re-read, `maxAgeMs` after the reading just taken. None in ERROR,
+    // which stands until somebody refreshes.
+    const schedule = (): void => {
+        clearTimeout(nextRead)
+        if (!closed && current.state !== 'ERROR') {
+            nextRead = setTimeout(() => void read(), maxAgeMs)
+        }
+    }
+
     const run = (command: ServiceCommand): ServiceStatus => {
         const { from, during, to } = TRANSITIONS[command]
-        if (inFlight || current.state !== from) {
+        if (transitioning || current.state !== from) {
             throw new ApiError(BUSY)
         }
-        inFlight = true
+        transitioning = true
+        transitions += 1
+        clearTimeout(nextRead)
         const answer = set(during, null)
         void service[command]()
             .then(
@@ -79,23 +118,49 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
                 (e: Error) => set('ERROR', e.message)
             )
             .finally(() => {
-                inFlight = false
+                transitioning = false
+                schedule()
             })
         return answer
     }
 
+    const read = (): Promise<ServiceStatus> => {
+        if (reading?.under === transitions) {
+            return reading.promise
+        }
+        clearTimeout(nextRead)
+        const under = transitions
+        // A transition begun since the read went out has the last word — its
+        // own landing schedules the next read — and the read's answer, from
+        // before it, is dropped.
+        const land = (state: ServiceState, error: string | null): ServiceStatus => {
+            if (under !== transitions) {
+                return current
+            }
+            const status = adopt(state, error)
+            schedule()
+            return status
+        }
+        const promise = service
+            .check()
+            .then(
+                state => land(state, null),
+                (e: Error) => land('ERROR', e.message)
+            )
+            .finally(() => {
+                if (reading?.promise === promise) {
+                    reading = undefined
+                }
+            })
+        reading = { promise, under }
+        return promise
+    }
+
     const refresh = async (): Promise<ServiceStatus> => {
-        if (inFlight) {
+        if (transitioning) {
             throw new ApiError(BUSY)
         }
-        inFlight = true
-        try {
-            return adopt(await service.check(), null)
-        } catch (e) {
-            return adopt('ERROR', (e as Error).message)
-        } finally {
-            inFlight = false
-        }
+        return read()
     }
 
     const machine: ServiceStateMachine = {
@@ -103,7 +168,11 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
         status: () => current,
         start: () => run('start'),
         stop: () => run('stop'),
-        refresh
+        refresh,
+        close: () => {
+            closed = true
+            clearTimeout(nextRead)
+        }
     }
     await machine.refresh()
     return machine

@@ -45,13 +45,22 @@ const unit = (name: string) => ({
 })
 
 // Each machine is named for the wire; the registry — any EventSink, and
-// @greendrake/rpc-server's ConnRegistry is one — is where its pushes go.
-const machines = await Promise.all([createServiceStateMachine('web', unit('web.service'), registry), createServiceStateMachine('worker', unit('worker.service'), registry)])
+// @greendrake/rpc-server's ConnRegistry is one — is where its pushes go; and
+// the last argument is how old a reading may get before the machine takes
+// another, in milliseconds.
+const machines = await Promise.all([createServiceStateMachine('web', unit('web.service'), registry, 30_000), createServiceStateMachine('worker', unit('worker.service'), registry, 30_000)])
 
 const methods = { ...serviceStateMethods(machines), ...whateverElse }
+
+// On shutdown, stop the re-reads.
+machines.forEach(machine => machine.close())
 ```
 
 The name is what a call's `{ service }` reaches the machine by and what its every status carries. The factory reads the service before returning, so the machine never reports a state it has not verified — one that assumed `OFF` at boot would have every dashboard showing `OFF` for a service that is up.
+
+Nor does it keep reporting one it verified long ago. Nothing tells the machine when a service is changed by other hands — a unit stopped from a shell, a schedule that turns it off overnight — so it reads the service again whenever its last reading is `maxAgeMs` old, and pushes what changed: a dashboard left open follows the service, and one opened after a quiet spell is shown what the service is, not what it was. `status` answers from the latest reading without waiting on the service. A transition that lands counts as a reading, and so does a `refresh`; one asked while a read is under way joins it, unless a transition has begun since that read went out — which makes it a reading of the past, so a fresh one goes out instead. A transition under way and `ERROR` are the machine's own word rather than a reading, and are not read past — `ERROR` until somebody asks for a `refresh`, because reading past it would take the why away before anyone saw it. A transition begun while a read is out goes ahead, and the read's answer, which describes the service before it, is dropped. `close()` stops the re-reads, for a process shutting down.
+
+`check` must settle promptly: a `refresh` waits on it, and the next re-read is timed from when it settles, so a check that never settles leaves the state as it last stood.
 
 `start` and `stop` **return as soon as the transition has begun**, with the in-flight status. Where it ends up is the machine's next state, pushed to everyone — not the caller's answer, because everyone watching needs it equally and one of them happening to have asked changes nothing. A hook that rejects lands the machine in `ERROR` carrying its message.
 

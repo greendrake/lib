@@ -119,6 +119,12 @@ const placeMenu = async (): Promise<void> => {
     // the visual viewport to hold a focused field clear of the keyboard.
     const vv = window.visualViewport
     const viewportBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+    // The ceiling is the top of what is on screen for the same reason, and lower
+    // still by the top safe-area inset: in a native shell the status bar
+    // overlays that strip and the page's content stops short of it. The token is
+    // optional, as everywhere it is read — undeclared, there is no inset.
+    const insetTop = getComputedStyle(m).getPropertyValue('--safe-area-inset-top')
+    const viewportTop = (vv ? vv.offsetTop : 0) + (insetTop ? parseFloat(insetTop) : 0)
     const menuRect = m.getBoundingClientRect()
     let floor = Math.min(viewportBottom, menuRect.bottom + MARGIN)
     const probe = document.elementFromPoint(Math.round(menuRect.x + menuRect.width / 2), Math.round(Math.min(menuRect.bottom, viewportBottom) - 4))
@@ -126,7 +132,7 @@ const placeMenu = async (): Promise<void> => {
         floor = Math.min(floor, probe.getBoundingClientRect().top)
     }
     const below = floor - rootRect.bottom - MARGIN
-    const above = rootRect.top - MARGIN
+    const above = rootRect.top - viewportTop - MARGIN
     if (height > below && above > below) {
         menuStyle.value = { ...anchorStyle(rootRect, true), maxHeight: `${Math.min(height, above)}px` }
     } else if (height > below) {
