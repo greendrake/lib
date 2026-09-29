@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test'
 import { ApiError, createDispatcher } from '@greendrake/rpc-server'
-import type { EventSink } from '@greendrake/rpc-server'
+import type { Audience, EventSink } from '@greendrake/rpc-server'
 import { SERVICE_STATE_EVENT, createServiceStateMachine, serviceStateMethods } from '../src/server'
 import type { ServiceImplementation, ServiceState, ServiceStateMachine, ServiceStatus } from '../src/server'
 
+type Sink = EventSink & Audience & { states: () => ServiceState[]; pushes: ServiceStatus[]; watch: () => void; leave: () => void }
+
 // Every push the machine sends, so a test asserts the sequence an operator's
-// screen would go through rather than only where it ended up.
-const sink = (): EventSink & { states: () => ServiceState[]; pushes: ServiceStatus[] } => {
+// screen would go through rather than only where it ended up — and an
+// audience a test opens and closes, as sockets come and go on a registry.
+const sink = (): Sink => {
     const pushes: ServiceStatus[] = []
+    const listeners = new Set<(present: boolean) => void>()
+    let watchers = 0
     return {
         pushes,
         states: () => pushes.map(status => status.state),
@@ -17,6 +22,23 @@ const sink = (): EventSink & { states: () => ServiceState[]; pushes: ServiceStat
         broadcastEvent: (event, data) => {
             expect(event).toBe(SERVICE_STATE_EVENT)
             pushes.push(data as ServiceStatus)
+        },
+        get size() {
+            return watchers
+        },
+        onPresence: listener => {
+            listeners.add(listener)
+            return () => {
+                listeners.delete(listener)
+            }
+        },
+        watch: () => {
+            watchers += 1
+            if (watchers === 1) listeners.forEach(listener => listener(true))
+        },
+        leave: () => {
+            watchers -= 1
+            if (watchers === 0) listeners.forEach(listener => listener(false))
         }
     }
 }
@@ -59,6 +81,12 @@ const settled = async (): Promise<void> => {
     }
 }
 
+// Moves the fake clock, then lets whatever read that set off settle.
+const elapse = async (ms: number): Promise<void> => {
+    jest.advanceTimersByTime(ms)
+    await settled()
+}
+
 // How old a reading may get before the machine takes another. Past anything a
 // test takes on the real clock, so only the tests on the fake one see a
 // re-read.
@@ -67,7 +95,7 @@ const AGE_MS = 60_000
 // Every machine a test makes, closed after it so no re-read outlives the test
 // — and the real clock back, for the tests that swapped in the fake one.
 const made: ServiceStateMachine[] = []
-const make = async (name: string, service: ServiceImplementation, events: EventSink): Promise<ServiceStateMachine> => {
+const make = async (name: string, service: ServiceImplementation, events: EventSink & Audience): Promise<ServiceStateMachine> => {
     const machine = await createServiceStateMachine(name, service, events, AGE_MS)
     made.push(machine)
     return machine
@@ -104,19 +132,19 @@ describe('the machine', () => {
     test('it reads the service before reporting anything', async () => {
         service.observed = 'ON'
         const machine = await make('web', service, events)
-        expect(machine.status().state).toBe('ON')
+        expect((await machine.status()).state).toBe('ON')
         expect(events.states()).toEqual(['ON'])
     })
 
     test('a boot that finds the service where it assumed pushes nothing', async () => {
         const machine = await make('web', service, events)
-        expect(machine.status().state).toBe('OFF')
+        expect((await machine.status()).state).toBe('OFF')
         expect(events.states()).toEqual([])
     })
 
     test('every status names its service, the pushes included', async () => {
         const machine = await make('web', service, events)
-        expect(machine.status().service).toBe('web')
+        expect((await machine.status()).service).toBe('web')
         machine.start()
         service.settle()
         await settled()
@@ -126,10 +154,10 @@ describe('the machine', () => {
     test('starting goes through STARTING and lands ON', async () => {
         const machine = await make('web', service, events)
         expect(machine.start().state).toBe('STARTING')
-        expect(machine.status().state).toBe('STARTING')
+        expect((await machine.status()).state).toBe('STARTING')
         service.settle()
         await settled()
-        expect(machine.status().state).toBe('ON')
+        expect((await machine.status()).state).toBe('ON')
         expect(events.states()).toEqual(['STARTING', 'ON'])
     })
 
@@ -139,7 +167,7 @@ describe('the machine', () => {
         expect(machine.stop().state).toBe('STOPPING')
         service.settle()
         await settled()
-        expect(machine.status().state).toBe('OFF')
+        expect((await machine.status()).state).toBe('OFF')
         expect(events.states()).toEqual(['ON', 'STOPPING', 'OFF'])
     })
 
@@ -148,7 +176,7 @@ describe('the machine', () => {
         machine.start()
         service.settle(new Error('port already bound'))
         await settled()
-        expect(machine.status()).toMatchObject({ state: 'ERROR', error: 'port already bound' })
+        expect(await machine.status()).toMatchObject({ state: 'ERROR', error: 'port already bound' })
     })
 
     test('nothing is accepted while a transition is in flight', async () => {
@@ -219,7 +247,7 @@ describe('the machine', () => {
     })
 })
 
-describe('keeping the state current', () => {
+describe('keeping the state current while somebody watches', () => {
     let service: ReturnType<typeof controllable>
     let events: ReturnType<typeof sink>
 
@@ -227,13 +255,8 @@ describe('keeping the state current', () => {
         jest.useFakeTimers()
         service = controllable()
         events = sink()
+        events.watch()
     })
-
-    // Moves the fake clock, then lets whatever read that set off settle.
-    const elapse = async (ms: number): Promise<void> => {
-        jest.advanceTimersByTime(ms)
-        await settled()
-    }
 
     test('a reading the age old is taken again, and what changed is pushed to everyone watching', async () => {
         const machine = await make('web', service, events)
@@ -242,7 +265,7 @@ describe('keeping the state current', () => {
         expect(service.reads).toBe(1)
         await elapse(1)
         expect(service.reads).toBe(2)
-        expect(machine.status().state).toBe('ON')
+        expect((await machine.status()).state).toBe('ON')
         expect(events.states()).toEqual(['ON'])
     })
 
@@ -293,7 +316,7 @@ describe('keeping the state current', () => {
         await settled()
         await elapse(3 * AGE_MS)
         expect(service.reads).toBe(1)
-        expect(machine.status()).toMatchObject({ state: 'ERROR', error: 'port already bound' })
+        expect(await machine.status()).toMatchObject({ state: 'ERROR', error: 'port already bound' })
         await machine.refresh()
         await elapse(AGE_MS)
         expect(service.reads).toBe(3)
@@ -306,7 +329,7 @@ describe('keeping the state current', () => {
             return Promise.reject(new Error('no such unit'))
         }
         await elapse(AGE_MS)
-        expect(machine.status()).toMatchObject({ state: 'ERROR', error: 'no such unit' })
+        expect(await machine.status()).toMatchObject({ state: 'ERROR', error: 'no such unit' })
         await elapse(3 * AGE_MS)
         expect(service.reads).toBe(2)
     })
@@ -319,7 +342,7 @@ describe('keeping the state current', () => {
         expect(machine.start().state).toBe('STARTING')
         held.resolve('OFF')
         await settled()
-        expect(machine.status().state).toBe('STARTING')
+        expect((await machine.status()).state).toBe('STARTING')
         service.settle()
         await settled()
         expect(events.states()).toEqual(['STARTING', 'ON'])
@@ -340,7 +363,7 @@ describe('keeping the state current', () => {
         service.observed = 'OFF'
         await elapse(AGE_MS)
         expect(reads).toBe(2)
-        expect(machine.status().state).toBe('OFF')
+        expect((await machine.status()).state).toBe('OFF')
         leftover.resolve('ON')
         expect((await refreshed).state).toBe('OFF')
         await elapse(AGE_MS)
@@ -360,6 +383,95 @@ describe('keeping the state current', () => {
         held.resolve('OFF')
         await elapse(3 * AGE_MS)
         expect(reads).toBe(1)
+    })
+})
+
+describe('reading the service only when somebody needs it', () => {
+    let service: ReturnType<typeof controllable>
+    let events: ReturnType<typeof sink>
+
+    beforeEach(() => {
+        jest.useFakeTimers()
+        service = controllable()
+        events = sink()
+    })
+
+    test('with nobody asking and nobody watching, the service is left alone', async () => {
+        await make('web', service, events)
+        await elapse(3 * AGE_MS)
+        expect(service.reads).toBe(1)
+    })
+
+    test('a status asked of a reading the age old reads first, and answers what it found', async () => {
+        const machine = await make('web', service, events)
+        service.observed = 'ON'
+        await elapse(AGE_MS)
+        expect(service.reads).toBe(1)
+        expect((await machine.status()).state).toBe('ON')
+        expect(service.reads).toBe(2)
+        expect(events.states()).toEqual(['ON'])
+    })
+
+    test('a status asked of a younger reading answers from it', async () => {
+        const machine = await make('web', service, events)
+        service.observed = 'ON'
+        await elapse(AGE_MS - 1)
+        expect((await machine.status()).state).toBe('OFF')
+        expect(service.reads).toBe(1)
+    })
+
+    test('the first to watch a stale reading has it taken again at once, and the last to leave stops the re-reads', async () => {
+        await make('web', service, events)
+        await elapse(2 * AGE_MS)
+        events.watch()
+        await elapse(0)
+        expect(service.reads).toBe(2)
+        events.watch()
+        await elapse(AGE_MS)
+        expect(service.reads).toBe(3)
+        events.leave()
+        await elapse(AGE_MS)
+        expect(service.reads).toBe(4)
+        events.leave()
+        await elapse(3 * AGE_MS)
+        expect(service.reads).toBe(4)
+    })
+
+    test('watching again takes the cadence up from the last reading', async () => {
+        await make('web', service, events)
+        events.watch()
+        await elapse(AGE_MS / 2)
+        events.leave()
+        await elapse(AGE_MS / 4)
+        events.watch()
+        await elapse(AGE_MS / 4 - 1)
+        expect(service.reads).toBe(1)
+        await elapse(1)
+        expect(service.reads).toBe(2)
+    })
+
+    test('a watcher arriving mid-transition waits for it to land before anything is read', async () => {
+        const machine = await make('web', service, events)
+        await elapse(2 * AGE_MS)
+        machine.start()
+        events.watch()
+        await elapse(3 * AGE_MS)
+        expect(service.reads).toBe(1)
+        service.settle()
+        await settled()
+        await elapse(AGE_MS - 1)
+        expect(service.reads).toBe(1)
+        await elapse(1)
+        expect(service.reads).toBe(2)
+    })
+
+    test('close stops listening for watchers', async () => {
+        const machine = await make('web', service, events)
+        await elapse(2 * AGE_MS)
+        machine.close()
+        events.watch()
+        await elapse(3 * AGE_MS)
+        expect(service.reads).toBe(1)
     })
 })
 

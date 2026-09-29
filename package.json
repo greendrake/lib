@@ -29,7 +29,7 @@
     "scripts": {
         "check": "bun run --filter '*' check",
         "lint": "eslint .",
-        "test": "bun test domains/test util/test rpc/test vite-preset/test vue-api/test rpc-server/test service-state/test server/test examples/service-pair/api/test",
+        "test": "bun test util/test rpc/test domains/test vite-preset/test vue-api/test rpc-server/test service-state/test server/test examples/service-pair/api/test",
         "e2e:browsers": "(cd examples/service-pair/dash && bunx playwright install --with-deps chromium)",
         "e2e": "(cd examples/service-pair/dash && bun --bun playwright test)"
     },

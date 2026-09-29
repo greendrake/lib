@@ -1,8 +1,9 @@
 import { afterAll, describe, expect, test } from 'bun:test'
+import type { Server } from 'bun'
 import { ApiError, HttpTransport, RpcClient, WebSocketPipe, WsTransport } from '@greendrake/rpc'
 import type { Codec, WsAuthStrategy } from '@greendrake/rpc'
 import { ConnRegistry, clientIp, createDispatcher, httpHandler, keyAuthResolver, method, websocketHandler } from '../src/main'
-import type { AuthInfo, Connection, Methods } from '../src/main'
+import type { AuthInfo, Connection, ConnectionData, Methods, RpcWebSocket } from '../src/main'
 import { schema } from './standardSchema'
 
 // The interop test: the server in this package, driven by the very client
@@ -96,6 +97,15 @@ const slowWs = websocketHandler(
     new ConnRegistry()
 )
 
+// A server that is one WebSocket handler and nothing else, for the tests that
+// need a dispatcher or a registry of their own.
+const wsServer = (handler: RpcWebSocket): Server<ConnectionData> =>
+    Bun.serve({
+        port: 0,
+        websocket: handler.handlers,
+        fetch: async (request, srv) => ((await handler.upgrade(request, srv)) ? undefined : new Response(null, { status: 400 }))
+    })
+
 const httpUrl = `http://localhost:${server.port}/api`
 const wsUrl = `ws://localhost:${server.port}/ws`
 
@@ -152,11 +162,7 @@ describe('WebSocket transport', () => {
         // A resolver slow enough that a call issued right after the bind would
         // overtake it were the two not serialised — the gate's whole purpose,
         // and a race a blip in a real deployment would otherwise lose.
-        const slow = Bun.serve({
-            port: 0,
-            websocket: slowWs.handlers,
-            fetch: async (request, srv) => ((await slowWs.upgrade(request, srv)) ? undefined : new Response(null, { status: 400 }))
-        })
+        const slow = wsServer(slowWs)
         const pipe = new WebSocketPipe({ url: `ws://localhost:${slow.port}/` })
         const transport = new WsTransport({ pipe, auth: AUTH_STRATEGY })
         const client = new RpcClient<ApiMethods>(transport)
@@ -174,13 +180,7 @@ describe('WebSocket transport', () => {
     })
 
     test('an auth frame on a service with no resolver says so', async () => {
-        const bare = createDispatcher(methods)
-        const bareWs = websocketHandler(bare, new ConnRegistry())
-        const srv = Bun.serve({
-            port: 0,
-            websocket: bareWs.handlers,
-            fetch: async (request, s) => ((await bareWs.upgrade(request, s)) ? undefined : new Response(null, { status: 400 }))
-        })
+        const srv = wsServer(websocketHandler(createDispatcher(methods), new ConnRegistry()))
         const pipe = new WebSocketPipe({ url: `ws://localhost:${srv.port}/` })
         const transport = new WsTransport({ pipe, auth: AUTH_STRATEGY })
         await expect(transport.authenticate(KEY)).rejects.toThrow(new ApiError('AUTH_NOT_CONFIGURED'))
@@ -208,6 +208,44 @@ describe('WebSocket transport', () => {
         expect(seenByStranger).toEqual(['everyone'])
         bound.dispose()
         stranger.dispose()
+    })
+
+    test('the registry says when its first socket opens and when its last one closes, and only then', async () => {
+        // A registry and a listener of its own: the file's shared one has
+        // other tests' sockets coming and going.
+        const audience = new ConnRegistry()
+        const presentServer = wsServer(websocketHandler(dispatcher, audience))
+        const seen: boolean[] = []
+        const stop = audience.onPresence(present => seen.push(present))
+        const connect = async (): Promise<WsTransport<Events>> => {
+            const transport = new WsTransport<Events>({ pipe: new WebSocketPipe({ url: `ws://localhost:${presentServer.port}/` }), auth: AUTH_STRATEGY })
+            await transport.connect()
+            await settle()
+            return transport
+        }
+
+        const first = await connect()
+        // Binding and unbinding the one socket open registers it again, which
+        // is not its arriving.
+        await first.authenticate(KEY)
+        await first.deauthenticate()
+        expect(seen).toEqual([true])
+        const second = await connect()
+        expect(audience.size).toBe(2)
+        expect(seen).toEqual([true])
+
+        first.pipe.dispose()
+        await settle()
+        expect(seen).toEqual([true])
+        second.pipe.dispose()
+        await settle()
+        expect(seen).toEqual([true, false])
+
+        stop()
+        const third = await connect()
+        expect(seen).toEqual([true, false])
+        third.pipe.dispose()
+        await presentServer.stop(true)
     })
 
     test('a socket that drops and comes back is the same principal again', async () => {

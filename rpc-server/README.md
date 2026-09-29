@@ -117,6 +117,8 @@ registry.broadcastData('telemetry', reading) // the bare {type, data} form
 
 Push-producing code takes the `EventSink` interface (`emitToUser` + `broadcastEvent`) rather than the class, so it can be driven by anything. On the client, `@greendrake/rpc`'s `liveBinding` subscribes to these, folds each push in or re-reads, and re-reads again after a dropped socket returns.
 
+The registry is also an `Audience`: `size` is how many sockets are open, and `onPresence(listener)` calls the listener with `true` as the first one opens and `false` as the last one closes, returning the function that stops it. It is for a producer whose pushes cost something to produce — a reading taken from somewhere slow — and are worth producing only while somebody is connected to be told.
+
 ## Error codes
 
 Codes, not sentences: the client keys on them. A handler's own outcomes are `throw new ApiError(code, details?)`; anything else it throws is a fault, logged and answered `INTERNAL_ERROR`.

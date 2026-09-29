@@ -12,21 +12,21 @@ They are developed against real applications rather than in the abstract, and pu
 | --- | --- |
 | [`@greendrake/dev-config`](dev-config) | TypeScript and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy |
 | [`@greendrake/css-reset`](css-reset) | Modern CSS reset (adapted from Josh Comeau's and Andy Bell's resets) |
-| [`@greendrake/domains`](domains) | Email and domain-name validation backed by the IANA TLD list |
 | [`@greendrake/scss-kit`](scss-kit) | Framework-free SCSS primitives: breakpoints (single-sourced with TS via codegen), z-layer map, icon-mask registry, @font-face generator, misc mixins |
+| [`@greendrake/font-inter`](fonts/inter) | Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry |
 | [`@greendrake/util`](util) | Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, misc |
-| [`@greendrake/ui`](ui) | Vue 3 component library: form controls, modals, search, tabs, toasts, layout |
-| [`@greendrake/e2e`](e2e) | Playwright kit for single-page apps: config factories, a same-origin crawler, a clipped-content detector, a polling helper and a layout checker |
 | [`@greendrake/rpc`](rpc) | RPC client over JSON: typed method-map API, HTTP and reconnecting WebSocket transports, pluggable codec and headers, TTL response cache |
 | [`@greendrake/theme`](theme) | Design tokens, document-level element styling, a light/dark theming mixin and an opt-in dashboard palette |
-| [`@greendrake/ui-data`](ui-data) | Data-heavy dashboard components: virtualized InfiniteScrollTable, CrudPanel/MasterDetail, record editing and the admin-CRUD kit |
+| [`@greendrake/domains`](domains) | Email and domain-name validation backed by the IANA TLD list |
+| [`@greendrake/ui`](ui) | Vue 3 component library: form controls, modals, search, tabs, toasts, layout |
 | [`@greendrake/vite-preset`](vite-preset) | Vite config factory and build-env helpers for Vue 3 single-page apps: plugin set, strict dev port, alias, dedupe and source-package pre-bundling rules |
 | [`@greendrake/vue-kit`](vue-kit) | Vue/Pinia building blocks: app loading state, media queries, collection-store factory |
 | [`@greendrake/vue-api`](vue-api) | Vue binding of @greendrake/rpc: loading-state wiring, response cache, error-UX pipeline, silent calls, live bindings to server push |
 | [`@greendrake/vue-app`](vue-app) | SPA bootstrap: app/pinia/router assembly, splash gate, route titles and body classes |
-| [`@greendrake/font-inter`](fonts/inter) | Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry |
 | [`@greendrake/dash`](dash) | Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs |
+| [`@greendrake/e2e`](e2e) | Playwright kit for single-page apps: config factories, a same-origin crawler, a clipped-content detector, a polling helper and a layout checker |
 | [`@greendrake/eslint-config`](eslint-config) | ESLint flat config for TypeScript + Vue 3 projects, to re-export or spread rather than a rule set to copy |
+| [`@greendrake/ui-data`](ui-data) | Data-heavy dashboard components: virtualized InfiniteScrollTable, CrudPanel/MasterDetail, record editing and the admin-CRUD kit |
 
 ### Backend
 
