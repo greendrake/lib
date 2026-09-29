@@ -26,12 +26,24 @@ export interface EventSink {
     broadcastEvent(event: string, data: unknown): void
 }
 
+// Whether anybody is connected to hear a broadcast, for a producer whose
+// pushes cost something to produce — a reading taken from somewhere slow —
+// and are worth producing only while somebody is there to be told.
+export interface Audience {
+    // How many sockets are open.
+    readonly size: number
+    // Called with true as the first socket opens and false as the last one
+    // closes. The function returned stops the calls.
+    onPresence(listener: (present: boolean) => void): () => void
+}
+
 // Every open socket, and the index from principal to the sockets bound as it —
 // a user with three tabs has three. Holding all of them as well as the index
 // is what lets a broadcast reach anonymous connections too, which a per-user
 // index alone cannot.
-export class ConnRegistry implements EventSink {
+export class ConnRegistry implements EventSink, Audience {
     readonly #connections = new Set<Connection>()
+    readonly #presence = new Set<(present: boolean) => void>()
     readonly #byUser = new Map<unknown, Set<Connection>>()
     // Where each connection is currently filed, so a principal that changes
     // mid-connection can be re-indexed without the caller tracking what it
@@ -50,7 +62,11 @@ export class ConnRegistry implements EventSink {
     // called when a socket opens and again whenever an auth frame changes who
     // it is.
     register(conn: Connection): void {
+        const arriving = !this.#connections.has(conn)
         this.#connections.add(conn)
+        if (arriving && this.#connections.size === 1) {
+            this.#presence.forEach(listener => listener(true))
+        }
         const userId = conn.data.auth.userId
         if (this.#filedUnder.get(conn) === userId) {
             return
@@ -69,8 +85,18 @@ export class ConnRegistry implements EventSink {
     }
 
     unregister(conn: Connection): void {
-        this.#connections.delete(conn)
+        const leaving = this.#connections.delete(conn)
         this.#unfile(conn)
+        if (leaving && this.#connections.size === 0) {
+            this.#presence.forEach(listener => listener(false))
+        }
+    }
+
+    onPresence(listener: (present: boolean) => void): () => void {
+        this.#presence.add(listener)
+        return () => {
+            this.#presence.delete(listener)
+        }
     }
 
     #unfile(conn: Connection): void {

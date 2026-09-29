@@ -210,6 +210,44 @@ describe('WebSocket transport', () => {
         stranger.dispose()
     })
 
+    test('the registry says when its first socket opens and when its last one closes, and only then', async () => {
+        // A registry and a listener of its own: the file's shared one has
+        // other tests' sockets coming and going.
+        const audience = new ConnRegistry()
+        const presentWs = websocketHandler(dispatcher, audience)
+        const presentServer = Bun.serve({
+            port: 0,
+            websocket: presentWs.handlers,
+            fetch: async (request, srv) => ((await presentWs.upgrade(request, srv)) ? undefined : new Response(null, { status: 400 }))
+        })
+        const seen: boolean[] = []
+        const stop = audience.onPresence(present => seen.push(present))
+        const connect = async (): Promise<WebSocketPipe> => {
+            const pipe = new WebSocketPipe({ url: `ws://localhost:${presentServer.port}/` })
+            await new WsTransport<Events>({ pipe }).connect()
+            await settle()
+            return pipe
+        }
+
+        const first = await connect()
+        const second = await connect()
+        expect(audience.size).toBe(2)
+        expect(seen).toEqual([true])
+
+        first.dispose()
+        await settle()
+        expect(seen).toEqual([true])
+        second.dispose()
+        await settle()
+        expect(seen).toEqual([true, false])
+
+        stop()
+        const third = await connect()
+        expect(seen).toEqual([true, false])
+        third.dispose()
+        await presentServer.stop(true)
+    })
+
     test('a socket that drops and comes back is the same principal again', async () => {
         const pipe = new WebSocketPipe({
             url: wsUrl,

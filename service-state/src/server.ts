@@ -1,5 +1,5 @@
 import { ApiError } from '@greendrake/rpc-server'
-import type { AuthRequirement, EventSink, MethodDef } from '@greendrake/rpc-server'
+import type { Audience, AuthRequirement, EventSink, MethodDef } from '@greendrake/rpc-server'
 import { SERVICE_STATE_EVENT, TRANSITIONS } from './main'
 import type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatus } from './main'
 
@@ -7,8 +7,9 @@ import type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, Ser
 // service is up or down; rejecting puts the machine in ERROR with the
 // rejection's message. `check` reports what the service is actually doing
 // right now, read from the service rather than remembered, and must settle
-// promptly: a refresh waits on it, and the next re-read is timed from when it
-// settles, so a check that never does leaves the state as it last stood.
+// promptly: a status or a refresh can wait on it, and the next re-read is
+// timed from when it settles, so a check that never does leaves the state as
+// it last stood.
 export interface ServiceImplementation {
     start(): Promise<void>
     stop(): Promise<void>
@@ -19,9 +20,9 @@ export interface ServiceStateMachine {
     // What the service is called on the wire: what a call names to reach it,
     // and what each of its pushes carries.
     readonly name: string
-    // What the service was last read as, or what its last transition left it
-    // as — kept current by the machine's own re-reads (see the factory).
-    status(): ServiceStatus
+    // What the service is: its last reading, or what its last transition left
+    // it as — read again first when that is `maxAgeMs` old (see the factory).
+    status(): Promise<ServiceStatus>
     // Return as soon as the transition has begun, with the in-flight status.
     // Where it ends up is the machine's next state, pushed to everyone — not
     // this caller's answer, because everyone watching needs it equally and one
@@ -32,7 +33,8 @@ export interface ServiceStateMachine {
     // under way — one begun since the last transition — rather than asking
     // the service again.
     refresh(): Promise<ServiceStatus>
-    // Stop re-reading the service, for a process shutting down.
+    // Stop re-reading the service and listening for watchers, for a process
+    // shutting down.
     close(): void
 }
 
@@ -49,22 +51,28 @@ const NOT_FOUND = 'SERVICE_NOT_FOUND'
 // The service-state machine over a concrete implementation. Reads the service
 // before returning, so it never reports a state it has not verified — a
 // machine that assumed OFF at boot would have the dashboard show OFF for a
-// service that is up. Nor does it later: nothing tells the machine when a
-// service is changed by other hands — a unit stopped from a shell, a schedule
-// that turns it off overnight — so it reads the service again whenever its
-// last reading is `maxAgeMs` old, and pushes what changed to everyone
-// watching, open dashboards included. A transition that lands counts as a
+// service that is up. Nor does it later, when anybody needs to know: nothing
+// tells the machine when a service is changed by other hands — a unit stopped
+// from a shell, a schedule that turns it off overnight — so a reading
+// `maxAgeMs` old is taken again before a status is answered from it, and
+// while the sink has an audience — a socket open to be pushed to — the
+// machine re-reads on that cadence by itself and pushes what changed, so a
+// dashboard left open follows the service. With nobody asking and nobody
+// watching, the service is left alone. A transition that lands counts as a
 // reading. A transition under way and ERROR are the machine's own word rather
 // than a reading, and are not read past — ERROR until somebody asks for a
 // refresh, because reading past it would take the why away before anyone saw
 // it.
-export const createServiceStateMachine = async (name: string, service: ServiceImplementation, sink: EventSink, maxAgeMs: number): Promise<ServiceStateMachine> => {
+export const createServiceStateMachine = async (name: string, service: ServiceImplementation, sink: EventSink & Audience, maxAgeMs: number): Promise<ServiceStateMachine> => {
     let current: ServiceStatus = {
         service: name,
         state: 'OFF',
         error: null,
         changed_at: Date.now()
     }
+    // When the service was last read, or a transition last landed — which is
+    // what `maxAgeMs` is counted from. The boot read below is the first.
+    let readAt = Date.now()
     let transitioning = false
     // Counts the transitions begun. A read that began before the latest one
     // reports what the service was before it, so its answer is dropped rather
@@ -94,13 +102,35 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
     // a poll against a steady service is silent.
     const adopt = (state: ServiceState, error: string | null): ServiceStatus => (state === current.state && error === current.error ? current : set(state, error))
 
-    // The next re-read, `maxAgeMs` after the reading just taken. None in ERROR,
-    // which stands until somebody refreshes.
+    // The next re-read, for when the latest reading turns `maxAgeMs` old —
+    // straight away if it already has. Only while somebody is watching; none
+    // while a transition is under way, whose landing is the next reading; and
+    // none in ERROR, which stands until somebody refreshes.
     const schedule = (): void => {
         clearTimeout(nextRead)
-        if (!closed && current.state !== 'ERROR') {
-            nextRead = setTimeout(() => void read(), maxAgeMs)
+        if (!closed && sink.size > 0 && !transitioning && current.state !== 'ERROR') {
+            nextRead = setTimeout(() => void read(), Math.max(0, readAt + maxAgeMs - Date.now()))
         }
+    }
+
+    // The first watcher starts the re-reads and the last one to leave stops
+    // them.
+    const stopListening = sink.onPresence(present => {
+        if (present) {
+            schedule()
+        } else {
+            clearTimeout(nextRead)
+        }
+    })
+
+    // A transition landing or a read settling: the service as it now stands,
+    // which is a reading — and a push, wherever it moved. A transition lands
+    // away from the state it passed through, so it always pushes.
+    const reached = (state: ServiceState, error: string | null): ServiceStatus => {
+        readAt = Date.now()
+        const status = adopt(state, error)
+        schedule()
+        return status
     }
 
     const run = (command: ServiceCommand): ServiceStatus => {
@@ -112,15 +142,16 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
         transitions += 1
         clearTimeout(nextRead)
         const answer = set(during, null)
-        void service[command]()
-            .then(
-                () => set(to, null),
-                (e: Error) => set('ERROR', e.message)
-            )
-            .finally(() => {
-                transitioning = false
-                schedule()
-            })
+        // Over the moment it lands, because its landing is a reading and a
+        // reading schedules the next only with no transition under way.
+        const landed = (state: ServiceState, error: string | null): void => {
+            transitioning = false
+            reached(state, error)
+        }
+        void service[command]().then(
+            () => landed(to, null),
+            (e: Error) => landed('ERROR', e.message)
+        )
         return answer
     }
 
@@ -133,14 +164,7 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
         // A transition begun since the read went out has the last word — its
         // own landing schedules the next read — and the read's answer, from
         // before it, is dropped.
-        const land = (state: ServiceState, error: string | null): ServiceStatus => {
-            if (under !== transitions) {
-                return current
-            }
-            const status = adopt(state, error)
-            schedule()
-            return status
-        }
+        const land = (state: ServiceState, error: string | null): ServiceStatus => (under === transitions ? reached(state, error) : current)
         const promise = service
             .check()
             .then(
@@ -165,13 +189,16 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
 
     const machine: ServiceStateMachine = {
         name,
-        status: () => current,
+        // Answered from the latest reading while it is fresh. A transition under
+        // way and ERROR are answered as they stand, being the machine's own word.
+        status: () => (transitioning || current.state === 'ERROR' || Date.now() - readAt < maxAgeMs ? Promise.resolve(current) : read()),
         start: () => run('start'),
         stop: () => run('stop'),
         refresh,
         close: () => {
             closed = true
             clearTimeout(nextRead)
+            stopListening()
         }
     }
     await machine.refresh()
