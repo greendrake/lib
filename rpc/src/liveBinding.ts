@@ -1,3 +1,4 @@
+import { coalesced } from '@greendrake/util'
 import type { PushMapConstraint, WsTransport } from './WsTransport'
 
 // What one push means to the thing the binding keeps current.
@@ -36,38 +37,17 @@ export interface LiveOptions<PEvents, PData> {
 export const liveBinding = <PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData>>(transport: WsTransport<PEvents, PData>, options: LiveOptions<PEvents, PData>): (() => void) => {
     const { resync } = options
     const releases: (() => void)[] = []
-    let running = false
-    let queued = false
     let released = false
 
+    // One re-read at a time, and at most one more behind it however many
+    // pushes land while it runs: they all ask the same question, and the answer
+    // to the last one is the answer to all of them. One still queued when the
+    // binding is released has nobody left to answer, and does nothing.
+    const reread = coalesced(() => (released ? undefined : resync?.()))
+    // The outcome belongs to resync — swallowed here rather than left
+    // unhandled because this runs from a subscription callback nobody awaits.
     const runResync = (): void => {
-        if (!resync || released) return
-        // One re-read at a time, and at most one more behind it however many
-        // pushes land while it runs: they all ask the same question, and the
-        // answer to the last one is the answer to all of them.
-        if (running) {
-            queued = true
-            return
-        }
-        running = true
-        // `new Promise(resolve => resolve(…))` rather than Promise.resolve(…):
-        // it puts the call inside the promise, so a resync that throws
-        // synchronously becomes a rejection like any other failure instead of
-        // escaping with the slot still held — which would wedge this binding for
-        // good, and abort the transport's dispatch to every other subscriber of
-        // the same frame.
-        void new Promise(resolve => resolve(resync()))
-            // Whatever the outcome, the slot is free and a push that arrived
-            // during the run gets its re-read. The outcome itself belongs to
-            // resync — swallowed here rather than left unhandled because this
-            // runs from a subscription callback nobody awaits.
-            .catch(() => {})
-            .then(() => {
-                running = false
-                if (!queued) return
-                queued = false
-                runResync()
-            })
+        void reread().catch(() => {})
     }
 
     const attach = <P>(handlers: { [K in keyof P]?: LiveHandler<P[K]> } | undefined, subscribe: <K extends keyof P & string>(key: K, handler: (data: P[K]) => void) => () => void): (() => () => void)[] =>
@@ -109,7 +89,6 @@ export const liveBinding = <PEvents extends PushMapConstraint<PEvents>, PData ex
 
     return () => {
         released = true
-        queued = false
         releases.forEach(release => release())
         releases.length = 0
     }

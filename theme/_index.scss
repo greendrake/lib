@@ -1,5 +1,5 @@
 // This entry EMITS global CSS (the reset, base element styles, the :root
-// design tokens). It is the app-level base — `@use` it ONCE from the app's
+// design tokens, the spinner). It is the app-level base — `@use` it ONCE from the app's
 // main.scss. A component that needs only a mixin must `@use
 // '@greendrake/theme/mixins'` (side-effect-free); importing this module from a
 // per-component <style> re-emits the reset into a late stylesheet that
@@ -7,6 +7,7 @@
 @use '@greendrake/css-reset';
 @use '@greendrake/scss-kit' as kit;
 @use 'mixins';
+@use 'spinner';
 @forward 'mixins';
 
 :root {
@@ -49,11 +50,6 @@
     --error-color: #ff4800;
     --warning-color: #890095;
     --accent-color: #0aa13e;
-
-    // Single source of truth for spinner ring size — the default centred
-    // spinner shown at the middle of a loading UI. The small in-control variant
-    // overrides this (see button.spinner in form-controls).
-    --spinner-size: 40px;
 }
 
 body {
@@ -134,41 +130,4 @@ blockquote {
 .disabled,
 [inert] {
     @include kit.disabled;
-}
-
-@keyframes spinner {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.spinner:not(.splash) {
-    position: relative;
-    &::before {
-        content: '';
-        box-sizing: border-box;
-        position: absolute;
-        border-radius: 50%;
-        z-index: kit.z('spinner');
-        border: 2px solid var(--spinner-color);
-        border-top-color: var(--spinner-side-color);
-        animation: spinner 0.6s linear infinite;
-        top: 50%;
-        left: 50%;
-        // Size from the single-source token, centred via negative
-        // half-margins. Applies to any host element — div, section, aside,
-        // ul — rather than a fixed list of them.
-        width: var(--spinner-size);
-        height: var(--spinner-size);
-        margin-top: calc(var(--spinner-size) / -2);
-        margin-left: calc(var(--spinner-size) / -2);
-    }
-}
-
-// Full-page spinner: pin to the viewport centre rather than the host element.
-// Size and centring come from the base rule above. body::before belongs to
-// this spinner alone — the page vignette hangs off html::before precisely so
-// the two can never share one pseudo-element (page-vignette in _mixins.scss).
-body:not(.splash).spinner::before {
-    position: fixed;
 }

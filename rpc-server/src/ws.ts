@@ -121,7 +121,11 @@ export const websocketHandler = (dispatcher: Dispatcher, registry: ConnRegistry,
                         dispatcher.dispatch(request, {
                             auth: conn.data.auth,
                             clientIp: conn.data.clientIp,
-                            signal: conn.data.controller.signal
+                            signal: conn.data.controller.signal,
+                            topics: {
+                                join: topic => registry.join(conn, topic),
+                                leave: topic => registry.leave(conn, topic)
+                            }
                         })
                     )
                     .then(response => {

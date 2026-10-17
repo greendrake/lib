@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import type { RpcRequest, RpcResponse } from '@greendrake/rpc'
+import { ApiError } from './errors'
 
 // Who is calling, as the application's resolver reports it. `userId` is opaque
 // — the application's own id type — and null for a caller no credential named,
@@ -38,6 +39,13 @@ export interface NonceStore {
 // policy; this package only carries the value.
 export type LocaleResolver = (requested: string | undefined) => string
 
+// The calling socket's topic memberships: what a method that subscribes its
+// caller to something joins it to, and leaves. See ConnRegistry's topics.
+export interface Topics {
+    join(topic: string): void
+    leave(topic: string): void
+}
+
 // What the transport knows about a call before it dispatches.
 export interface CallContext {
     auth: AuthInfo
@@ -46,6 +54,9 @@ export interface CallContext {
     // WebSocket closing. Handlers pass it to whatever I/O they do, so work
     // nobody is waiting for is abandoned rather than run to completion.
     signal: AbortSignal
+    // The caller's socket, for a method that subscribes it. Null for a call
+    // that came over HTTP: there is no connection to push to afterwards.
+    topics: Topics | null
 }
 
 export interface HandlerContext extends CallContext {
@@ -76,6 +87,16 @@ export interface MethodDef<A = void, R = unknown> {
 // A dispatch table. The erased argument type is what every concrete MethodDef
 // widens to, so a table mixing schemas and bare methods is one value.
 export type Methods = Record<string, MethodDef<unknown, unknown>>
+
+// The caller's socket, for a method that is nothing without one: a call that
+// came over HTTP is refused with WEBSOCKET_REQUIRED rather than subscribed to
+// pushes it has no connection to receive.
+export const topicsOf = (ctx: CallContext): Topics => {
+    if (ctx.topics === null) {
+        throw new ApiError('WEBSOCKET_REQUIRED')
+    }
+    return ctx.topics
+}
 
 // Identity at runtime; inference is its whole job. A definition written inline
 // in a table has nowhere to get its argument type from — the table's own type

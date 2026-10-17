@@ -8,7 +8,9 @@
 // coordinates as top/left.
 const popperOptions = { modifiers: [{ name: 'computeStyles', options: { gpuAcceleration: false } }] }
 
-const appendTo = () => document.body
+// The body, or the element filling the screen while one does, outside which nothing
+// shows: a menu opened in a fullscreen video player, say. Asked on every show.
+const appendTo = () => document.fullscreenElement ?? document.body
 </script>
 <script setup lang="ts">
 import { computed } from 'vue'

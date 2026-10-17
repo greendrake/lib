@@ -1,0 +1,49 @@
+// The spinner: a ring at the centre of whatever element has the `spinner` class while
+// what it shows is on its way, or of the viewport for <body>. This entry EMITS global
+// CSS. The root entry has it; an app not on this theme can `@use` it alone, defining
+// --spinner-color and --spinner-side-color itself.
+@use '@greendrake/scss-kit' as kit;
+
+:root {
+    // Single source of truth for spinner ring size — the default centred
+    // spinner shown at the middle of a loading UI. The small in-control variant
+    // overrides this (see button.spinner in form-controls).
+    --spinner-size: 40px;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner:not(.splash) {
+    position: relative;
+    &::before {
+        content: '';
+        box-sizing: border-box;
+        position: absolute;
+        border-radius: 50%;
+        z-index: kit.z('spinner');
+        border: 2px solid var(--spinner-color);
+        border-top-color: var(--spinner-side-color);
+        animation: spinner 0.6s linear infinite;
+        top: 50%;
+        left: 50%;
+        // Size from the single-source token, centred via negative
+        // half-margins. Applies to any host element — div, section, aside,
+        // ul — rather than a fixed list of them.
+        width: var(--spinner-size);
+        height: var(--spinner-size);
+        margin-top: calc(var(--spinner-size) / -2);
+        margin-left: calc(var(--spinner-size) / -2);
+    }
+}
+
+// Full-page spinner: pin to the viewport centre rather than the host element.
+// Size and centring come from the base rule above. body::before belongs to
+// this spinner alone — the page vignette hangs off html::before precisely so
+// the two can never share one pseudo-element (page-vignette in _mixins.scss).
+body:not(.splash).spinner::before {
+    position: fixed;
+}

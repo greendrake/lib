@@ -2,7 +2,7 @@
 
 TypeScript packages for building web applications — Vue 3 + Vite frontends, bun backends, and the typed wire between them. Each addresses one recurring problem, and an application takes only the ones it has: an RPC client and server over HTTP and WebSocket with live server push, and a Vue binding for it; an SPA bootstrap and a dashboard shell; a component library with data-heavy widgets; design tokens and SCSS primitives; service scaffolding with health probes and a graceful shutdown; and the Vite, TypeScript, ESLint and Playwright configuration that builds and tests the result.
 
-They are developed against real applications rather than in the abstract, and published for anyone whose application has the problems they solve. This repository is a one-way mirror of their source, synchronised from the monorepo they are developed in; releases go to npm from there, all packages at one version. Issues are welcome here; a pull request is applied upstream and arrives back with the next sync.
+They are developed against real applications rather than in the abstract, and published for anyone whose application has the problems they solve. This repository is a one-way mirror of their source, synchronised from the monorepo they are developed in; releases go to npm from there, each package on its own version, released when it changes. Issues are welcome here; a pull request is applied upstream and arrives back with the next sync.
 
 ## Packages
 

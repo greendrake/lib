@@ -117,7 +117,8 @@ const ctx = {
     },
     clientIp: '',
     locale: '',
-    signal: AbortSignal.any([])
+    signal: AbortSignal.any([]),
+    topics: null
 }
 
 describe('the machine', () => {

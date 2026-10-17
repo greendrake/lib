@@ -177,7 +177,7 @@ The contract:
 - **Relevance.** `when` decides whether a push concerns what the binding shows; omitted, every push does.
 - **Apply or resync.** `apply` folds the push in and nothing else happens. Without it the push runs `resync` — so `{}` means "every such push re-reads". A handler with neither `apply` nor a `resync` to fall back on throws at binding time.
 - **Reconnect.** `resync` also runs when the socket returns from a drop the binding witnessed: a connection has no memory, so what it missed is only recoverable by asking. The first connect after the binding is created is not a return from a drop. A binding without `resync` subscribes to nothing connection-related.
-- **Coalescing.** One `resync` at a time; pushes arriving during a run collapse into a single follow-up after it, however many there are — they ask the same question.
+- **Coalescing.** One `resync` at a time; pushes arriving during a run collapse into a single follow-up after it, however many there are — they ask the same question. This is `@greendrake/util`'s `coalesced`, which a server building what it pushes can use the same way.
 - **No error policy.** The binding awaits `resync` only to know when the slot is free, and interprets neither outcome: `resync` owns its errors. It must also not be served by a response cache the missed pushes would have invalidated — invalidate the entries its read would hit, then read.
 - **Release.** The returned function detaches every subscription and drops any pending follow-up; calling it twice is harmless.
 

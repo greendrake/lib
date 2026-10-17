@@ -63,7 +63,7 @@ interface MethodDef<A = void, R = unknown> {
 
 `method()` is identity at runtime and exists for inference — written inline in a table, a definition has nowhere to get its argument type from, because the table's own type erases it. Wrap each entry in it and the schema's output type reaches the handler's parameter.
 
-`HandlerContext` carries `auth`, `locale`, `clientIp` and a `signal` that aborts when the caller goes away — an HTTP client disconnecting, a WebSocket closing. Pass it to whatever I/O the handler does, so work nobody is waiting for is abandoned rather than run to completion.
+`HandlerContext` carries `auth`, `locale`, `clientIp` and a `signal` that aborts when the caller goes away — an HTTP client disconnecting, a WebSocket closing. Pass it to whatever I/O the handler does, so work nobody is waiting for is abandoned rather than run to completion. It also carries `topics`, the calling socket's subscriptions (see [Pushing](#pushing)), which is `null` for a call that came over HTTP.
 
 ### Argument validation
 
@@ -107,7 +107,7 @@ A codec applies to everything on the wire, in both directions, for a service who
 
 ## Pushing
 
-`ConnRegistry` holds every open socket and indexes them by principal:
+`ConnRegistry` holds every open socket and indexes them by principal and by [topic](#topics):
 
 ```ts
 registry.emitToUser(userId, 'thread.updated', { id })  // {type:'event', event, data} to that user's sockets
@@ -116,6 +116,33 @@ registry.broadcastData('telemetry', reading) // the bare {type, data} form
 ```
 
 Push-producing code takes the `EventSink` interface (`emitToUser` + `broadcastEvent`) rather than the class, so it can be driven by anything. On the client, `@greendrake/rpc`'s `liveBinding` subscribes to these, folds each push in or re-reads, and re-reads again after a dropped socket returns.
+
+### Topics
+
+For state only the sockets that asked for it want — one record's changes, followed by whoever has it open — a socket joins a topic, and the application publishes to the topic:
+
+```ts
+const methods = {
+    'thing.watch': method({
+        auth: 'user',
+        args: z.object({ id: z.string() }),
+        handler: (ctx, { id }) => {
+            topicsOf(ctx).join(`thing:${id}`)
+            return things.get(id)
+        }
+    }),
+    'thing.unwatch': method({
+        auth: 'user',
+        args: z.object({ id: z.string() }),
+        handler: (ctx, { id }) => topicsOf(ctx).leave(`thing:${id}`)
+    })
+}
+
+registry.publish(`thing:${id}`, 'thing.changed', thing) // {type:'event', event, data} to every socket in the topic
+registry.topics() // the topics with at least one socket in them
+```
+
+A handler joins and leaves for its own caller, through `ctx.topics`; only the transport knows which socket a call came in on. `topicsOf(ctx)` is that, or `WEBSOCKET_REQUIRED` for a call that came over HTTP, where there is no connection to push to. A socket is in a topic until it leaves it or closes, and a handler that joins after its caller has gone joins nothing. A topic is whatever string the application makes it; a reconnecting client is a new socket and joins again, which `liveBinding`'s re-read on reconnect is the natural place to do.
 
 The registry is also an `Audience`: `size` is how many sockets are open, and `onPresence(listener)` calls the listener with `true` as the first one opens and `false` as the last one closes, returning the function that stops it. It is for a producer whose pushes cost something to produce — a reading taken from somewhere slow — and are worth producing only while somebody is connected to be told.
 
@@ -134,6 +161,7 @@ Codes, not sentences: the client keys on them. A handler's own outcomes are `thr
 | `UNAUTHENTICATED` | an `auth.token` frame named nobody |
 | `AUTH_NOT_CONFIGURED` | an auth frame reached a service with no resolver |
 | `DUPLICATE_REQUEST` | this nonce has already been used |
+| `WEBSOCKET_REQUIRED` | a method that subscribes its caller was called over HTTP (`topicsOf`) |
 | `INTERNAL_ERROR` | a handler faulted |
 
 By convention a code ending `_NOT_FOUND` becomes a `NotFoundError` client-side, which is the one class `@greendrake/rpc` maps specially. Nothing here enforces it.

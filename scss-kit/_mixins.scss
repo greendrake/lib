@@ -104,6 +104,19 @@
     }
 }
 
+// A flex column whose last child takes the room the others leave, shrinking below its
+// content to scroll in itself: a pane under its header, say. The column shrinks as
+// well, so that it nests as the last child of another.
+@mixin column-filled-by-last {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    > :last-child {
+        flex: 1;
+        min-height: 0;
+    }
+}
+
 // Grow-on-hover: an icon-sized mark or icon button swells slightly under the
 // pointer. The transition sits on the base state, not inside :hover — declared
 // inside the hovered state it would animate the way in and snap the way out.

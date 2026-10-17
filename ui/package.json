@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/ui",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Vue 3 component library: form controls, modals, search, tabs, toasts, layout",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -33,9 +33,9 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/domains": "workspace:*",
-        "@greendrake/scss-kit": "workspace:*",
-        "@greendrake/util": "workspace:*",
+        "@greendrake/domains": "workspace:^",
+        "@greendrake/scss-kit": "workspace:^",
+        "@greendrake/util": "workspace:^",
         "vue-tippy": "^6.7.1"
     },
     "peerDependencies": {

@@ -238,6 +238,34 @@ describe('liveBinding', () => {
         pipe.dispose()
     })
 
+    test('a re-read still queued when the binding is released does not run', async () => {
+        const { transport, pipe } = await connected()
+        let started = 0
+        let releaseFirst!: () => void
+        const firstDone = new Promise<void>(resolve => {
+            releaseFirst = resolve
+        })
+        const release = liveBinding(transport, {
+            events: { 'list.changed': {} },
+            resync: () => {
+                started++
+                return firstDone
+            }
+        })
+
+        pushEvent('list.changed', {})
+        await nextTick()
+        // Queued behind the first, which is still out when the binding goes.
+        pushEvent('list.changed', {})
+        await nextTick()
+        release()
+        releaseFirst()
+        await nextTick()
+
+        expect(started).toBe(1)
+        pipe.dispose()
+    })
+
     test('release detaches every subscription, reconnect included, and repeats harmlessly', async () => {
         const { transport, pipe } = await connected()
         let applied = 0

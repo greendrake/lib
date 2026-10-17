@@ -55,7 +55,9 @@ export const httpHandler = (dispatcher: Dispatcher, options: HttpHandlerOptions 
             await dispatcher.dispatch(parsed, {
                 auth,
                 clientIp: ip,
-                signal: request.signal
+                signal: request.signal,
+                // One request, one response, and no connection left to push to.
+                topics: null
             })
         )
     }

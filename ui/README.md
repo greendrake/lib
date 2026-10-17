@@ -27,13 +27,14 @@ Read with no fallback, so the app defines them:
 
 | Property | Read by |
 | --- | --- |
-| `--font-color` | text throughout: `AsyncSearch`, `BottomNav`, `Checkbox`, `ContextMenu`, `Gallery`, `Modal`, `Password`, `SearchField`, `TreeView` |
+| `--font-color` | text throughout: `AsyncSearch`, `BottomNav`, `Checkbox`, `ContextMenu`, `Gallery`, `Modal`, `Password`, `SearchField`, `SwitchRow`, `TreeView` |
 | `--background-color` | `AsyncSearch` narrow panel |
 | `--form-background`, `--form-background-hover` | control surfaces: `AsyncSearchResults`, `BottomNav`, `ContextMenu`, `SegmentedControl`, `TabBar`, `ThumbnailGrid`, `TreeView` |
 | `--input-background` | `Checkbox` box |
 | `--border-color`, `--border-color-light`, `--border-color-hover` | control and container borders; `--border-color-light` is also the `SplitPane` handle |
 | `--border-radius` | `AsyncSearch`, `AsyncSearchResults`, `Checkbox`, `ThumbnailGrid` (`FieldTip` falls back to 4px) |
-| `--accent-color` | active and checked states: `BottomNav`, `Checkbox`, `SegmentedControl`, `TabBar`, toasts; the hovered `SplitPane` handle; `TreeView` drop targets |
+| `--border-radius-pill` | `SwitchRow` track |
+| `--accent-color` | active and checked states: `BottomNav`, `Checkbox`, `SegmentedControl`, `SwitchRow`, `TabBar`, toasts; the hovered `SplitPane` handle; `TreeView` drop targets |
 | `--space-1` … `--space-5` | spacing |
 | `--font-xs`, `--font-md`, `--font-lg` | `BottomNav` and `ThumbnailGrid` labels, `FieldTip`, `Modal` title |
 | `--line-height-normal` | `Password` |
@@ -217,7 +218,7 @@ Full-screen image viewer in an expanded `Modal`. Props: `items: GalleryItem[]` (
 
 ### MenuButton
 
-Hover/click dropdown built on `vue-tippy`'s `Tippy` (theme `HMenu`, placement `bottom-end`); any click inside the menu closes it. Slots: `main` (trigger), `menuitems` (menu content, wrapped in `.Menubutton-Menu`). Props: `menuClass` (on the wrapper), `boxClass` (on the tippy box, applied once on create), `offset` (default `[0, -1]`), `matchTriggerWidth` (pins the popper width to the trigger's).
+Hover/click dropdown built on `vue-tippy`'s `Tippy` (theme `HMenu`, placement `bottom-end`), appended to `body`, or to the element filling the screen while one does; any click inside the menu closes it. Slots: `main` (trigger), `menuitems` (menu content, wrapped in `.Menubutton-Menu`). Props: `menuClass` (on the wrapper), `boxClass` (on the tippy box, applied once on create), `offset` (default `[0, -1]`), `matchTriggerWidth` (pins the popper width to the trigger's).
 
 ### ContextMenu
 

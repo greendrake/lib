@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/rpc",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "RPC client over JSON: typed method-map API, HTTP and reconnecting WebSocket transports, pluggable codec and headers, TTL response cache",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -34,7 +34,7 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/util": "workspace:*"
+        "@greendrake/util": "workspace:^"
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*",

@@ -76,7 +76,7 @@ An app not on the dashboard palette defines the palette group itself: this packa
 
 ## Global spinner
 
-This package defines the `spinner` keyframes and the `.spinner` / `body.spinner` / `div.spinner` rules, for components that show progress by toggling a `spinner` class and for `@greendrake/scss-kit`'s `img-spinner` mixin. They consume `--spinner-color` (palette) and `--spinner-side-color` (app).
+This package defines the `spinner` keyframes, `--spinner-size` (40px) and the `.spinner` / `body.spinner` rules, for components that show progress by toggling a `spinner` class and for `@greendrake/scss-kit`'s `img-spinner` mixin: a ring at the centre of the element, or of the viewport for `body`. They consume `--spinner-color` (palette) and `--spinner-side-color` (app). They are the `spinner` entry, which the root entry includes; an app not on this theme can `@use '@greendrake/theme/spinner'` alone, defining the two colours itself.
 
 ## Not included
 

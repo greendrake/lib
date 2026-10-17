@@ -35,7 +35,7 @@ $max-content-width: 850px;
 //
 // It hangs off <html>, not <body>: an element has exactly one ::before, and
 // body's belongs to the full-page loading spinner (`body.spinner::before`, see
-// _index.scss). Sharing it made the two fight — the spinner ring inherited the
+// spinner.scss). Sharing it made the two fight — the spinner ring inherited the
 // vignette's page-sized inset shadow, and the vignette vanished for the
 // duration of every page load. The canvas is html's job anyway; it already
 // carries the page background above.

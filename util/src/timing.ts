@@ -1,3 +1,5 @@
+import { createDeferred, type Deferred } from './misc'
+
 export class TimeOutPromise {
     #timeout: ReturnType<typeof setTimeout>
     #reject: (reason?: unknown) => void
@@ -56,6 +58,60 @@ export class Debouncer {
     // proceed() return false, so an action debounced before cancel() never commits.
     cancel(): void {
         this.#counter++
+    }
+}
+
+// One run at a time, and at most one more behind it however many times it is
+// pulled meanwhile — for work whose every request asks the same question (read
+// this again, rebuild that), so the answer to the last request is the answer to
+// all of them. A pull settles with the outcome of the run that covers it: the
+// one it started, or the one queued behind a run already going. Never the run
+// in progress, which may have begun before whatever prompted the pull.
+//    const refresh = coalesced(() => load())
+//    store.on('changed', () => void refresh().catch(report))
+// The outcome is the puller's: a pull nobody handles rejects unhandled like any
+// other promise. Whatever the outcome, the slot is freed.
+export const coalesced = <T>(run: () => T | Promise<T>): (() => Promise<T>) => {
+    let running = false
+    // The run queued behind the current one, as every pull covered by it holds it.
+    let queued: Deferred<T> | null = null
+
+    // The slot is passed on before the finished run's pulls are settled, so
+    // whoever they wake finds the queued run already under way rather than a
+    // slot about to change hands.
+    const finish = (): void => {
+        running = false
+        const next = queued
+        queued = null
+        if (next) start(next)
+    }
+
+    const start = (covering: Deferred<T>): void => {
+        running = true
+        // `new Promise(resolve => resolve(run()))` rather than
+        // Promise.resolve(run()): it puts the call inside the promise, so a run
+        // that throws synchronously is a rejection like any other instead of
+        // escaping with the slot still held, which would wedge every later pull.
+        void new Promise<T>(resolve => resolve(run())).then(
+            value => {
+                finish()
+                covering.resolve(value)
+            },
+            (error: unknown) => {
+                finish()
+                covering.reject(error)
+            }
+        )
+    }
+
+    return () => {
+        if (running) {
+            queued ??= createDeferred<T>()
+            return queued.promise
+        }
+        const covering = createDeferred<T>()
+        start(covering)
+        return covering.promise
     }
 }
 

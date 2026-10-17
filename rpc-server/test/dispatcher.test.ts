@@ -55,7 +55,8 @@ const methods: Methods = {
 const context = (auth: AuthInfo = ANONYMOUS): CallContext => ({
     auth,
     clientIp: '127.0.0.1',
-    signal: AbortSignal.any([])
+    signal: AbortSignal.any([]),
+    topics: null
 })
 
 describe('dispatch', () => {

@@ -1,4 +1,4 @@
-export { ANONYMOUS, method, type AuthInfo, type AuthRequirement, type AuthResolver, type CallContext, type ClientMethods, type DataFrame, type EventFrame, type HandlerContext, type IncomingRequest, type LocaleResolver, type MethodDef, type Methods, type NonceStore, type WsResponse } from './types'
+export { ANONYMOUS, method, topicsOf, type AuthInfo, type AuthRequirement, type AuthResolver, type CallContext, type ClientMethods, type DataFrame, type EventFrame, type HandlerContext, type IncomingRequest, type LocaleResolver, type MethodDef, type Methods, type NonceStore, type Topics, type WsResponse } from './types'
 export { ApiError } from './errors'
 export { unwrapArguments, validateArguments } from './arguments'
 export { createDispatcher, type Dispatcher, type DispatcherOptions } from './dispatcher'

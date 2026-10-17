@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/font-inter",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -36,7 +36,7 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/scss-kit": "workspace:*"
+        "@greendrake/scss-kit": "workspace:^"
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*"

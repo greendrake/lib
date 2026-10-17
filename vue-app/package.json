@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/vue-app",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "SPA bootstrap: app/pinia/router assembly, splash gate, route titles and body classes",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -34,8 +34,8 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/util": "workspace:*",
-        "@greendrake/vue-kit": "workspace:*"
+        "@greendrake/util": "workspace:^",
+        "@greendrake/vue-kit": "workspace:^"
     },
     "peerDependencies": {
         "pinia": "^3.0.4",

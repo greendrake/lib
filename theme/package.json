@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/theme",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Design tokens, document-level element styling, a light/dark theming mixin and an opt-in dashboard palette",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -39,6 +39,10 @@
         "./dashboard": {
             "sass": "./dashboard.scss",
             "default": "./dashboard.scss"
+        },
+        "./spinner": {
+            "sass": "./spinner.scss",
+            "default": "./spinner.scss"
         }
     },
     "files": [
@@ -47,15 +51,16 @@
         "dashboard-palette.scss",
         "form-controls.scss",
         "editor-rows.scss",
-        "dashboard.scss"
+        "dashboard.scss",
+        "spinner.scss"
     ],
     "publishConfig": {
         "access": "public"
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/css-reset": "workspace:*",
-        "@greendrake/scss-kit": "workspace:*"
+        "@greendrake/css-reset": "workspace:^",
+        "@greendrake/scss-kit": "workspace:^"
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*"

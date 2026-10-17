@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/vue-kit",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Vue/Pinia building blocks: app loading state, media queries, collection-store factory",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -34,8 +34,8 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/scss-kit": "workspace:*",
-        "@greendrake/util": "workspace:*"
+        "@greendrake/scss-kit": "workspace:^",
+        "@greendrake/util": "workspace:^"
     },
     "peerDependencies": {
         "pinia": "^3.0.4",

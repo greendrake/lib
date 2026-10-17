@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { ApiError, HttpTransport, RpcClient, WebSocketPipe, WsTransport } from '@greendrake/rpc'
 import type { Codec, WsAuthStrategy } from '@greendrake/rpc'
-import { ConnRegistry, clientIp, createDispatcher, httpHandler, keyAuthResolver, method, websocketHandler } from '../src/main'
+import { ConnRegistry, clientIp, createDispatcher, httpHandler, keyAuthResolver, method, topicsOf, websocketHandler } from '../src/main'
 import type { AuthInfo, Connection, ConnectionData, Methods, RpcWebSocket } from '../src/main'
 import { schema } from './standardSchema'
 
@@ -21,10 +21,20 @@ interface ApiMethods {
     add: (args: { a: number; b: number }) => number
     whoami: () => unknown
     hang: () => never
+    watch: (args: { topic: string }) => void
+    unwatch: (args: { topic: string }) => void
+    'watch.later': (args: { topic: string }) => void
 }
 
 interface Events {
     'thing.changed': { id: string }
+}
+
+interface Subscriber {
+    client: RpcClient<ApiMethods>
+    pipe: WebSocketPipe
+    // The ids of every `thing.changed` pushed to it, in order.
+    seen: string[]
 }
 
 let abortSeen: (reason: string) => void
@@ -32,9 +42,21 @@ const handlerAborted = new Promise<string>(resolve => {
     abortSeen = resolve
 })
 
+// Released by the test that needs a handler to join only after its caller has
+// gone.
+let allowJoin: () => void
+const joinAllowed = new Promise<void>(resolve => {
+    allowJoin = resolve
+})
+
 const addends = schema<{ a: number; b: number }>(value => {
     const { a, b } = (value ?? {}) as { a?: unknown; b?: unknown }
     return typeof a === 'number' && typeof b === 'number' ? { value: { a, b } } : { issues: [{ message: 'two numbers, please' }] }
+})
+
+const named = schema<{ topic: string }>(value => {
+    const topic = (value as { topic?: unknown } | undefined)?.topic
+    return typeof topic === 'string' ? { value: { topic } } : { issues: [{ message: 'a topic, please' }] }
 })
 
 const methods: Methods = {
@@ -50,7 +72,25 @@ const methods: Methods = {
             new Promise<never>(() => {
                 ctx.signal.addEventListener('abort', () => abortSeen('gone'), { once: true })
             })
-    }
+    },
+    watch: method({
+        auth: 'none',
+        args: named,
+        handler: (ctx, args) => topicsOf(ctx).join(args.topic)
+    }),
+    unwatch: method({
+        auth: 'none',
+        args: named,
+        handler: (ctx, args) => topicsOf(ctx).leave(args.topic)
+    }),
+    'watch.later': method({
+        auth: 'none',
+        args: named,
+        handler: async (ctx, args) => {
+            await joinAllowed
+            topicsOf(ctx).join(args.topic)
+        }
+    })
 }
 
 const registry = new ConnRegistry()
@@ -128,6 +168,11 @@ describe('HTTP transport', () => {
     test('an unrecognised credential leaves the caller anonymous', async () => {
         const client = new RpcClient<ApiMethods>(new HttpTransport({ url: httpUrl, headers: () => ({ Authorization: 'Bearer nope' }) }))
         await expect(client.call('whoami')).rejects.toThrow(new ApiError('AUTH_REQUIRED'))
+    })
+
+    test('a method that subscribes its caller is refused, there being no socket to push to', async () => {
+        const client = new RpcClient<ApiMethods>(new HttpTransport({ url: httpUrl }))
+        await expect(client.call('watch', { topic: 'anything' })).rejects.toThrow(new ApiError('WEBSOCKET_REQUIRED'))
     })
 
     test('only POST carries a call', async () => {
@@ -272,5 +317,87 @@ describe('WebSocket transport', () => {
         await settle()
         pipe.dispose()
         expect(await handlerAborted).toBe('gone')
+    })
+})
+
+describe('topics', () => {
+    // A registry of their own: membership is asserted whole, and the file's
+    // shared registry has other tests' sockets in it.
+    const topicRegistry = new ConnRegistry()
+    const topicServer = wsServer(websocketHandler(dispatcher, topicRegistry))
+    afterAll(() => void topicServer.stop(true))
+
+    // A socket that subscribes itself through the methods above, and what it
+    // has been pushed.
+    const subscriber = async (token?: string): Promise<Subscriber> => {
+        const pipe = new WebSocketPipe({ url: `ws://localhost:${topicServer.port}/`, ...(token === undefined ? {} : { queryAuth: { param: 'token', token } }) })
+        const transport = new WsTransport<Events>({ pipe })
+        const seen: string[] = []
+        transport.onEvent('thing.changed', data => seen.push(data.id))
+        await transport.connect()
+        return {
+            client: new RpcClient<ApiMethods>(transport),
+            pipe,
+            seen
+        }
+    }
+
+    const publish = async (topic: string, id: string): Promise<void> => {
+        topicRegistry.publish(topic, 'thing.changed', { id })
+        await settle()
+    }
+
+    test('a publish reaches exactly the sockets in its topic, whoever they are bound as', async () => {
+        const [operator, stranger, elsewhere, idle] = await Promise.all([subscriber(KEY), subscriber(), subscriber(), subscriber()])
+        await operator.client.call('watch', { topic: 'a' })
+        await stranger.client.call('watch', { topic: 'a' })
+        await elsewhere.client.call('watch', { topic: 'b' })
+        expect(topicRegistry.topics()).toEqual(new Set(['a', 'b']))
+
+        await publish('a', 'for a')
+        await publish('c', 'for nobody')
+
+        expect(operator.seen).toEqual(['for a'])
+        expect(stranger.seen).toEqual(['for a'])
+        expect(elsewhere.seen).toEqual([])
+        expect(idle.seen).toEqual([])
+        for (const one of [operator, stranger, elsewhere, idle]) one.pipe.dispose()
+        await settle()
+        expect(topicRegistry.topics()).toEqual(new Set())
+    })
+
+    test('leaving a topic and closing the socket each end a membership', async () => {
+        const [leaver, stayer] = await Promise.all([subscriber(), subscriber()])
+        await leaver.client.call('watch', { topic: 'a' })
+        await leaver.client.call('watch', { topic: 'b' })
+        await stayer.client.call('watch', { topic: 'a' })
+
+        await leaver.client.call('unwatch', { topic: 'b' })
+        // Leaving what it is not in changes nothing.
+        await stayer.client.call('unwatch', { topic: 'b' })
+        expect(topicRegistry.topics()).toEqual(new Set(['a']))
+        await publish('b', 'for b')
+        expect(leaver.seen).toEqual([])
+
+        leaver.pipe.dispose()
+        await settle()
+        expect(topicRegistry.topics()).toEqual(new Set(['a']))
+        await publish('a', 'for a')
+        expect(stayer.seen).toEqual(['for a'])
+
+        stayer.pipe.dispose()
+        await settle()
+        expect(topicRegistry.topics()).toEqual(new Set())
+    })
+
+    test('a handler that joins after its caller has gone joins nothing', async () => {
+        const late = await subscriber()
+        void late.client.call('watch.later', { topic: 'late' }).catch(() => {})
+        await settle()
+        late.pipe.dispose()
+        await settle()
+        allowJoin()
+        await settle()
+        expect(topicRegistry.topics()).toEqual(new Set())
     })
 })

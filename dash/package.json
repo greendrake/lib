@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/dash",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -44,17 +44,17 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
-        "@greendrake/font-inter": "workspace:*",
-        "@greendrake/rpc": "workspace:*",
-        "@greendrake/theme": "workspace:*",
-        "@greendrake/ui": "workspace:*",
-        "@greendrake/vite-preset": "workspace:*",
-        "@greendrake/vue-api": "workspace:*",
-        "@greendrake/vue-app": "workspace:*",
-        "@greendrake/vue-kit": "workspace:*"
+        "@greendrake/font-inter": "workspace:^",
+        "@greendrake/rpc": "workspace:^",
+        "@greendrake/theme": "workspace:^",
+        "@greendrake/ui": "workspace:^",
+        "@greendrake/vite-preset": "workspace:^",
+        "@greendrake/vue-api": "workspace:^",
+        "@greendrake/vue-app": "workspace:^",
+        "@greendrake/vue-kit": "workspace:^"
     },
     "peerDependencies": {
-        "@greendrake/service-state": "workspace:*",
+        "@greendrake/service-state": "workspace:^",
         "pinia": "^3.0.4",
         "vue": "^3.5.34",
         "vue-router": "^4.6.4"

@@ -35,9 +35,14 @@ off()
 - `TimeOutPromise(ms)` — `promise` resolves after `ms`; `isResolved`; `cancel()` clears the timer and rejects the promise (with `undefined`) while it is pending. `TimeOutPromise.wait(ms)` is the one-shot form.
 - `Debouncer(ms)` — `fire(ms?)` waits the delay (the argument overrides the constructed default for that call only) and resolves with a `proceed` predicate that is true only if no later `fire()` or `cancel()` superseded this one. `cancel()` invalidates every in-flight `fire()`.
 - `Delayed` — named-timeout registry: `go(name, fn, ms)` schedules `fn`, replacing a pending timeout of the same name; `cancel(name)`; `cancelAll()`. Instance-scoped, so equal names in unrelated instances cannot collide.
+- `coalesced(run)` — returns `pull()`: one run at a time, and at most one more queued behind it however many times it is pulled meanwhile, for work whose every request asks the same question (read this again, rebuild that). Each pull settles with the outcome of the run that covers it — the one it started, or the one queued behind a run already going, never the run in progress, which may have begun before whatever prompted the pull. A run that throws synchronously rejects like any other; the slot is freed and handed to the queued run before the finished run's pulls settle. The outcome is the puller's to handle.
 
 ```ts
-import { Debouncer, Delayed, TimeOutPromise } from '@greendrake/util'
+import { Debouncer, Delayed, TimeOutPromise, coalesced } from '@greendrake/util'
+
+const refresh = coalesced(() => loadView())
+source.on('changed', () => void refresh().catch(report))
+const current = await refresh() // never a view read before this call
 
 const debouncer = new Debouncer(300)
 const proceed = await debouncer.fire()

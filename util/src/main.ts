@@ -1,6 +1,6 @@
 export { Emitter, type EventMap } from './Emitter'
 export { randomString, dClone, isEmpty, arrayRemove, arraysEqual, capitalise, humanSeconds, humanFileSize, fileMime, configuration, createDeferred, type Deferred } from './misc'
-export { TimeOutPromise, Debouncer, Delayed } from './timing'
+export { TimeOutPromise, Debouncer, Delayed, coalesced } from './timing'
 export { Retrier, RetryStopped, type RetrierOptions, type RetrierEvents } from './Retrier'
 export { StalenessDetector, type StalenessEvents } from './StalenessDetector'
 export { composeComparators, byProp, byPreset, type Comparator } from './compare'
