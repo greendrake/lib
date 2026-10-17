@@ -20,7 +20,7 @@ createDash({
 
 `createDash` returns the `SpaApp` (see `@greendrake/vue-app`), so a host can act on it after boot — open a WebSocket eagerly, say. Pass `suspense: true` when a route component has async setup — the splash then serves as the Suspense boundary's initial content, so there is no blank frame while the route resolves. `ready` takes init work the splash must outlast. `@greendrake/vue-api`'s error UX is wired in (`apiUXHooks`).
 
-`TabDashboard` renders one panel at a time under a `TabBar`. The registry is the single source for the strip and the panels both: adding a tab is one row. Where a dashboard needs its routes code-split, keep the registry inside the lazily-imported route module, so a lightweight route does not pull in the dashboard panels.
+`TabDashboard` renders one panel at a time under a `TabBar`. The registry is the single source for the strip and the panels both: adding a tab is one row. The open tab is the first until the user picks another; a host whose panels open one another binds `v-model:active` to the open tab's id. A panel is unmounted when another tab opens, unless its row sets `keepAlive`: then it is kept as it was, state and all, and shown again without mounting anew. Where a dashboard needs its routes code-split, keep the registry inside the lazily-imported route module, so a lightweight route does not pull in the dashboard panels.
 
 Dashboard-wide styling — the denser `--font-md`, headings as section dividers, the shell chrome — lives in `@greendrake/theme/dashboard`, which this package's style entry pulls in together with `@greendrake/font-inter` as the document font. The consuming app adds nothing for styling beyond `index.html`'s `<body class="splash">`.
 
@@ -55,7 +55,7 @@ export default defineConfig(
 )
 ```
 
-`sourcePackages` passes through to `@greendrake/vite-preset` for a dashboard that pulls in source-shipped packages beyond the `@greendrake` scope. `define` and `overrides` receive the app's resolved env; `requireEnv` turns a missing build input into a failed build rather than a default. `overrides` also receives the config env, so a dev-only input is demanded only when there is a dev server to demand it for. `VITE_PORT` is required when serving.
+`sourcePackages` passes through to `@greendrake/vite-preset` for a dashboard that pulls in source-shipped packages beyond the `@greendrake` scope. `define`, `htmlData` (runtime settings written into `index.html`, see `@greendrake/vite-preset`) and `overrides` receive the app's resolved env; `requireEnv` turns a missing build input into a failed build rather than a default. `htmlData` and `overrides` also receive the config env, so a dev-only input is demanded only when there is a dev server to demand it for. `VITE_PORT` is required when serving.
 
 **The env file names are load-bearing.** bun injects `.env.development` / `.env.production` into `process.env` at startup, and a `process.env` value outranks the file Vite's loader reads — with those names a production build silently bakes in development credentials. Dashboards therefore use `.env.dev` / `.env.prod`, names bun ignores, and pass the mode explicitly:
 

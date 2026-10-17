@@ -78,8 +78,15 @@ $max-content-width: 850px;
 // colour of its own but a second copy of the page canvas on its own
 // viewport-anchored box, masked down to the strip the bar occupies: where it is
 // opaque it is indistinguishable from the page behind it, vignette falloff
-// included. Sits behind the bar's own content (z-index -1 inside the stacking
-// context the bar's z-index opens), so nothing about the bar's children moves.
+// included.
+//
+// Included on an element of its own: the bar's preceding sibling, at the bar's
+// z-index, so tree order paints it directly under the bar. Never the bar's own
+// ::before — a sticky bar is a stacking context, and a fixed layer inside it
+// lies beneath everything the bar holds. WebKit then composites any transformed
+// child overlapping that layer onto a layer of its own, rasterised at the
+// child's untransformed size, so a child scaled up (the header's parked brand
+// mark) is drawn as an upscaled bitmap.
 //
 // $edge is the viewport edge the bar is stuck to. The mask holds full opacity
 // for $solid from that edge — the band the bar's content occupies — then takes
@@ -95,15 +102,11 @@ $max-content-width: 850px;
     @if $edge == top {
         $away: bottom;
     }
-    &::before {
-        content: '';
-        position: fixed;
-        inset: 0;
-        z-index: -1;
-        pointer-events: none;
-        @include page-canvas;
-        mask-image: linear-gradient(to #{$away}, #000 #{$solid}, transparent calc(#{$solid} + #{$ramp}));
-    }
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    @include page-canvas;
+    mask-image: linear-gradient(to #{$away}, #000 #{$solid}, transparent calc(#{$solid} + #{$ramp}));
 }
 
 @mixin button-colors {
@@ -129,7 +132,6 @@ $max-content-width: 850px;
     color: #fff;
     border: 0;
     padding: 0;
-    cursor: pointer;
     line-height: $size;
     font-size: calc($size * 0.55);
     &:hover {

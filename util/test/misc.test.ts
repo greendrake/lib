@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { arrayRemove, capitalise, createDeferred, dClone, fileMime, humanFileSize, humanSeconds, isEmpty, randomString } from '../src/misc'
+import { arrayRemove, capitalise, configuration, createDeferred, dClone, fileMime, humanFileSize, humanSeconds, isEmpty, randomString } from '../src/misc'
 
 describe('isEmpty', () => {
     test.each([
@@ -66,6 +66,16 @@ describe('misc', () => {
         expect(fileMime(new File([''], 'a.jpg', { type: 'image/jpeg' }))).toBe('image/jpeg')
         expect(fileMime(new File([''], 'a.heic'))).toBe('image/heic')
         expect(fileMime(new File([''], 'a.zzz'))).toBe('application/octet-stream')
+    })
+
+    test('configuration hands back what was configured', () => {
+        const c = configuration<{ n: number }>('pkg')
+        c.configure({ n: 1 })
+        expect(c.get()).toEqual({ n: 1 })
+    })
+
+    test('configuration refuses a read before it is configured', () => {
+        expect(() => configuration<number>('pkg').get()).toThrow('pkg: used before it is configured')
     })
 
     test('createDeferred settles externally', async () => {

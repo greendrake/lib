@@ -158,7 +158,7 @@ const table = ref<InfiniteScrollTableExposed<User>>()
 
 ## MasterDetail
 
-Resizable master pane on the left, tabbed detail panes on the right (a `TabBar` from `@greendrake/ui` with closable tabs). Props: `initialWidth` (default 150), `minWidth` (default 100), `fullWidthUntilTab` (default `false`; the master spans the whole width until a tab opens). Emits `tab-open`, `tab-close`, `tab-activate`, each with the `TabDef`. Slots: `master` receives `{ openTab }`; `detail` receives `{ tab, isActive }` and is rendered once per open tab, inactive panes kept alive with `v-show`. Exposes `openTab(id, label?)` (opens or activates), `closeTab(id)`, `activateTab(id)`, `updateTab(id, newId?, newLabel?)`, `tabs`, `activeTab`, `activeTabId`.
+A `SplitPane` from `@greendrake/ui`: the resizable master pane on the left, tabbed detail panes on the right (a `TabBar` with closable tabs). Props: `initialWidth` and `minWidth` (the master's; `SplitPane`'s defaults, 150 and 100), `fullWidthUntilTab` (default `false`; the master spans the whole width until a tab opens). Emits `tab-open`, `tab-close`, `tab-activate`, each with the `TabDef`. Slots: `master` receives `{ openTab }`; `detail` receives `{ tab, isActive }` and is rendered once per open tab, inactive panes kept alive with `v-show`. Exposes `openTab(id, label?)` (opens or activates), `closeTab(id)`, `activateTab(id)`, `updateTab(id, newId?, newLabel?)`, `tabs`, `activeTab`, `activeTabId`.
 
 ## CrudPanel
 
@@ -174,10 +174,11 @@ Master/detail CRUD shell: a controls bar (search field, optional Create button, 
 | `initialWidth`, `minWidth`, `fullWidthUntilTab` | forwarded to `MasterDetail` | 200, 120, `true` |
 | `showRange` | render the `start-end/total` readout | `true` |
 | `localSearchFields` | `string[] \| false \| null`; `null` keeps the table's default | `null` |
+| `rowLabel` | `(record: T) => string`, a row's detail tab label; `null` labels it with the row key | `null` |
 | `creatable` | Create button, opens a `new:<n>` tab | `false` |
 | `newTabLabel` | label of that tab | `messages.newTab` |
 | `onDelete` | `(keys: Key[]) => Promise<unknown>`; enables the Delete button for the selection | `null` |
-| `deleteConfirmMessage` | when set, deletion asks first in a `Modal` | `null` |
+| `deleteConfirmMessage` | `string \| ((keys: Key[]) => Promise<string>)`; when set, deletion asks first in a `Modal` with this text, or the text the function composes for the selected keys | `null` |
 | `keyExists` | `(key: Key) => boolean`, backs the `isDupe` slot prop | `null` |
 
 The search field's debounce is `localFilterDebounce` over the table: swift when the change resolves in memory, longer when it triggers a fetch. A single column hides the table header.
@@ -186,7 +187,7 @@ Slots: `controls-left` (after the search field and Create), `controls-middle` (`
 
 Exposed (`CrudPanelExposed<T>`; type the ref as `ref<CrudPanelExposed<Row>>()`): `openTab`, `closeTab`, `updateTab`, `removeRows(keys)` (also clears the selection), `addRow`, `patchRow`, `getRow`, `refresh`, `applySaved(key, record, tabId?)`, and readonly `selected`, `range`, `deleting`.
 
-`applySaved` is the post-save hook of the record-edit convention below: it patches the row in place when the key exists, otherwise adds the row and, given the originating `new:` tab's id, renames that tab to the persisted key so the `record` slot prop resolves and the next save updates instead of creates.
+`applySaved` is the post-save hook of the record-edit convention below: it patches the row in place when the key exists, otherwise adds the row and, given the originating `new:` tab's id, renames that tab to the persisted key so the `record` slot prop resolves and the next save updates instead of creates. With a `rowLabel`, the record's tab is relabelled from the saved record.
 
 ```vue
 <script setup lang="ts">
@@ -315,6 +316,10 @@ interface SortState {
 
 `useDetailLoader<T, Id>(id: WatchSource<Id>, fetcher: (id: Id) => Promise<T>): DetailLoader<T>` — the detail-pane fetch skeleton: loads immediately, reloads whenever `id` changes, discards responses that arrive after the id moved on. Returns `{ data: Ref<T | null>, loading, error: Ref<string | null>, reload(), mutate(fn: (cur: T) => void) }`. A rejection's message lands in `error` for in-pane display, so pass a fetcher that does not report errors globally itself. `mutate` folds a known local change into the loaded value without a re-fetch.
 
+### DetailPane
+
+`<DetailPane :loader="detail" v-slot="{ data }">` — a detail pane's record as `detail` (a `useDetailLoader` result) loads: the loading line, the load's error, or the default slot given the loaded record as `data`.
+
 ### useAsyncAction
 
 `useAsyncAction<Args extends unknown[]>(fn: (...args: Args) => Promise<string | void>): AsyncAction<Args>` — in-flight/error/notice bookkeeping for an action button. Returns `{ acting, error, notice, run(...args) }`: `run` ignores re-entry while acting, clears `error`/`notice`, captures a rejection's message in `error`, and stores a string result as the success `notice`. Buttons sharing one in-flight state parameterise `fn` and pass the variant to `run`.
@@ -325,9 +330,25 @@ interface SortState {
 
 ### Formatters
 
-- `fmtDate(v: unknown): string` — `'YYYY-MM-DD HH:MM:SSZ'` in UTC from an ISO/`'YYYY-MM-DD HH:MM:SS'` string (a zoneless string is taken as UTC), a number or a `Date`; `''` for `null`/`undefined`/`''`; throws on other types.
+Beside `fmtBool` and `fmtYesNo`, which read any value as a boolean, the formatters render `null`, `undefined` and `''` as `''`, and throw on a value of a type they do not format. `Intl` output is in the browser's locale.
+
+- `parseInstant(v: unknown): Date` — an instant from an ISO/`'YYYY-MM-DD HH:MM:SS'` string (a zoneless string is taken as UTC), a number or a `Date`.
+- `fmtDate(v: unknown): string` — `'YYYY-MM-DD HH:MM:SSZ'`: the instant (`parseInstant`) in UTC.
+- `fmtDateTime(style: DateStyle)` — a formatter of instants (`parseInstant`) at an `Intl` date and time style (`'full' | 'long' | 'medium' | 'short'`), in the browser's time zone; one formatter per style.
+- `fmtDay(style: DateStyle)` — a formatter of calendar dates (`'YYYY-MM-DD'`) at an `Intl` date style; the day never shifts with the time zone. One formatter per style.
+- `fmtNumber(v: unknown): string` — a number or numeric string in the locale's notation, never rounded; a string formats exactly, digit for digit.
+- `fmtBytes(v: unknown): string` — a byte count in binary units (B, KiB, MiB, GiB, TiB, PiB, EiB): the largest unit the amount reads under 1024 in once rounded to a tenth, at most one fraction digit.
+- `fmtMarkupText(v: unknown): string` — markup as the one line of text it reads: `inlineMarkup`'s text, whitespace collapsed.
 - `fmtBool(v: unknown): string` — `'✓'` or `''`, for table cells.
 - `fmtYesNo(v: unknown): string` — `'yes'` / `'no'`, for detail prose.
+
+### inlineMarkup, InlineMarkup
+
+`inlineMarkup(markup: string): DocumentFragment` rebuilds markup as one line of inline content, safe to render whatever its source: text, and the inline formatting elements `b`, `strong`, `i`, `em`, `u`, `s`, `del`, `ins`, `sub`, `sup`, `code`, `mark`, `small`, recreated without attributes. Other elements are unwrapped; block-level ones and `<br>` part runs of text with one space; scripts, styles, templates, `noscript`, embedded and media content are dropped with everything inside, as are comments. It parses with `DOMParser`, whose document is inert. The `InlineMarkup` component (prop `markup: string`) renders the fragment on one line, cut with an ellipsis — a table cell's `component` for rich text.
+
+### NoteActions
+
+An operator's decisions on a record, recorded with a note. Props: `actions: NoteAction[]` and `placeholder: string`. `NoteAction` is `{ label, fn(note) => Promise, note?: 'optional' | 'required', confirm? }`: a button per action; the note field shows when any action takes a note, one requiring it stays disabled until there is one, and one with `confirm` asks in a modal first. The actions share one in-flight guard and an error line; `done` is emitted once one succeeded, so the parent re-reads. `suspensionActions(suspended, suspend, unsuspend)` is the pair a suspendable record offers — Suspend on a required reason, or Unsuspend.
 
 ### DescriptionList
 

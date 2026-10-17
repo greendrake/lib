@@ -34,12 +34,13 @@ export default defineConfig(
 | `scssLoadPaths` | Extra `@use` resolution roots for Sass (e.g. the app's `src/scss`). |
 | `port` | `'env'` (default): `VITE_PORT` is required whenever a server starts. A number pins that port. `false` disables pinning, for an app served on any free port. |
 | `htmlPlaceholders` | Literal substitutions applied to `index.html` before Vite processes it (see `htmlPlaceholders` below). |
+| `htmlData` | JSON data elements written into `index.html`, by element id, for the app to read at runtime (see `htmlData` below). |
 | `staticRoots` | Directories outside the app served at public URL prefixes (see `staticRoots` below). |
 | `overrides` | A `UserConfig` deep-merged last — the escape hatch for `server.proxy`, extra plugins, build tweaks. |
 
 What the preset sets:
 
-- plugins: `@vitejs/plugin-vue` and the HMR circular-import guard, plus the `staticRoots` and `htmlPlaceholders` plugins when their options are given;
+- plugins: `@vitejs/plugin-vue` and the HMR circular-import guard, plus the `staticRoots`, `htmlPlaceholders` and `htmlData` plugins when their options are given;
 - `server.port`/`preview.port` from `VITE_PORT` with `strictPort`, for `vite dev` and `vite preview` only — builds run in deploy contexts that never define a dev port;
 - `server.fs.allow`: the parent of the app root (a workspace), and every static root's directory;
 - `resolve.alias`: `@` → `<dirname>/src`; `resolve.dedupe`: `vue`, `pinia`, `vue-router` — each must also be a direct dependency of the app, or Vite fails to resolve it;
@@ -86,6 +87,10 @@ import { loadAppEnv, requirePort, envBool, deriveImageBaseUrl, apiTargetEnv, bui
 ### `htmlPlaceholders(map)`
 
 Substitutes build-time values into `index.html` before Vite processes it — a generated inline script, a build hash, PWA metadata. Keys are matched literally (convention: `__NAME__`); an empty map is an error. `vueSpa`'s `htmlPlaceholders` option installs it.
+
+### `htmlData(map)`
+
+Writes `<script type="application/json" id="<id>">JSON</script>` into the head of `index.html` per entry — settings the app reads at runtime (`JSON.parse` of the element's text) rather than through a compile-time define. `<` in the JSON is escaped, so no value ends the element. A `null` value leaves the element empty for a Go binary that serves the build to fill from its own configuration: `greendrake/spa`'s `Data` matches the element in exactly this form. `vueSpa`'s `htmlData` option installs it.
 
 ### `staticRoots(roots)` and `staticRootFiles(root)`
 

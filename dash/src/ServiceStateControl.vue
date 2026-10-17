@@ -41,8 +41,8 @@ const busy = ref(false)
 
 const command = computed(() => (status.value ? COMMANDS[status.value.state] : undefined))
 
-const read = async (call?: CallOptions): Promise<void> => {
-    status.value = await props.api.call('service.status', [{ service: props.service }], call)
+const read = async (call: CallOptions = {}): Promise<void> => {
+    status.value = await props.api.with(call).call('service.status', { service: props.service })
 }
 
 onMounted(() => read())
@@ -61,7 +61,7 @@ useLive(props.transport, {
 })
 
 const run = async (method: StateCommand['method']): Promise<void> => {
-    status.value = await props.api.call(method, [{ service: props.service }], { pending: busy })
+    status.value = await props.api.with({ pending: busy }).call(method, { service: props.service })
 }
 </script>
 <template>

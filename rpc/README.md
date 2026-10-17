@@ -54,7 +54,7 @@ const user = await client.call('user.get', 'U1') // User
 await client.call('user.update', { id: 'U1', name: 'Ann' })
 ```
 
-`new RpcClient<M>(transport, locale?)` — `locale` is `() => string | undefined`, evaluated per call, so a language switch applies from the next call. `call(method, ...args)` is the one way to invoke a method, and every request it sends carries a nonce. `MethodMap` and `MethodMapConstraint<M>` are the constraint types; a plain interface qualifies.
+`new RpcClient<M>(transport, locale?)` — `locale` is `() => string | undefined`, evaluated per call, so a language switch applies from the next call. `call(method, ...args)` is the one way to invoke a method, and every request it sends carries a nonce. A method that takes no arguments is called with none, and its request carries no `arguments` field. `Caller<M>` is that `call`, which `RpcClient` and `@greendrake/vue-api`'s `ApiClient` both implement: the type for code handed either. `MethodMap` and `MethodMapConstraint<M>` are the constraint types; a plain interface qualifies.
 
 `Transport` is one method, `send(request: RpcRequest): Promise<unknown>`, resolving to the response `data` or rejecting with a mapped error. Anything implementing it plugs into the client.
 
@@ -211,7 +211,6 @@ cache.get('taxonomy.tree', [{ taxonomy: 'category' }]) // { hit: boolean; data?:
 cache.set('taxonomy.tree', [{ taxonomy: 'category' }], tree) // no-op for an unlisted method
 cache.invalidate('search.things') // every entry for the method
 cache.invalidate('search.things', { q: 'x' }) // that args-key only
-cache.prime('taxonomy.tree', [{ taxonomy: 'category' }], pushed) // seed from a server push
 cache.clear() // everything, e.g. when the session identity changes
 ```
 

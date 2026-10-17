@@ -27,13 +27,13 @@ Read with no fallback, so the app defines them:
 
 | Property | Read by |
 | --- | --- |
-| `--font-color` | text throughout: `AsyncSearch`, `BottomNav`, `Checkbox`, `Gallery`, `Modal`, `Password`, `SearchField`, `TreeView` |
+| `--font-color` | text throughout: `AsyncSearch`, `BottomNav`, `Checkbox`, `ContextMenu`, `Gallery`, `Modal`, `Password`, `SearchField`, `TreeView` |
 | `--background-color` | `AsyncSearch` narrow panel |
-| `--form-background`, `--form-background-hover` | control surfaces: `AsyncSearchResults`, `BottomNav`, `SegmentedControl`, `TabBar`, `ThumbnailGrid`, `TreeView` |
+| `--form-background`, `--form-background-hover` | control surfaces: `AsyncSearchResults`, `BottomNav`, `ContextMenu`, `SegmentedControl`, `TabBar`, `ThumbnailGrid`, `TreeView` |
 | `--input-background` | `Checkbox` box |
-| `--border-color`, `--border-color-light`, `--border-color-hover` | control and container borders |
+| `--border-color`, `--border-color-light`, `--border-color-hover` | control and container borders; `--border-color-light` is also the `SplitPane` handle |
 | `--border-radius` | `AsyncSearch`, `AsyncSearchResults`, `Checkbox`, `ThumbnailGrid` (`FieldTip` falls back to 4px) |
-| `--accent-color` | active and checked states: `BottomNav`, `Checkbox`, `SegmentedControl`, `TabBar`, toasts |
+| `--accent-color` | active and checked states: `BottomNav`, `Checkbox`, `SegmentedControl`, `TabBar`, toasts; the hovered `SplitPane` handle; `TreeView` drop targets |
 | `--space-1` … `--space-5` | spacing |
 | `--font-xs`, `--font-md`, `--font-lg` | `BottomNav` and `ThumbnailGrid` labels, `FieldTip`, `Modal` title |
 | `--line-height-normal` | `Password` |
@@ -53,14 +53,14 @@ Read with a local default:
 | `--bottomnav-height` | `BottomNav` bar height; bottom edge of the `AsyncSearch` narrow panel | none / 0px |
 | `--safe-area-inset-top`, `--safe-area-inset-bottom` | toast layer; `Modal` sheet and `BottomNav` padding | 0px |
 | `--max-content-width` | `TheWrap` width cap | none |
-| `--tippy-background-color` | `FieldTip` validation tips | `#5335e8` |
+| `--tippy-background-color` | `FieldTip` validation tips, `InfoTip` tooltips | `#5335e8` |
 | `--toast-color`, `--toast-background` | toasts | `#fff`; `--accent-color` (`--warning-color` for the warning variant) |
 | `--color-attention-fill`, `--color-attention-contrast` | `BottomNav` badge | `--accent-color` / `#fff` |
 | `--vs-*` | `SelectBox` (see the component) | per property |
 
 Breakpoint: "narrow" is `@greendrake/scss-kit`'s 600px boundary; `Modal`, `TabBar` and `AsyncSearch` switch presentation below it.
 
-Tooltips: `FieldTip`, `MenuButton` and `AsyncSearch` use `vue-tippy`. Each ships the styles of its own tippy theme (`fieldTip`, `HMenu`, `asyncSearchResults`); no global tippy.js stylesheet is loaded or required.
+Tooltips: `FieldTip`, `InfoTip`, `MenuButton`, `ContextMenu` and `AsyncSearch` use `vue-tippy`. Each ships the styles of the tippy theme it uses (`tip` for the first two, `HMenu`, `ContextMenu`, `asyncSearchResults`); no global tippy.js stylesheet is loaded or required.
 
 ## Messages
 
@@ -73,6 +73,8 @@ configureUiMessages({ cancel: 'Abbrechen', nothingFound: 'Nichts gefunden' })
 ```
 
 Keys and defaults: `loading` "Loading", `ok`, `cancel`, `close`, `clear`, `tryAgain`, `trying` "Trying...", `retryCountdown` "Error. Retrying in {seconds}" (`{seconds}` is substituted at render time), `toHomePage`, `nothingFound`, `searchResults`, `search`, `create`, `refresh`, `delete`, `deleting`, `newTab`, `copied`, `clickToCopy`, `invalidEmail` "Not a valid email address", `selectOption` "Select an option", `errorOther`, `errorNetwork`, `errorNotFound`.
+
+`configurableMessages(defaults)` is the same arrangement for a package of its own: `{ messages, configure }`, `messages` reactive and starting as `defaults` (`@greendrake/ui-rich`'s toolbar strings are kept this way).
 
 ## Form controls
 
@@ -123,7 +125,9 @@ Caption + control column. Props: `label`; `group` wraps the slot in a `role="gro
 
 ### FieldTip
 
-`FieldTip(source: Ref<string | false>, target: string | Ref<HTMLElement | ComponentPublicInstance | null>): void` — binds a manually-triggered tippy tooltip (theme `fieldTip`) to an element or element id: setting `source` to a string shows it as text, `false` hides it; user dismissal resets `source` to `false`. Call it from `setup`; it cleans up on unmount.
+`FieldTip(source: Ref<string | false>, target: string | Ref<HTMLElement | ComponentPublicInstance | null>): void` — binds a manually-triggered tippy tooltip (theme `tip`) to an element or element id: setting `source` to a string shows it as text, `false` hides it; user dismissal resets `source` to `false`. Call it from `setup`; it cleans up on unmount.
+
+`<InfoTip text="…" />` — a small "?" button whose `text` shows in a tooltip (theme `tip`) on hover, on focus, and on a tap where there is no hover; its accessible name is `messages.aboutThis`. Place it beside a field's `<label>`, not inside: within one it would become the control the label names.
 
 ### validationScopeKey
 
@@ -203,7 +207,7 @@ const save = async (): Promise<void> => {
 
 ### ModalOnClick
 
-Trigger element plus a `Modal` around the `content` slot. The default slot is the trigger (`tag`, default `'a'`; `id`, `type` and other attributes land on it); `modalClass` goes to the modal. Modal chrome props `title`, `okLabel`, `cancelLabel`, `okDisabled`, `hideOk`, `closable`, `expandable`, `buttons` are forwarded as given, unset ones keeping `Modal`'s defaults. Emits `click(event)` and `open` on trigger, `ok` (re-emitted without closing — an async submitter keeps the modal open on failure and closes via the exposed `onCancel()` on success), `cancel` (closes, then re-emits). Exposes `open(event)`, `onCancel()`.
+Trigger element plus a `Modal` around the `content` slot. The default slot is the trigger (`tag`, default `'a'`; `id`, `type`, `ariaLabel` and other attributes land on it); `modalClass` and `modalTestid` (its `data-testid`) go to the modal. Modal chrome props `title`, `okLabel`, `cancelLabel`, `okDisabled`, `hideOk`, `closable`, `expandable`, `buttons` are forwarded as given, unset ones keeping `Modal`'s defaults. Emits `click(event)` and `open` on trigger, `ok` (re-emitted without closing — an async submitter keeps the modal open on failure and closes via the exposed `onCancel()` on success), `cancel` (closes, then re-emits). Exposes `open(event)`, `onCancel()`.
 
 ### Gallery
 
@@ -214,6 +218,10 @@ Full-screen image viewer in an expanded `Modal`. Props: `items: GalleryItem[]` (
 ### MenuButton
 
 Hover/click dropdown built on `vue-tippy`'s `Tippy` (theme `HMenu`, placement `bottom-end`); any click inside the menu closes it. Slots: `main` (trigger), `menuitems` (menu content, wrapped in `.Menubutton-Menu`). Props: `menuClass` (on the wrapper), `boxClass` (on the tippy box, applied once on create), `offset` (default `[0, -1]`), `matchTriggerWidth` (pins the popper width to the trigger's).
+
+### ContextMenu
+
+A menu at the pointer in place of the browser's own, built on `vue-tippy`'s `Tippy` (theme `ContextMenu`), appended to `body`. Prop `items: ContextMenuItem[]` (`{ label, run: () => unknown }`), rendered as `role="menuitem"` buttons. Exposes `open(event: MouseEvent)`: call it from a `contextmenu` listener — it cancels the browser's menu and shows this one at the event's point. Choosing an item closes the menu and runs the item; a press outside the menu, or any key, closes it. Place it inside the element it serves: a press there closes it too.
 
 ### SelectBox
 
@@ -289,6 +297,10 @@ interface BottomNavTab {
 
 Per-tab icons are the app's: style `.BottomNav__icon--<id>` with a `mask-image`. The bar's height is `--bottomnav-height` plus `--safe-area-inset-bottom`.
 
+### SplitPane
+
+Two panes side by side, the start one resized by dragging the handle between them. Props: `initialWidth` (default 150) and `minWidth` (default 100), the start pane's. Slots: `start`, `end`; each pane is a flex column whose children grow to fill it, the start one scrolling its overflow. Without an `end` slot (e.g. a conditional `<template v-if="…" #end>`) the start pane spans the whole width and no handle renders.
+
 ### Splash, Loading
 
 `Splash` centres its default slot (logo) above a `Loading` indicator, covering its positioned ancestor. `Loading` renders `messages.loading` with animated dots.
@@ -297,7 +309,15 @@ Per-tab icons are the app's: style `.BottomNav__icon--<id>` with a `mask-image`.
 
 ### TreeView
 
-Lazy tree rendered as one flat list of visible nodes. Props: `loader: TreeLoader` (required), `idField` (default `'key'`), `labelField` (default `'title'`), `multiSelect` (default `true`). `v-model:selected: TreeNodeId[]`. Children load on first expand and are cached per node. Selection is mouse-driven: click selects, Shift extends a range over the visible list, Ctrl/Cmd toggles.
+Lazy tree rendered as one flat list of visible nodes. Props: `loader: TreeLoader` (required), `idField` (default `'key'`), `labelField` (default `'title'`), `editField` (the field a rename edits; default `labelField`), `multiSelect` (default `true`), `draggable` (default `false`), `onRename?: (node: TreeNodeId, value: string) => Promise<void>`, `onAddChild?: (parent: TreeNodeId, value: string) => Promise<void>`. `v-model:selected: TreeNodeId[]`. Children load on first expand and are cached per node. Selection runs on `useSelection`: click selects, Shift extends a range over the visible list, Ctrl/Cmd toggles; the list is focusable, the arrows move the cursor (Shift extending the range) and Ctrl/Cmd+A selects all. A right-click focuses its row — selected alone unless it is selected already — and emits `contextmenu(event)`; the consumer opens its menu.
+
+A node may have several parents and then shows under each: rows are keyed by their path from the root, while the children cache, expansion and selection stay per node. A node's loaded children decide whether its row expands, over the `expandable` its parent's load carried. The cursor's row is the focused occurrence (`aria-current`).
+
+In-place editing: with `onRename`, double-clicking a label turns it into an input holding the node's `editField`; with `onAddChild`, `addChild()` opens an empty input last under the focused row. Enter hands a changed or non-empty, trimmed value to the callback and closes the input once it resolves — a rejection leaves it open — and Escape or leaving the input drops it. Keys typed there stay in the input.
+
+Exposed: `reload(nodeId | null)` re-fetches a node's children (`null`: the root level), keeping what is expanded; `expand(nodeId)` expands a node wherever it shows, loading its children first; `levelsOf(nodeId)` lists the loaded levels holding a node — the parents it shows under, `null` for the root level — the levels to reload when it changes or goes; `focused` is the focused occurrence while its row is visible, else `null`; `addChild()`, above.
+
+With `draggable`, rows drag onto rows: the upper third of the target row drops before it, the lower third after it, the middle inside it. A row whose path passes through the dragged node — any occurrence of it, or any row under one — is no target. The target row carries `data-drop` (`before` | `inside` | `after`) while hovered; the drop emits `move`, which the consumer carries out and reloads after.
 
 ```ts
 interface TreeNode {
@@ -306,6 +326,14 @@ interface TreeNode {
 }
 type TreeNodeId = string | number
 type TreeLoader = (parentId: TreeNodeId | null) => Promise<TreeNode[]> // null → root level
+interface TreeOccurrence {
+    node: TreeNodeId
+    parent: TreeNodeId | null // null: at the root level
+}
+type TreeMove = { node: TreeNodeId; from: TreeNodeId | null } & (
+    | { position: 'inside'; to: TreeNodeId }
+    | { position: 'before' | 'after'; to: TreeNodeId | null; relativeTo: TreeNodeId }
+)
 ```
 
 ### Accordion
@@ -331,7 +359,16 @@ type ThumbnailGridLoader = (params: ThumbnailGridLoaderParams, loading: Ref<bool
 
 ### useSelection
 
-`useSelection<Id extends string | number>(items: Ref<Record<string, unknown>[]> | ComputedRef<...>, idField: string)` — flat, index-addressable multi-selection over an ordered list. Returns `{ selected: Set<Id> (shallowReactive), getId(index), indexOf(id), addRange(fromId, toId), toggle(id), replace(id), rangeTo(id) (from the anchor set by the last toggle/replace), moveCursor('up' | 'down', extend: boolean): number (returns the new cursor index), selectAll(), clear() }`. `TreeView` uses it.
+`useSelection<Id extends string | number>(items: Ref<Record<string, unknown>[]> | ComputedRef<...>, idField: string, { keyField?: string, multi?: MaybeRefOrGetter<boolean> })` — flat, index-addressable multi-selection over an ordered list. The selection holds ids (`items[i][idField]`); the cursor and the anchor ranges extend from are rows, addressed by `items[i][keyField]` (default `idField`) — distinct when an item shows in several rows, as a tree node under two parents does. Without `multi` (default `true`), every pick and move selects one row. Returns:
+
+- `selected: Set<Id>` (shallowReactive);
+- `cursor: ShallowRef<string | number | null>`: the cursor's row key; setting it moves the cursor alone;
+- `getId(index)`;
+- `replace(key)`: selects the row alone, cursor and anchor on it;
+- `pick(key, event: MouseEvent)`: a pointer's pick — Shift selects the range from the anchor (with no anchor in the list, it toggles), Ctrl/Cmd toggles the row, a plain pick replaces;
+- `onKeyDown(event: KeyboardEvent): number`: Ctrl/Cmd+A selects all; ArrowUp/ArrowDown move the cursor, selecting its row alone, or with Shift the range from the anchor to it. Returns the cursor's new index, for the host to scroll into view, or -1.
+
+`InfiniteScrollTable`, `RowSelect` and `TreeView` run on it.
 
 ### RowSelect
 
@@ -339,6 +376,8 @@ type ThumbnailGridLoader = (params: ThumbnailGridLoaderParams, loading: Ref<bool
 
 ## Misc
 
+- `InfoBlock` — a notice set apart by `--infoblock-line-color` and the `info` glyph; an `actions` slot stacks controls beneath the message.
+- `SwitchRow` — an on/off switch shaped as a row (`v-model`, `label`, `title`): an `<a role="switch">`, so it sits among menu items, its layout the host class's.
 - `CircularProgress` — SVG ring, prop `progress: number` (0–100, clamped), `role="progressbar"`; colours via `--circular-progress-track` / `--circular-progress-arc` / `--circular-progress-label`.
 - `Copy` — click-to-copy icon for `value: string`; `showValue` renders the value beside it; a `copied` class marks success for 2s. Title is `messages.clickToCopy`.
 - `copyTextToClipboard(text: string): Promise<void>` — `navigator.clipboard.writeText`; requires a secure context.
@@ -346,3 +385,5 @@ type ThumbnailGridLoader = (params: ThumbnailGridLoaderParams, loading: Ref<bool
 - `scrollToTop()` — `window.scroll({ top: 0 })`.
 - `focusIn(el: string | HTMLElement | null, selector?: string)` — focuses the element with that id, or the first `selector` match inside `el`, unless it already has focus.
 - `TOUCH_PAN_SLOP_PX` — 10; the travel a touch must cover before it counts as a directional gesture; exported so other gesture-arbitrating components share it.
+- `capturePointer(event: PointerEvent)` — captures the pointer to `event.currentTarget`, so a drag keeps tracking it outside the element; a pointer already released is a no-op.
+- `useWidthDrag(minWidth: MaybeRefOrGetter<number>): WidthDrag` — a width dragged by a handle at its end edge, never below `minWidth`. Returns `{ active, start(event, width, set), move(event), end() }`: wire `start` to the handle's `pointerdown` (it captures the pointer and drags from `width`, handing each new width to `set`), `move` to `pointermove`, `end` to `pointerup` and `pointercancel`; `active` is true while a drag is in progress. `SplitPane` uses it.

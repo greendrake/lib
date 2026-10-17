@@ -7,23 +7,10 @@ const DEBOUNCE_MS = 150
 const FLING_DECAY_TAU_MS = 325
 const FLING_MIN_VELOCITY_PX_MS = 0.05
 const FLING_SAMPLE_WINDOW_MS = 100
-
-// setPointerCapture throws NotFoundError when the pointer is no longer active —
-// released or cancelled between event dispatch and this call, a real race for
-// touch/pen and under synthetic pointer streams. A gesture whose pointer is
-// already gone has nothing to capture, so exactly that error is a no-op;
-// anything else still throws.
-const capturePointer = (event: PointerEvent): void => {
-    try {
-        ;(event.currentTarget as Element).setPointerCapture(event.pointerId)
-    } catch (e) {
-        if (!(e instanceof DOMException && e.name === 'NotFoundError')) throw e
-    }
-}
 </script>
 <script setup lang="ts" generic="T extends Record<string, unknown>">
 import { ref, computed, watch, onMounted, onUnmounted, type Ref } from 'vue'
-import { useSelection, messages, TOUCH_PAN_SLOP_PX } from '@greendrake/ui'
+import { useSelection, useWidthDrag, capturePointer, messages, TOUCH_PAN_SLOP_PX } from '@greendrake/ui'
 import { rowKeyOf, type Props, type DropTarget, type Filters, type LoaderParams, type LoaderResponse, type RowPosition, type VisibleRange, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
 
 const props = withDefaults(defineProps<Props<T>>(), {
@@ -67,7 +54,7 @@ const lastRequestOffset = ref<number | null>(null)
 const baselineFilters = ref<Filters | null>(null)
 const hasAllRecords = ref(false)
 const colWidths = ref<number[]>([])
-const resizeCol = ref<{ index: number; startX: number; startWidth: number } | null>(null)
+const { active: colResizing, start: startColDrag, move: onColResizeMove, end: onColResizeEnd } = useWidthDrag(30)
 const dropTarget = ref(null) as Ref<DropTarget<T> | null>
 
 const keyOf = (record: T): string | number => rowKeyOf(record, props.rowKey)
@@ -98,14 +85,7 @@ function onRowPointerDown(record: T, e: PointerEvent): void {
     // Touch/pen select on pointerup instead (see onRowPointerUp), so that
     // starting a scroll pan on a row doesn't change the selection.
     if (!selection || e.pointerType !== 'mouse') return
-    const id = keyOf(record)
-    if (e.shiftKey) {
-        selection.rangeTo(id)
-    } else if (e.ctrlKey || e.metaKey) {
-        selection.toggle(id)
-    } else {
-        selection.replace(id)
-    }
+    selection.pick(keyOf(record), e)
 }
 
 // A panning pointer is captured by the wrapper (see onWrapperPointerMove), so
@@ -117,17 +97,7 @@ function onRowPointerUp(record: T, e: PointerEvent): void {
 
 function onTableKeyDown(e: KeyboardEvent): void {
     if (!selection) return
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        e.preventDefault()
-        selection.selectAll()
-        return
-    }
-    const isUp = e.key === 'ArrowUp'
-    const isDown = e.key === 'ArrowDown'
-    if (!isUp && !isDown) return
-    e.preventDefault()
-    const newIndex = selection.moveCursor(isUp ? 'up' : 'down', e.shiftKey)
-    scrollToIndex(newIndex)
+    scrollToIndex(selection.onKeyDown(e))
 }
 
 const initColWidths = (): void => {
@@ -139,26 +109,13 @@ const initColWidths = (): void => {
 // Column resize and scroll-handle dragging use pointer capture on the grabbed
 // element, so the drag keeps tracking the pointer outside the element (and the
 // component) without document-level listeners — and works for touch/pen too.
+// A column's drag stops at its handle: the wrapper would read it as a pan.
 const onColResizeStart = (event: PointerEvent, index: number): void => {
-    event.preventDefault()
     event.stopPropagation()
-    capturePointer(event)
     initColWidths()
-    resizeCol.value = {
-        index,
-        startX: event.clientX,
-        startWidth: colWidths.value[index]
-    }
-}
-
-const onColResizeMove = (event: PointerEvent): void => {
-    if (!resizeCol.value) return
-    const delta = event.clientX - resizeCol.value.startX
-    colWidths.value[resizeCol.value.index] = Math.max(30, resizeCol.value.startWidth + delta)
-}
-
-const onColResizeEnd = (): void => {
-    resizeCol.value = null
+    startColDrag(event, colWidths.value[index], width => {
+        colWidths.value[index] = width
+    })
 }
 
 // Computed values
@@ -788,7 +745,7 @@ defineExpose(exposed)
 </script>
 
 <template>
-    <div ref="containerRef" class="infinite-scroll-table" :class="{ spinner: loading || hasVisibleGaps, 'col-resizing': resizeCol }">
+    <div ref="containerRef" class="infinite-scroll-table" :class="{ spinner: loading || hasVisibleGaps, 'col-resizing': colResizing }">
         <div class="table-wrapper" :tabindex="selectable ? 0 : undefined" :style="{ touchAction: scrollHandleHeight > 0 ? 'pinch-zoom' : undefined }" @wheel="handleWheel" @keydown="onTableKeyDown" @pointerdown="onWrapperPointerDown" @pointermove="onWrapperPointerMove" @pointerup="onWrapperPointerEnd" @pointercancel="onWrapperPointerEnd" @click.capture="onWrapperClickCapture" @dragover="onTableDragOver" @drop="onTableDrop" @dragleave="onTableDragLeave">
             <table class="data-table">
                 <thead v-if="!hideHeader" ref="theadRef">
@@ -892,10 +849,7 @@ defineExpose(exposed)
     }
 
     &.col-resizing {
-        user-select: none;
-        * {
-            cursor: col-resize !important;
-        }
+        @include dragging(col-resize);
     }
 }
 

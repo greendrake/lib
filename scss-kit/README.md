@@ -79,7 +79,7 @@ window.matchMedia(mediaAbove('narrow')).matches
 
 Data-URI SVG icons rendered through `mask-image`, so the element's `background-color` paints them.
 
-- `$icons` — map of name → `url("data:image/svg+xml,…")`. Names: `eye`, `eye-off`, `copy`, `delete`, `close`, `menu`, `expand`, `collapse`, `download`, `chevron-left`, `chevron-right`, `link`, `refresh`, `edit`, `quote`, `qr`, `logout`, `user`, `settings`, `sun`, `moonstar`.
+- `$icons` — map of name → `url("data:image/svg+xml,…")`. Names: `eye`, `eye-off`, `copy`, `delete`, `close`, `menu`, `expand`, `collapse`, `download`, `chevron-left`, `chevron-right`, `link`, `refresh`, `edit`, `quote`, `qr`, `logout`, `user`, `settings`, `sun`, `moonstar`, `info`, `shield-check`.
 - `icon-svg($name)` — the `url()` for a name.
 - `icon-mask($svg)` — emits `mask-image: $svg`. The extension point for icons outside the registry: wrap it in an app mixin with your own data-URI SVG.
 - `i($name)` — `icon-mask(icon-svg($name))`.
@@ -131,10 +131,12 @@ The `url()` literals must be written in the font package's own `.scss` file: Vit
 
 - `monospace` — `font-family: monospace, monospace`.
 - `disabled` — `pointer-events: none; opacity: 0.5; cursor: default; user-select: none`.
+- `dragging($cursor)` — for the host of a pointer drag in progress: `user-select: none`, and `$cursor` (`!important`) on every descendant.
 - `apply-props($props)` — emits each `key: value` pair of a map as a declaration.
 - `control-clear` — the × clear button rendered inside a select-shaped control, before the chevron: an inline-flex box held at the WCAG 2.2 target-size minimum (24×24, SC 2.5.8) with a negative block margin (computed from `var(--line-height-tight, 18px)`) so it grows into the control's padding instead of its height; glyph size `var(--control-clear-font-size, 18px)`; opacity 0.5, 1 on hover.
 - `control-chevron($point: down)` — a dropdown/drill chevron built from two borders (no icon dependency): 7×7px, `currentColor`, opacity 0.6, `transform` transition; `$point: right` rotates it to point right.
 - `img-spinner($size: 24px)` — a centred spinner `::before` on an `img` container. Requires global `spinner` keyframes and the `--spinner-color`/`--spinner-side-color` custom properties, all the app's to provide.
+- `hover-grow` — scales the element 1.2× under the pointer (0.3 s `transform` transition) and raises it to `z-index: 1` while grown, dropping back only once the shrink has finished; the host must take part in stacking (positioned, or a flex/grid item).
 
 ```scss
 .select-clear {

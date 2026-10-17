@@ -51,6 +51,12 @@ export type MethodMap = Record<string, (...args: never[]) => unknown>
 
 export type MethodMapConstraint<M> = Record<keyof M, (...args: never[]) => unknown>
 
+// What calls the methods of M: each with exactly its own arguments, and a method
+// that takes none with none at all.
+export interface Caller<M extends MethodMapConstraint<M>> {
+    call<K extends keyof M & string>(method: K, ...args: Parameters<M[K]>): Promise<Awaited<ReturnType<M[K]>>>
+}
+
 export interface Transport {
     send(request: RpcRequest): Promise<unknown>
 }

@@ -8,7 +8,11 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps<{ progress: number }>()
+const props = defineProps<{
+    progress: number
+    /** Replaces the default percentage text (e.g. seconds left). */
+    label?: string
+}>()
 
 const clamped = computed(() => Math.max(0, Math.min(100, props.progress)))
 // Full circumference at 0%, zero at 100% — the dash grows clockwise from the
@@ -19,7 +23,7 @@ const dashOffset = computed(() => CIRCUMFERENCE * (1 - clamped.value / 100))
     <svg class="CircularProgress" viewBox="0 0 36 36" role="progressbar" :aria-valuenow="Math.round(clamped)" aria-valuemin="0" aria-valuemax="100">
         <circle class="CircularProgress__track" cx="18" cy="18" :r="RADIUS" />
         <circle class="CircularProgress__arc" cx="18" cy="18" :r="RADIUS" :stroke-dasharray="CIRCUMFERENCE" :stroke-dashoffset="dashOffset" />
-        <text class="CircularProgress__label" x="18" y="18">{{ Math.round(clamped) }}%</text>
+        <text class="CircularProgress__label" x="18" y="18">{{ label ?? `${Math.round(clamped)}%` }}</text>
     </svg>
 </template>
 <style lang="scss">

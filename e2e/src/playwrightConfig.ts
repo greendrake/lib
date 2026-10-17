@@ -6,17 +6,24 @@ export interface SpaPlaywrightOptions {
     // then fails the run rather than silently testing whatever happens to be
     // listening on a default.
     defaultPort?: string
+    // The app's origin, for an app its own backend serves rather than a dev
+    // server: VITE_PORT is then not read at all.
+    baseURL?: string
     overrides?: PlaywrightTestConfig
+}
+
+const devServerURL = (defaultPort?: string): string => {
+    const port = process.env.VITE_PORT || defaultPort
+    if (!port) {
+        throw new Error('spaPlaywright: VITE_PORT must be set (this app configures no defaultPort)')
+    }
+    return `http://localhost:${port}`
 }
 
 // The config an SPA would otherwise hand-copy: chromium-only, ./tests dir, an
 // html reporter that never auto-opens, and a baseURL built from VITE_PORT.
-export const spaPlaywright = (options: SpaPlaywrightOptions = {}): PlaywrightTestConfig => {
-    const port = process.env.VITE_PORT || options.defaultPort
-    if (!port) {
-        throw new Error('spaPlaywright: VITE_PORT must be set (this app configures no defaultPort)')
-    }
-    return defineConfig({
+export const spaPlaywright = (options: SpaPlaywrightOptions = {}): PlaywrightTestConfig =>
+    defineConfig({
         testDir: './tests',
         fullyParallel: true,
         forbidOnly: !!process.env.CI,
@@ -27,7 +34,7 @@ export const spaPlaywright = (options: SpaPlaywrightOptions = {}): PlaywrightTes
         timeout: 120_000,
         reporter: [['html', { open: 'never' }]],
         use: {
-            baseURL: `http://localhost:${port}`,
+            baseURL: options.baseURL ?? devServerURL(options.defaultPort),
             trace: 'on-first-retry',
             video: 'retain-on-failure'
         },
@@ -39,4 +46,3 @@ export const spaPlaywright = (options: SpaPlaywrightOptions = {}): PlaywrightTes
         ],
         ...options.overrides
     })
-}

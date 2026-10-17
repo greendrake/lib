@@ -51,6 +51,16 @@ export const setDeviceOnline = (on: boolean): void => {
     Object.defineProperty(navigator, 'onLine', { value: on, configurable: true })
 }
 
+// Bun has no document; keepConnected reads only its visibility. Every test
+// file shares the global, so the stand-in is removed once a test is done.
+export const setVisibility = (state: DocumentVisibilityState): void => {
+    Object.defineProperty(globalThis, 'document', { value: { visibilityState: state }, configurable: true })
+}
+
+export const removeDocument = (): void => {
+    Reflect.deleteProperty(globalThis, 'document')
+}
+
 // The store reads its source once, when it materialises, so each test wires the
 // source it wants before touching useConnectivity().
 export const withSource = (source?: ConnectionSource): void => {

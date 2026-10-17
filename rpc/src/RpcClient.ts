@@ -1,4 +1,4 @@
-import type { MethodMap, MethodMapConstraint, Transport } from './types'
+import type { Caller, MethodMap, MethodMapConstraint, Transport } from './types'
 import { packRequest } from './protocol'
 
 // Typed facade over a transport: methods come from the app's declared
@@ -6,7 +6,7 @@ import { packRequest } from './protocol'
 // proxies, no casts at call sites.
 //    const client = new RpcClient<Methods>(transport)
 //    const user = await client.call('user.get', id)
-export class RpcClient<M extends MethodMapConstraint<M> = MethodMap> {
+export class RpcClient<M extends MethodMapConstraint<M> = MethodMap> implements Caller<M> {
     readonly transport: Transport
     // Supplies the caller's UI language tag per request. Evaluated per call,
     // like HttpTransport's headers provider, so a locale switch takes effect on

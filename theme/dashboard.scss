@@ -34,10 +34,20 @@ a:hover {
     color: var(--link-color-hover);
 }
 
-label {
+// Captions: a bare <label>, and a Field's caption, which is in its <label> or, for a
+// control a label cannot name, stands alone. A Field's <label> also wraps the control
+// itself, which keeps its own look.
+label,
+.Field__caption {
     font-size: var(--font-xs);
     font-weight: 500;
     opacity: 0.7;
+}
+
+.Field > label {
+    font-size: inherit;
+    font-weight: inherit;
+    opacity: 1;
 }
 
 // Headings read as panel/section dividers rather than page titles — every

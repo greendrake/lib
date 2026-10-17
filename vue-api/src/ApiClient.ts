@@ -1,7 +1,7 @@
 import { isRef, type Ref } from 'vue'
 import { createDeferred, NetworkError, TimeOutPromise } from '@greendrake/util'
 import { ResponseCache, WebSocketClosedError, codeOf, packRequest } from '@greendrake/rpc'
-import type { CacheConfig, MethodMap, MethodMapConstraint, Transport } from '@greendrake/rpc'
+import type { CacheConfig, Caller, MethodMap, MethodMapConstraint, Transport } from '@greendrake/rpc'
 import { useAppState } from '@greendrake/vue-kit'
 import { useConnectivity } from './connectivity'
 import { useExceptionState } from './exceptionState'
@@ -56,9 +56,18 @@ export interface ApiClientOptions {
     locale?: () => string | undefined
 }
 
+// What calls the methods of M as ApiClient does: its own calls, under no options,
+// and those made under some.
+export interface ApiCaller<M extends MethodMapConstraint<M>> extends Caller<M> {
+    // The calls made under options. A separate entry point rather than a trailing
+    // parameter: nothing at runtime tells trailing options from a last argument.
+    //    api.with({ pending: false }).call('listing.get', { listing_id })
+    with(options: CallOptions): Caller<M>
+}
+
 // The Vue-facing API client: typed calls with loading-state wiring, response
 // caching, and the blocking-toast retry pipeline.
-export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> {
+export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements ApiCaller<M> {
     readonly transport: Transport
     readonly #cache?: ResponseCache
     readonly #errorHandlers?: Record<string, (e: Error) => void>
@@ -103,7 +112,17 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> {
         }
     }
 
-    // The one way to invoke a method. Whether the request carries a nonce is
+    call<K extends keyof M & string>(method: K, ...args: Parameters<M[K]>): Promise<Awaited<ReturnType<M[K]>>> {
+        return this.#call({}, method, args)
+    }
+
+    with(options: CallOptions): Caller<M> {
+        return {
+            call: <K extends keyof M & string>(method: K, ...args: Parameters<M[K]>) => this.#call(options, method, args)
+        }
+    }
+
+    // What every call comes down to. Whether the request carries a nonce is
     // not a per-call-site choice: it follows from the cache config, which is
     // the single declaration of "this answer may be reused".
     //
@@ -126,7 +145,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> {
     // server-side response caching is built (there is none today, so nonce-less
     // buys nothing extra), or if `Request.Abort` (which cancels by nonce) gets
     // wired up on a cacheable method.
-    async call<K extends keyof M & string>(method: K, args: Parameters<M[K]>, options?: CallOptions): Promise<Awaited<ReturnType<M[K]>>> {
+    async #call<K extends keyof M & string>(options: CallOptions, method: K, args: Parameters<M[K]>): Promise<Awaited<ReturnType<M[K]>>> {
         const cacheable = this.#cache?.ttlFor(method) !== false && this.#cache !== undefined
         // Refusing the cache is about this answer, not about the method: it
         // suppresses the lookup and the store, and deliberately does NOT touch
@@ -135,7 +154,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> {
         // and keeps what nonce-lessness buys it, which is not only the Redis
         // write it saves but offline parking: a nonce-less read dropped in
         // flight waits out the outage instead of asking the user to retry it.
-        const useCache = cacheable && options?.cache !== false
+        const useCache = cacheable && options.cache !== false
         if (useCache) {
             const cached = this.#cache!.get(method, args)
             if (cached.hit) {
@@ -158,16 +177,10 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> {
         this.#cache?.clear()
     }
 
-    // Seed the cache from a server push already carrying the full DTO a read
-    // would return. `args` must match the read's args to hit the same key.
-    primeCache(method: keyof M & string, args: unknown[], data: unknown): void {
-        this.#cache?.prime(method, args, data)
-    }
-
-    async #run<K extends keyof M & string>(nonce: boolean, store: boolean, method: K, args: Parameters<M[K]>, options?: CallOptions): Promise<Awaited<ReturnType<M[K]>>> {
+    async #run<K extends keyof M & string>(nonce: boolean, store: boolean, method: K, args: Parameters<M[K]>, options: CallOptions): Promise<Awaited<ReturnType<M[K]>>> {
         const send = async (): Promise<Awaited<ReturnType<M[K]>>> => {
             const result = await this.transport.send(packRequest(method, args, nonce, this.#locale?.()))
-            if (options?.validate) {
+            if (options.validate) {
                 const verdict = options.validate(result)
                 if (verdict instanceof Error) {
                     throw verdict
@@ -186,14 +199,14 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> {
             return result as Awaited<ReturnType<M[K]>>
         }
 
-        if (options?.silent) {
+        if (options.silent) {
             return send()
         }
 
         const appState = useAppState()
         const exceptionState = useExceptionState()
         const connectivity = useConnectivity()
-        const pending = options?.pending
+        const pending = options.pending
         const switchLoading = (on: boolean): void => {
             if (isRef(pending)) {
                 pending.value = on

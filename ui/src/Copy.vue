@@ -26,7 +26,8 @@ const onClick = async (e: MouseEvent) => {
 </script>
 <template>
     <div class="Copy2Clipboard" :title="messages.clickToCopy" @click="onClick">
-        <span v-if="showValue" class="Copy2Clipboard__value">{{ value }}</span>
+        <!-- The slot renders the value differently from the text copied. -->
+        <span v-if="showValue" class="Copy2Clipboard__value"><slot>{{ value }}</slot></span>
     </div>
 </template>
 <style lang="scss">

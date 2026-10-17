@@ -1,9 +1,20 @@
 <script lang="ts">
+import type { Component } from 'vue'
+
 export interface TabDef {
     id: string
     label: string
     closable?: boolean
 }
+
+// A component and the props its host binds it with.
+export interface Pane {
+    component: Component
+    props?: Record<string, unknown>
+}
+
+// A tab and the pane it shows.
+export interface TabPane extends TabDef, Pane {}
 </script>
 <script setup lang="ts">
 import { computed } from 'vue'

@@ -1,4 +1,4 @@
-export { identityCodec, type Codec, type HeadersProvider, type RpcRequest, type RpcResponse, type MethodMap, type MethodMapConstraint, type Transport } from './types'
+export { identityCodec, type Caller, type Codec, type HeadersProvider, type RpcRequest, type RpcResponse, type MethodMap, type MethodMapConstraint, type Transport } from './types'
 export { ApiError, NotFoundError, OneOutcomeError, WebSocketClosedError, codeOf } from './errors'
 export { makeError, packRequest, settleResponse } from './protocol'
 export { HttpTransport, type HttpTransportOptions } from './http'

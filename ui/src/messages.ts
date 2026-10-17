@@ -1,7 +1,19 @@
 import { reactive } from 'vue'
 
-// Every user-facing string in this package, overridable in one place. Apps
-// with i18n call configureUiMessages at boot (and again on locale change).
+// A package's user-facing strings, overridable in one place: `messages`, read
+// reactively, starts as `defaults`; `configure` replaces any of them. Apps with
+// i18n call it at boot and again on each locale change.
+export const configurableMessages = <M extends Record<string, string>>(defaults: M): { messages: M; configure: (overrides: Partial<M>) => void } => {
+    const messages = reactive({ ...defaults }) as M
+    return {
+        messages,
+        configure: overrides => {
+            Object.assign(messages, overrides)
+        }
+    }
+}
+
+// Every user-facing string in this package.
 const defaults = {
     loading: 'Loading',
     ok: 'OK',
@@ -25,6 +37,8 @@ const defaults = {
     clickToCopy: 'Click to copy',
     invalidEmail: 'Not a valid email address',
     selectOption: 'Select an option',
+    // The accessible name of InfoTip's mark; what it explains is the tooltip.
+    aboutThis: 'About this',
     errorOther: 'Oops.. Sorry, something went wrong',
     errorNetwork: 'Looks like a network connectivity issue',
     errorNotFound: 'The requested page not found'
@@ -32,8 +46,4 @@ const defaults = {
 
 export type UiMessages = typeof defaults
 
-export const messages: UiMessages = reactive({ ...defaults })
-
-export const configureUiMessages = (overrides: Partial<UiMessages>): void => {
-    Object.assign(messages, overrides)
-}
+export const { messages, configure: configureUiMessages } = configurableMessages(defaults)

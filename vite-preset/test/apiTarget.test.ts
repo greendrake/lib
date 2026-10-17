@@ -63,7 +63,7 @@ describe('resolveApiTarget', () => {
         expect(() => resolveApiTarget({ dev: false, publicFeHost: 'app.example.com' }, { host: 'app.example.com', https: true })).toThrow('publicApiHost')
     })
 
-    test('apiPath/wsPath override the default endpoint paths (root-path PHP backends)', () => {
+    test('apiPath/wsPath override the default endpoint paths (root-path backends)', () => {
         expect(
             resolveApiTarget({
                 dev: true,

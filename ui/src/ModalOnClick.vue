@@ -5,8 +5,13 @@ import Modal from './Modal.vue'
 // Trigger-plus-modal composite: the default slot is the trigger element;
 // clicking it opens the built-in Modal around the `content` slot. The modal
 // chrome props mirror Modal's and are forwarded as-is — undefined falls
-// through to Modal's own defaults; `modalClass` is a distinct prop because
-// class/$attrs on this component land on the trigger element.
+// through to Modal's own defaults; `modalClass` and `modalTestid` are distinct
+// props because class/$attrs on this component land on the trigger element.
+//
+// The modal is nested in the trigger so that the trigger is the single root:
+// only a single root inherits $attrs and the parent's scoped-style id. Modal
+// teleports to body, so neither its DOM nor its clicks end up inside the
+// trigger.
 //
 // `ok` is re-emitted WITHOUT auto-closing: async submitters keep the modal
 // open on failure and close programmatically (exposed onCancel) on success.
@@ -21,7 +26,9 @@ withDefaults(
         // accepts them at call sites.
         id?: string
         type?: string
+        ariaLabel?: string
         modalClass?: string
+        modalTestid?: string
         okLabel?: string
         cancelLabel?: string
         okDisabled?: boolean
@@ -64,10 +71,10 @@ defineExpose({
 })
 </script>
 <template>
-    <Modal v-if="modalOpen" :class="modalClass" :title="title" :ok-label="okLabel" :cancel-label="cancelLabel" :ok-disabled="okDisabled" :hide-ok="hideOk" :closable="closable" :expandable="expandable" :buttons="buttons" @ok="emit('ok')" @cancel="onModalCancel">
-        <slot name="content" />
-    </Modal>
-    <component :is="tag" :id="id" :type="type" href="#" v-bind="$attrs" @click.prevent="onClick">
+    <component :is="tag" :id="id" :type="type" :aria-label="ariaLabel" href="#" @click.prevent="onClick">
         <slot />
+        <Modal v-if="modalOpen" :class="modalClass" :data-testid="modalTestid" :title="title" :ok-label="okLabel" :cancel-label="cancelLabel" :ok-disabled="okDisabled" :hide-ok="hideOk" :closable="closable" :expandable="expandable" :buttons="buttons" @ok="emit('ok')" @cancel="onModalCancel">
+            <slot name="content" />
+        </Modal>
     </component>
 </template>

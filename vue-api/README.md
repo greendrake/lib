@@ -25,7 +25,7 @@ export interface Methods {
     'host.get': (id: number) => Host
     'host.update': (record: { id: number } & Partial<Host>) => Host
     'host.delete': (args: { id: number }) => void
-    'vlan.list': (query: Record<string, never>) => Vlan[]
+    'vlan.list': () => Vlan[]
 }
 
 export const api = new ApiClient<Methods>({
@@ -83,15 +83,15 @@ Calls from components and stores:
 import { ref } from 'vue'
 import { api } from '@/api'
 
-const host = await api.call('host.get', [42]) // Host; the global spinner shows while pending
+const host = await api.call('host.get', 42) // Host; the global spinner shows while pending
 
 const saving = ref(false)
-await api.call('host.update', [{ id: 42, name: 'nas' }], { pending: saving }) // this ref instead
+await api.with({ pending: saving }).call('host.update', { id: 42, name: 'nas' }) // this ref instead
 
-const vlans = await api.call('vlan.list', [{}], { silent: true }) // no spinner, no toast; errors reject
+const vlans = await api.with({ silent: true }).call('vlan.list') // no spinner, no toast; errors reject
 ```
 
-`call(method, args, options?)` takes the arguments as a tuple (`Parameters<M[K]>`), unlike `RpcClient.call`'s variadic form.
+`call(method, ...args)` takes a method's own arguments, as `RpcClient.call` does (`@greendrake/rpc`'s `Caller`), and a method that takes none is called with none. `with(options)` is the calls made under `CallOptions`: a separate entry point, because nothing at runtime tells trailing options from a last argument. `ApiCaller<M>` is the two together, for a library typing the client it is handed.
 
 ## ApiClient
 
@@ -109,7 +109,7 @@ const vlans = await api.call('vlan.list', [{}], { silent: true }) // no spinner,
 - `silent: true` — no loading indication and no error UX; errors reject straight to the caller. For background calls and callers owning their own error presentation.
 - `cache: false` — reads past the cache and does not store the answer. Cannot opt an unlisted method in and leaves the nonce rule alone.
 
-Cache access on the client: `invalidateCache(method, ...args)` (with args, that entry; without, the whole method), `clearCache()`, `primeCache(method, args, data)`.
+Cache access on the client: `invalidateCache(method, ...args)` (with args, that entry; without, the whole method), `clearCache()`.
 
 `setDebugDelay(method, ms)` — dev builds only: holds a call pending for `ms` so its loading state can be inspected; `0` clears. Inert in production.
 
@@ -158,6 +158,12 @@ import { retryWhenOnline } from '@greendrake/vue-api'
 const strings = await retryWhenOnline(() => fetchJson<Strings>(`/locales/${locale}.json`))
 ```
 
+`keepConnected<Methods>(transport, method)` keeps a `WsTransport` (any `Revivable`: `probe` and `pipe.reconnectNow`) connected for the page's life and returns the teardown. The window's `online` event collapses a waiting reconnect's delay. While the page is visible — on becoming visible, then every 60 s — it reconnects a socket waiting out a backoff and probes with `method`, so a socket that died silently (a backgrounded app, an expired NAT mapping) is abandoned and reconnected. Nothing runs while the page is hidden. `method` is a key of the app's method map: a probe takes any answer, a refusal included, as proof of life, so a method the server lacks would report every socket alive.
+
+```ts
+keepConnected<Methods>(transport, 'app.ping')
+```
+
 ## Live updates
 
 `bindLive(transport, options)` is `@greendrake/rpc`'s `liveBinding` under this package's UX policy, and `useLive` is the component-scoped form that releases on unmount.
@@ -171,19 +177,19 @@ useLive(transport, {
         'thread.message': { when: pushed => pushed.thread_id === props.threadId }
     },
     resync: async () => {
-        thread.value = await api.call('thread.get', [props.threadId], backgroundCall(true))
+        thread.value = await api.with(backgroundCall(true)).call('thread.get', props.threadId)
     }
 })
 ```
 
 The mechanism — relevance, `apply` versus `resync`, the reconnect re-read, coalescing, release — is documented in `@greendrake/rpc`. What this package adds is what happens around a `resync`:
 
-- It runs unseen. `backgroundCall(background)` is the one place that decides what that means: `{ silent: true }`, which bypasses both the loading counter and the error-UX pipeline. `pending: false` is not enough — it suppresses the spinner and still raises the blocking retry toast over a screen the user is reading.
+- It runs unseen. `backgroundCall(background)` is the one place that decides what that means: `{ silent: true }` (and `{}` for a load somebody asked for), which bypasses both the loading counter and the error-UX pipeline. `pending: false` is not enough — it suppresses the spinner and still raises the blocking retry toast over a screen the user is reading.
 - Its failure neither interrupts nor vanishes. A `NotFoundError` is dropped (the entity went away while the socket was down; the next navigation says so), a `NetworkError` is dropped (the socket went again mid-read, and the binding's own reconnect rule re-reads when it returns), and anything else goes to the `errorSink` configured through `configureApiUX` — reported, never toasted.
 - It must read past a response cache the missed pushes would have invalidated: invalidate the entries the read would hit, then read, so the stale entry is repaired rather than stepped around.
 
 `backgroundCall` also serves any loader told whether anybody asked for its load — a table re-reading after a push, say, which is where a panel's re-read actually calls the API:
 
 ```ts
-const load = (args: ListArgs, background: boolean) => api.call('admin.thread.list', [args], backgroundCall(background))
+const load = (args: ListArgs, background: boolean) => api.with(backgroundCall(background)).call('admin.thread.list', args)
 ```

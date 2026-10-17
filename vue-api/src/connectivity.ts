@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref, type ComputedRef } from 'vue'
 import { defineStore } from 'pinia'
 import { createDeferred } from '@greendrake/util'
 import { getConnectionSource } from './uxConfig'
@@ -76,3 +76,14 @@ export const useConnectivity = defineStore('connectivity', () => {
         whenOnline
     }
 })
+
+// The catalogue key of the offline message to show (this package's
+// `connection` namespace). The device's own claim picks between them: "your
+// connection is gone" and "the site cannot be reached" are materially
+// different things to tell someone, and the device signal — useless as a
+// verdict on whether calls can succeed — is the only thing that distinguishes
+// them.
+export const useConnectionMessageKey = (): ComputedRef<string> => {
+    const connectivity = useConnectivity()
+    return computed(() => (connectivity.deviceOffline ? 'connection.device_offline' : 'connection.unreachable'))
+}

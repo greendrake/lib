@@ -13,6 +13,10 @@ export const arrayRemove = <T>(a: T[], el: T): void => {
     }
 }
 
+// Same length, and `same` holds element-wise in order (the equal lengths make
+// every b[i] an element).
+export const arraysEqual = <T>(a: readonly T[], b: readonly T[], same: (x: T, y: T) => boolean = Object.is): boolean => a.length === b.length && a.every((x, i) => same(x, b[i] as T))
+
 export const capitalise = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
 
 // Compact human duration, two most significant units: 3661s → "1h 1m".
@@ -68,6 +72,22 @@ export interface Deferred<T> {
     promise: Promise<T>
     resolve: (value: T | PromiseLike<T>) => void
     reject: (reason?: unknown) => void
+}
+
+// A package's boot-time configuration: `configure` for the host to call once,
+// and `get` for the package to read it through — throwing, under `owner`'s
+// name, while the host has not.
+export const configuration = <T>(owner: string): { configure: (value: T) => void; get: () => T } => {
+    let current: T | undefined
+    return {
+        configure: value => {
+            current = value
+        },
+        get: () => {
+            if (current === undefined) throw new Error(`${owner}: used before it is configured`)
+            return current
+        }
+    }
 }
 
 export const createDeferred = <T = void>(): Deferred<T> => {

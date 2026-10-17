@@ -6,6 +6,10 @@ export interface DashAppOptions {
     dirname: string
     // Compile-time globals, built from the app's resolved env.
     define?: (env: Record<string, string>) => Record<string, string | number | boolean | object | null | undefined>
+    // Data elements in index.html the app reads at runtime (see
+    // @greendrake/vite-preset's htmlData), built from the app's resolved env
+    // and the config env.
+    htmlData?: (env: Record<string, string>, configEnv: ConfigEnv) => Record<string, unknown>
     // Dependencies that ship source rather than a build — see
     // @greendrake/vite-preset, whose default covers the @greendrake scope. A
     // dashboard with source packages of its own names them here.
@@ -48,6 +52,7 @@ export const dashApp =
         return vueSpa({
             dirname: options.dirname,
             define: options.define?.(env),
+            htmlData: options.htmlData?.(env, configEnv),
             sourcePackages: options.sourcePackages,
             // Only the dev server and preview pin a port; builds run without one.
             port: configEnv.command === 'serve' ? parseInt(requireEnv(env, 'VITE_PORT'), 10) : false,

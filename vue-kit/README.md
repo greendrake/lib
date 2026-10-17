@@ -76,7 +76,7 @@ import { defineCollectionStore } from '@greendrake/vue-kit'
 import { api } from '@/api'
 
 export const useVlans = defineCollectionStore('vlans', {
-    load: () => api.call('vlan.list', [{}]),
+    load: () => api.call('vlan.list'),
     compare: byProp('name'),
     indexBy: vlan => vlan.id
 })

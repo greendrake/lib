@@ -173,10 +173,13 @@ const { latitude, longitude } = await getUserLocation()
 - `dClone(data)` — deep clone via a JSON round-trip (JSON-representable data only).
 - `isEmpty(o, emptyArraysAreNotEmpty?)` — true for `null`, `undefined`, `''`, `NaN`, an empty array (unless the flag is set) and an empty plain object.
 - `arrayRemove(a, el)` — removes the first occurrence of `el` in place.
+- `arraysEqual(a, b, same = Object.is)` — same length and `same` holds element-wise, in order.
 - `capitalise(s)` — upper-cases the first character.
 - `humanSeconds(seconds)` — compact duration, two most significant units: `3661` → `'1h 1m'`.
 - `humanFileSize(bytes, si = false, dp = 1)` — binary units (`KiB`, `MiB`, …) by default, decimal units (`kB`, `MB`, …) with `si`; `dp` decimal places.
 - `fileMime(file)` — `File.type`, falling back to an extension map (`heic`, `heif`, `avif`, `webp`) when the OS reports none, then `application/octet-stream`.
+- `Declared<Map, Tag, Value>` (type) — the union a host's declaration map discriminates, one member per key: the key under `Tag`, its type under `Value` (absent for a key declared `never`); `{ [Tag]: string; [Value]?: unknown }` while the map is undeclared. For a package exporting an empty interface for its host to augment.
+- `configuration<T>(owner)` — a package's boot-time configuration: `{ configure, get }`, where `get` throws under `owner`'s name until the host has called `configure`.
 - `createDeferred<T = void>()` — a `Deferred<T>`: `{ promise, resolve, reject }`.
 
 ```ts

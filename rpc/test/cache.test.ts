@@ -97,12 +97,4 @@ describe('ResponseCache', () => {
         locale = 'he'
         expect(cache.get('search.listings', [{ q: 'a' }]).hit).toBe(false)
     })
-
-    test('prime seeds only configured endpoints', () => {
-        const cache = makeCache()
-        cache.prime('search.listings', ['q'], 'pushed')
-        cache.prime('unconfigured', ['q'], 'pushed')
-        expect(cache.get('search.listings', ['q'])).toEqual({ hit: true, data: 'pushed' })
-        expect(cache.get('unconfigured', ['q']).hit).toBe(false)
-    })
 })

@@ -13,8 +13,8 @@ textarea {
     border: 1px solid var(--border-color);
 }
 
+// A button keeps the default cursor: the hand is a hyperlink's.
 button {
-    cursor: pointer;
     padding: var(--space-1) var(--space-4);
     &:hover:not(:disabled) {
         border-color: var(--border-color-hover);
@@ -22,7 +22,6 @@ button {
     }
     &:disabled {
         opacity: 0.5;
-        cursor: default;
     }
 }
 

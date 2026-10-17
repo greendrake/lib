@@ -1,19 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { TabBar, type TabDef } from '@greendrake/ui'
+import { SplitPane, TabBar, type TabDef } from '@greendrake/ui'
 
-const props = withDefaults(
-    defineProps<{
-        initialWidth?: number
-        minWidth?: number
-        fullWidthUntilTab?: boolean
-    }>(),
-    {
-        initialWidth: 150,
-        minWidth: 100,
-        fullWidthUntilTab: false
-    }
-)
+// The widths are the master pane's, handed to SplitPane (its defaults when unset).
+defineProps<{
+    initialWidth?: number
+    minWidth?: number
+    fullWidthUntilTab?: boolean
+}>()
 
 const emit = defineEmits<{
     'tab-open': [tab: TabDef]
@@ -23,18 +17,10 @@ const emit = defineEmits<{
 
 const tabs = ref<TabDef[]>([])
 const activeTabId = ref<string | null>(null)
-const masterWidth = ref(props.initialWidth)
 
 const activeTab = computed(() => tabs.value.find(t => t.id === activeTabId.value) ?? null)
 
 const hasTabs = computed(() => tabs.value.length > 0)
-
-const masterStyle = computed(() => {
-    if (props.fullWidthUntilTab && !hasTabs.value) {
-        return { flex: '1 1 0', width: 0 }
-    }
-    return { width: masterWidth.value + 'px' }
-})
 
 function openTab(id: string, label?: string): void {
     let tab = tabs.value.find(t => t.id === id)
@@ -81,23 +67,6 @@ function updateTab(id: string, newId?: string, newLabel?: string): void {
     }
 }
 
-function onResizeStart(e: MouseEvent): void {
-    const startX = e.clientX
-    const startWidth = masterWidth.value
-
-    function onMouseMove(e: MouseEvent): void {
-        masterWidth.value = Math.max(props.minWidth, startWidth + e.clientX - startX)
-    }
-
-    function onMouseUp(): void {
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-}
-
 defineExpose({
     openTab,
     closeTab,
@@ -109,12 +78,11 @@ defineExpose({
 })
 </script>
 <template>
-    <div class="MasterDetail">
-        <div class="MasterDetail__master" :style="masterStyle">
+    <SplitPane class="MasterDetail" :initial-width="initialWidth" :min-width="minWidth">
+        <template #start>
             <slot name="master" :open-tab="openTab"></slot>
-        </div>
-        <template v-if="hasTabs || !fullWidthUntilTab">
-            <div class="MasterDetail__resize" @mousedown="onResizeStart"></div>
+        </template>
+        <template v-if="hasTabs || !fullWidthUntilTab" #end>
             <div class="MasterDetail__detail">
                 <TabBar :tabs="tabs" :model-value="activeTabId" closable @update:model-value="activateTab" @close="closeTab" />
                 <div class="MasterDetail__content">
@@ -126,44 +94,11 @@ defineExpose({
                 </div>
             </div>
         </template>
-    </div>
+    </SplitPane>
 </template>
 <style lang="scss">
 .MasterDetail {
-    display: flex;
-    min-width: 0;
-    // Flex item in a column parent: without this the automatic min-height (auto)
-    // keeps it as tall as its content, so it overgrows the viewport and the
-    // master's overflow:auto has nothing to scroll within.
-    min-height: 0;
-
-    &__master {
-        flex-shrink: 0;
-        min-width: v-bind('minWidth + "px"');
-        overflow: auto;
-        display: flex;
-        flex-direction: column;
-
-        > * {
-            flex-grow: 1;
-            min-height: 0;
-        }
-    }
-
-    &__resize {
-        width: 4px;
-        flex-shrink: 0;
-        cursor: col-resize;
-        background-color: var(--border-color-light);
-        &:hover {
-            background-color: var(--accent-color);
-        }
-    }
-
     &__detail {
-        flex-grow: 1;
-        min-width: 0;
-        min-height: 0;
         overflow: hidden;
         display: flex;
         flex-direction: column;

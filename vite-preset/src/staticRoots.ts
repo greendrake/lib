@@ -25,17 +25,24 @@ const contentTypeFor = (file: string): string => {
     return 'text/plain; charset=utf-8'
 }
 
-// Every file under dir, as paths relative to it.
+// What a root publishes: every file under it that is not a dotfile, nor under
+// a dot-directory. A dotfile is never a product asset — it is what Finder
+// (.DS_Store) and editors leave in a directory uninvited — and published it
+// would be served as one, or handed to the transform and parsed as a catalogue.
+// Split on either separator: the dev middleware passes URL paths.
+const published = (relativePath: string): boolean => !relativePath.split(/[\\/]/).some(segment => segment.startsWith('.'))
+
+// Every published file under dir, as paths relative to it.
 const walk = (dir: string): string[] =>
     readdirSync(dir, { recursive: true, withFileTypes: true })
         .filter(entry => entry.isFile())
         .map(entry => path.relative(dir, path.join(entry.parentPath, entry.name)))
+        .filter(published)
 
 // staticRootFiles lists what a root publishes, as scope-relative URL paths —
 // the service worker's precache list needs to name these without duplicating
 // the walk.
-export const staticRootFiles = (root: StaticRoot): string[] =>
-    walk(root.dir).map(rel => `${root.urlPath}/${rel.split(path.sep).join('/')}`)
+export const staticRootFiles = (root: StaticRoot): string[] => walk(root.dir).map(rel => `${root.urlPath}/${rel.split(path.sep).join('/')}`)
 
 export const staticRoots = (roots: StaticRoot[]): Plugin => ({
     name: 'greendrake-static-roots',
@@ -52,7 +59,7 @@ export const staticRoots = (roots: StaticRoot[]): Plugin => ({
             // Nothing climbs out of the root: the URL is attacker-controlled in
             // dev too, and the roots sit outside the workspace fs.allow list.
             const file = path.resolve(root.dir, rel)
-            if (!file.startsWith(path.resolve(root.dir) + path.sep) || !existsSync(file)) {
+            if (!published(rel) || !file.startsWith(path.resolve(root.dir) + path.sep) || !existsSync(file)) {
                 next()
                 return
             }
@@ -70,7 +77,7 @@ export const staticRoots = (roots: StaticRoot[]): Plugin => ({
                 const dest = path.resolve(this.environment.config.build.outDir, root.urlPath.replace(/^\//, ''))
                 mkdirSync(dest, { recursive: true })
                 if (!root.transform) {
-                    cpSync(root.dir, dest, { recursive: true })
+                    cpSync(root.dir, dest, { recursive: true, filter: source => published(path.relative(root.dir, source)) })
                     continue
                 }
                 for (const rel of walk(root.dir)) {

@@ -10,7 +10,7 @@ import { getErrorSink } from './uxConfig'
 // is the option that matters: it bypasses the loading counter AND the
 // error-UX pipeline, whereas `pending: false` suppresses only the spinner and
 // would still put the blocking retry toast over a screen the user is reading.
-export const backgroundCall = (background: boolean): CallOptions | undefined => (background ? { silent: true } : undefined)
+export const backgroundCall = (background: boolean): CallOptions => (background ? { silent: true } : {})
 
 // @greendrake/rpc's liveBinding under this package's UX policy: a resync runs
 // unseen, and its failure neither interrupts the user nor vanishes.

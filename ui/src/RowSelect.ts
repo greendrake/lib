@@ -155,19 +155,11 @@ export default function RowSelect<Id extends string | number>(items: Ref<Record<
         const rowIndex = hitIndex(target)
         const id = rowIndex >= 0 ? getId(rowIndex) : null
 
-        if (id !== null && e.shiftKey) {
-            sel.rangeTo(id)
-            return
-        }
-
         preClickSnapshot = new Set(selected)
-
         if (id !== null) {
-            if (e.ctrlKey || e.metaKey) {
-                sel.toggle(id)
-            } else {
-                sel.replace(id)
-            }
+            sel.pick(id, e)
+            // A Shift pick extends the selection only: no drag follows.
+            if (e.shiftKey) return
         }
 
         startX = e.clientX
@@ -181,21 +173,6 @@ export default function RowSelect<Id extends string | number>(items: Ref<Record<
         }
     }
 
-    function onKeyDown(e: KeyboardEvent): void {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-            e.preventDefault()
-            sel.selectAll()
-            return
-        }
-
-        const isUp = e.key === 'ArrowUp'
-        const isDown = e.key === 'ArrowDown'
-        if (!isUp && !isDown) return
-
-        e.preventDefault()
-        sel.moveCursor(isUp ? 'up' : 'down', e.shiftKey)
-    }
-
     onUnmounted(() => {
         if (cleanupDrag) cleanupDrag()
     })
@@ -206,6 +183,6 @@ export default function RowSelect<Id extends string | number>(items: Ref<Record<
         band,
         reorder,
         onPointerDown,
-        onKeyDown
+        onKeyDown: sel.onKeyDown
     }
 }

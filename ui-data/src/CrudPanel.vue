@@ -73,11 +73,14 @@ const props = withDefaults(
         showRange?: boolean
         // null = table default; false = always filter remotely (see table prop).
         localSearchFields?: string[] | false | null
+        // The detail tab label of a row; null labels a tab with the row key.
+        rowLabel?: ((record: T) => string) | null
         // --- Create / Delete affordances (all opt-in) ---
         creatable?: boolean
         newTabLabel?: string
         onDelete?: ((keys: Key[]) => Promise<unknown>) | null
-        deleteConfirmMessage?: string | null
+        // The confirm's text; a function composes it for the keys about to go.
+        deleteConfirmMessage?: string | ((keys: Key[]) => Promise<string>) | null
         keyExists?: ((key: Key) => boolean) | null
     }>(),
     {
@@ -93,7 +96,8 @@ const props = withDefaults(
         newTabLabel: undefined,
         onDelete: null,
         deleteConfirmMessage: null,
-        keyExists: null
+        keyExists: null,
+        rowLabel: null
     }
 )
 
@@ -112,7 +116,12 @@ const newTabLabelText = computed(() => props.newTabLabel ?? messages.newTab)
 function onRowActivate(record: T): void {
     if (!slots.detail) return
     const key = String(rowKeyOf(record, props.rowKey))
-    masterDetailRef.value!.openTab(key, key)
+    masterDetailRef.value!.openTab(key, labelOf(record, key))
+}
+
+// A row's detail tab label: its rowLabel, else its key.
+function labelOf(record: T, key: string): string {
+    return props.rowLabel ? props.rowLabel(record) : key
 }
 
 const searchQuery = ref<string | undefined>('')
@@ -134,7 +143,8 @@ function onRangeChanged(range: VisibleRange): void {
 
 let newTabSeq = 0
 const deleting = ref(false)
-const deleteConfirm = ref(false)
+// The open confirm's text; null while no confirm shows.
+const deleteConfirm = ref<string | null>(null)
 
 const canDelete = computed(() => !!props.onDelete && (tableRef.value?.selected?.size ?? 0) > 0)
 
@@ -142,12 +152,13 @@ function onCreate(): void {
     masterDetailRef.value!.openTab(`new:${++newTabSeq}`, newTabLabelText.value)
 }
 
-function onRequestDelete(): void {
+async function onRequestDelete(): Promise<void> {
     if (!canDelete.value || deleting.value) return
-    if (props.deleteConfirmMessage) {
-        deleteConfirm.value = true
-    } else {
+    const message = props.deleteConfirmMessage
+    if (message === null) {
         doDelete()
+    } else {
+        deleteConfirm.value = typeof message === 'string' ? message : await message([...tableRef.value!.selected!])
     }
 }
 
@@ -156,7 +167,7 @@ async function doDelete(): Promise<void> {
     if (!sel?.size) return
     const keys = [...sel]
     deleting.value = true
-    deleteConfirm.value = false
+    deleteConfirm.value = null
     try {
         await props.onDelete!(keys)
         for (const k of keys) masterDetailRef.value?.closeTab(String(k))
@@ -180,15 +191,19 @@ function isDupe(original: Key, candidate: Key): boolean {
 // in place when it already exists; otherwise add the freshly created row and,
 // given the originating `new:` tab's id, rename that tab to the persisted key
 // so the editor's `record` slot prop resolves and subsequent saves route to
-// update instead of create.
+// update instead of create. With a rowLabel, the record's tab follows its
+// label, which a save may change.
 function applySaved(key: Key, record: T, tabId?: string): void {
     if (tableRef.value?.getRow(key)) {
         tableRef.value.patchRow(key, record)
     } else {
         tableRef.value?.addRow(record)
         if (tabId && tabId !== String(key)) {
-            masterDetailRef.value?.updateTab(tabId, String(key), String(key))
+            masterDetailRef.value?.updateTab(tabId, String(key), labelOf(record, String(key)))
         }
+    }
+    if (props.rowLabel) {
+        masterDetailRef.value?.updateTab(String(key), undefined, props.rowLabel(record))
     }
 }
 
@@ -231,8 +246,8 @@ defineExpose(exposed)
                     <div v-if="showRange && visibleRange.total" class="CrudPanel__range">{{ visibleRange.start }}-{{ visibleRange.end }}/{{ visibleRange.total }}</div>
                     <button v-if="onDelete" type="button" class="CrudPanel__delete" :class="{ disabled: !canDelete || deleting, spinner: deleting }" @click="onRequestDelete">{{ messages.delete }}</button>
                     <slot name="controls-right" :selected="tableRef?.selected" />
-                    <Modal v-if="deleteConfirm" class="CrudPanel__delete-modal" :title="messages.delete" :ok-label="deleting ? messages.deleting : messages.delete" :ok-disabled="deleting" @ok="doDelete" @cancel="deleteConfirm = false">
-                        <p>{{ deleteConfirmMessage }}</p>
+                    <Modal v-if="deleteConfirm !== null" class="CrudPanel__delete-modal" :title="messages.delete" :ok-label="deleting ? messages.deleting : messages.delete" :ok-disabled="deleting" @ok="doDelete" @cancel="deleteConfirm = null">
+                        <p>{{ deleteConfirm }}</p>
                     </Modal>
                 </div>
                 <InfiniteScrollTable ref="tableRef" :loader="loader" :columns="columns" :row-height="rowHeight" :filters="mergedFilters" :row-key="rowKey" :hide-header="singleColumn" v-bind="localSearchFields !== null ? { localSearchFields } : {}" selectable @rowactivate="onRowActivate" @range-changed="onRangeChanged" />

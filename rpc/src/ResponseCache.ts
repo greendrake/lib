@@ -85,12 +85,4 @@ export class ResponseCache {
     clear(): void {
         this.#entries.clear()
     }
-
-    // Seed the cache with a known-fresh response — a server push already
-    // carrying the full DTO a read would return — so the next read serves it
-    // without a round-trip. `args` must match the read's args so the same key
-    // is hit.
-    prime(method: string, args: unknown[], data: unknown): void {
-        this.set(method, args, data)
-    }
 }

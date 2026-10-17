@@ -1,30 +1,23 @@
 <script lang="ts">
-import type { Component } from 'vue'
-import type { TabDef } from '@greendrake/ui'
+import type { TabPanel } from '@greendrake/ui'
 
 /** A dashboard tab: the tab strip's entry plus the panel it renders. */
-export interface DashTab extends TabDef {
-    component: Component
-    props?: Record<string, unknown>
-}
+export type DashTab = TabPanel
 </script>
 <script setup lang="ts">
-// The dashboard shell: a tab strip over one panel at a time. The tab registry
-// is the single declarative source for both — adding a tab is one row in the
+// The dashboard shell: a tab strip over one panel at a time, filling the page. The tab
+// registry is the single declarative source for both — adding a tab is one row in the
 // array the host passes.
-import { computed, ref } from 'vue'
-import { TabBar } from '@greendrake/ui'
+import { TabPanels } from '@greendrake/ui'
 
-const props = defineProps<{ tabs: DashTab[] }>()
+defineProps<{ tabs: DashTab[] }>()
 
-// activeTab only ever holds a registry id, so the lookup always resolves.
-const activeTab = ref(props.tabs[0]!.id)
-const active = computed(() => props.tabs.find(t => t.id === activeTab.value)!)
+// The open tab's id: bound by a host that opens tabs itself, kept here otherwise.
+const active = defineModel<string>('active')
 </script>
 <template>
     <div class="Dashboard">
-        <TabBar v-model="activeTab" :tabs="tabs" />
-        <component :is="active.component" v-bind="active.props" />
+        <TabPanels v-model:active="active" :tabs="tabs" />
     </div>
 </template>
 <style lang="scss">

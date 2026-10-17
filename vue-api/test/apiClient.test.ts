@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { ref } from 'vue'
 import { useAppState } from '@greendrake/vue-kit'
-import { ApiClient } from '../src/ApiClient'
+import { ApiClient, UnacceptableResultError } from '../src/ApiClient'
 import { useConnectivity } from '../src/connectivity'
 import { useExceptionState } from '../src/exceptionState'
 import { FakeSource, ScriptedTransport, setDeviceOnline, tick, withSource } from './support'
@@ -9,6 +9,7 @@ import { FakeSource, ScriptedTransport, setDeviceOnline, tick, withSource } from
 interface Methods {
     'thing.get': () => string
     'thing.create': () => string
+    'thing.find': (query: { q: string }) => string
 }
 
 // One offline call, its transport and the oracle that will bring it back.
@@ -37,13 +38,32 @@ beforeEach(() => {
     setDeviceOnline(true)
 })
 
+describe('ApiClient calls', () => {
+    test('send a method its arguments as given, and one that takes none none at all', async () => {
+        const { transport, api } = offlineCall()
+        await api.call('thing.find', { q: 'a' })
+        await api.call('thing.create')
+        expect(transport.sent[0]!.arguments).toEqual([{ q: 'a' }])
+        expect('arguments' in transport.sent[1]!).toBe(false)
+    })
+
+    test('made through with run under its options, and the client’s own under none', async () => {
+        const { api } = offlineCall()
+        const refusing = api.with({ silent: true, validate: () => false })
+        await expect(refusing.call('thing.create')).rejects.toBeInstanceOf(UnacceptableResultError)
+        expect(await api.call('thing.create')).toBe('result')
+        // The options stay with the caller, call after call.
+        await expect(refusing.call('thing.create')).rejects.toBeInstanceOf(UnacceptableResultError)
+    })
+})
+
 describe('ApiClient offline parking', () => {
     test('a call refused before it was written resumes on reconnect, raising no toast', async () => {
         const { source, exceptionState, transport, api } = offlineCall()
         transport.outcomes = ['never-sent']
         source.report(false)
 
-        const call = api.call('thing.create', [])
+        const call = api.call('thing.create')
         await tick()
         expect(transport.sent.length).toBe(1)
         // Nothing to ask the user: the call is waiting, not failed.
@@ -60,7 +80,7 @@ describe('ApiClient offline parking', () => {
         transport.outcomes = ['never-sent']
         source.report(false)
 
-        const call = api.call('thing.create', [])
+        const call = api.call('thing.create')
         await tick()
         // Further failed attempts by the transport are not this call's cue —
         // only connectivity actually returning is.
@@ -79,7 +99,7 @@ describe('ApiClient offline parking', () => {
         transport.outcomes = ['never-sent']
         source.report(false)
 
-        const call = api.call('thing.create', [])
+        const call = api.call('thing.create')
         await tick()
         // Holding it for the whole outage would pin the spinner and wedge
         // isFirstLoading, which flips only when the counter empties.
@@ -97,7 +117,7 @@ describe('ApiClient offline parking', () => {
         source.report(false)
 
         const pending = ref(false)
-        const call = api.call('thing.create', [], { pending })
+        const call = api.with({ pending }).call('thing.create')
         await tick()
         // The page stays interactive under the offline banner, so this busy
         // flag is what keeps the submitting control disabled — without it a
@@ -114,7 +134,7 @@ describe('ApiClient offline parking', () => {
         transport.outcomes = ['in-flight-drop']
         source.report(false)
 
-        const call = api.call('thing.create', [])
+        const call = api.call('thing.create')
         void call.catch(() => undefined)
         await tick()
         // It may have executed server-side with only its response lost, and a
@@ -130,7 +150,7 @@ describe('ApiClient offline parking', () => {
         transport.outcomes = ['in-flight-drop']
         source.report(false)
 
-        const call = api.call('thing.get', [])
+        const call = api.call('thing.get')
         await tick()
         // Re-running a read cannot double-apply anything, so there is nothing
         // to consult the user about.
@@ -147,7 +167,7 @@ describe('ApiClient offline parking', () => {
         transport.outcomes = ['never-sent']
         // No disconnect reported: the socket is up and this is the call itself
         // failing, which the user must hear about rather than wait out.
-        const call = api.call('thing.create', [])
+        const call = api.call('thing.create')
         void call.catch(() => undefined)
         await tick()
         expect(exceptionState.exception).toBe('network')
@@ -161,24 +181,24 @@ describe('per-call cache refusal', () => {
     test('stores nothing, so the next reader still goes to the wire', async () => {
         const { transport, api } = offlineCall(true)
 
-        expect(await api.call('thing.get', [], { cache: false })).toBe('result')
+        expect(await api.with({ cache: false }).call('thing.get')).toBe('result')
         expect(transport.sent.length).toBe(1)
         // Refusing the cache must not amount to refreshing it for whoever
         // reads next — that would hand them an answer they did not ask to be
         // reusable, from a caller that wanted it fresh for itself.
-        expect(await api.call('thing.get', [])).toBe('result')
+        expect(await api.call('thing.get')).toBe('result')
         expect(transport.sent.length).toBe(2)
     })
 
     test('reads past an answer already stored', async () => {
         const { transport, api } = offlineCall(true)
 
-        expect(await api.call('thing.get', [])).toBe('result')
-        expect(await api.call('thing.get', [])).toBe('result')
+        expect(await api.call('thing.get')).toBe('result')
+        expect(await api.call('thing.get')).toBe('result')
         // Served from the cache the first call filled.
         expect(transport.sent.length).toBe(1)
 
-        expect(await api.call('thing.get', [], { cache: false })).toBe('result')
+        expect(await api.with({ cache: false }).call('thing.get')).toBe('result')
         expect(transport.sent.length).toBe(2)
     })
 
@@ -187,7 +207,7 @@ describe('per-call cache refusal', () => {
         transport.outcomes = ['in-flight-drop']
         source.report(false)
 
-        const call = api.call('thing.get', [], { cache: false })
+        const call = api.with({ cache: false }).call('thing.get')
         await tick()
         // Freshness is the caller's business; whether re-running the call can
         // double-apply anything is the method's, and that has not changed.
@@ -200,8 +220,8 @@ describe('per-call cache refusal', () => {
 
     test('cannot opt an unlisted method into the cache', async () => {
         const { transport, api } = offlineCall(true)
-        await api.call('thing.create', [], { cache: false })
-        await api.call('thing.create', [])
+        await api.with({ cache: false }).call('thing.create')
+        await api.call('thing.create')
         expect(transport.sent.length).toBe(2)
         expect(transport.sent[0]!.nonce).toBeString()
     })

@@ -1,4 +1,5 @@
 {
     "extends": "@greendrake/dev-config/tsconfig/vue.json",
-    "include": ["src"]
+    "compilerOptions": { "types": ["bun"] },
+    "include": ["src", "test"]
 }

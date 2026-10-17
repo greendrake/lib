@@ -1,10 +1,10 @@
-// Styling for the field-validation tooltips FieldTip.ts creates, scoped to the
-// `fieldTip` theme it applies. Self-contained (there is no global tippy.js base
-// stylesheet) so it styles only these tips and never the other themed,
-// arrow-less tippies (menus, async-search): a filled box with a pointer arrow,
-// its box/arrow geometry mirroring tippy.js' own tippy.css. The fill is the
-// --tippy-background-color token, defaulting to violet.
-.tippy-box[data-theme~='fieldTip'] {
+// Styling for the text tooltips FieldTip.ts and InfoTip.vue show, scoped to the `tip`
+// theme they apply. Self-contained (there is no global tippy.js base stylesheet) so it
+// styles only these tips and never the other themed, arrow-less tippies (menus,
+// async-search): a filled box with a pointer arrow, its box/arrow geometry mirroring
+// tippy.js' own tippy.css. The fill is the --tippy-background-color token, defaulting
+// to violet.
+.tippy-box[data-theme~='tip'] {
     position: relative;
     background-color: var(--tippy-background-color, #5335e8);
     color: #fff;

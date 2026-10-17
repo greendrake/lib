@@ -9,6 +9,16 @@
     user-select: none;
 }
 
+// The host of a pointer drag in progress (a resize handle's container): nothing
+// in it selects, and the drag's cursor holds over every descendant the pointer
+// crosses.
+@mixin dragging($cursor) {
+    user-select: none;
+    * {
+        cursor: $cursor !important;
+    }
+}
+
 @mixin apply-props($props) {
     @each $prop, $value in $props {
         #{$prop}: #{$value};
@@ -91,5 +101,29 @@
     }
     img {
         position: relative;
+    }
+}
+
+// Grow-on-hover: an icon-sized mark or icon button swells slightly under the
+// pointer. The transition sits on the base state, not inside :hover — declared
+// inside the hovered state it would animate the way in and snap the way out.
+//
+// The swollen element also rises above its neighbours: siblings later in the
+// DOM would otherwise paint over the part that grew into them. z-index needs a
+// host that takes part in stacking — a positioned element, or a flex/grid
+// item. It is dropped again only AFTER the shrink completes (a zero-duration
+// transition delayed by the shrink's own), so the element cannot duck behind a
+// neighbour halfway back; on the way in the :hover rule applies it with no
+// delay.
+@mixin hover-grow {
+    transition:
+        transform 0.3s,
+        z-index 0s 0.3s;
+    &:hover {
+        transform: scale(1.2);
+        z-index: 1;
+        transition:
+            transform 0.3s,
+            z-index 0s;
     }
 }

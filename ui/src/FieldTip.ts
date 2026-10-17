@@ -6,9 +6,9 @@
 /// <reference path="./styles.d.ts" />
 import { watch, onUnmounted, type Ref, type ComponentPublicInstance } from 'vue'
 import { useTippy } from 'vue-tippy'
-// Self-contained box/arrow styling for these tips, scoped to the `fieldTip` theme
-// applied below (the app ships no global tippy.js base stylesheet).
-import './FieldTip.scss'
+// Self-contained box/arrow styling for these tips, scoped to the `tip` theme applied
+// below (the app ships no global tippy.js base stylesheet).
+import './Tip.scss'
 
 type Tooltip = ReturnType<typeof useTippy>
 
@@ -44,7 +44,7 @@ export default (toWatchRef: Ref<string | false>, targetRef: string | Ref<HTMLEle
         } else if (content && el) {
             tooltip = useTippy(el, {
                 content,
-                theme: 'fieldTip',
+                theme: 'tip',
                 trigger: 'manual',
                 interactive: true,
                 showOnCreate: true,

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { HttpTransport, RpcClient } from '@greendrake/rpc'
 
 const API = `http://localhost:${process.env.API_PORT ?? '8100'}/v1/api`
 const ADMIN_KEY = 'example-admin-key'
@@ -9,15 +10,9 @@ const control = page => page.locator('.ServiceStateControl')
 // `data-state` — the same fact the border colour is drawn from.
 const isIn = async (page, state) => await expect(control(page)).toHaveAttribute('data-state', state)
 
-// Arms the mocked service to fail its next transition. Straight to the API:
-// this is the test setting the world up, not something the dashboard does.
-const failNext = async (request, command) => {
-    const response = await request.post(API, {
-        headers: { Authorization: ADMIN_KEY },
-        data: { method: 'mock.fail_next', arguments: [{ command }] }
-    })
-    expect((await response.json()).success).toBe(true)
-}
+// The API as an operator calls it, for the test setting the world up rather
+// than anything the dashboard does.
+const api = new RpcClient(new HttpTransport({ url: API, headers: () => ({ Authorization: ADMIN_KEY }) }))
 
 test('the service is turned on and off, and every state change is seen live', async ({ page, context }) => {
     await page.goto('/')
@@ -45,11 +40,12 @@ test('the service is turned on and off, and every state change is seen live', as
     await isIn(onlooker, 'OFF')
 })
 
-test('a failed start shows why, and a refresh reads past it', async ({ page, request }) => {
+test('a failed start shows why, and a refresh reads past it', async ({ page }) => {
     await page.goto('/')
     await isIn(page, 'OFF')
 
-    await failNext(request, 'start')
+    // Arms the mocked service to fail its next transition.
+    await api.call('mock.fail_next', { command: 'start' })
     await control(page).getByRole('button', { name: 'Turn ON' }).click()
     await isIn(page, 'ERROR')
     await expect(control(page)).toContainText('mock service failed to start')

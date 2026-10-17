@@ -78,11 +78,11 @@ const emit = defineEmits<{ select: [id: string] }>()
         color: var(--font-color-muted, var(--font-color));
         text-decoration: none;
         // A tab is a link or, when it opens a shell overlay, a button — which
-        // arrives with a UA background, border and font of its own.
+        // arrives with a UA background, border and font of its own, and keeps the
+        // default cursor where the link has the hand.
         background: none;
         border: none;
         font: inherit;
-        cursor: pointer;
         &--active {
             color: var(--accent-color);
             .BottomNav__icon {

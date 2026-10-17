@@ -19,14 +19,14 @@ import { spaPlaywright } from '@greendrake/e2e'
 export default spaPlaywright({ defaultPort: '5173' })
 ```
 
-The frontend port is `VITE_PORT`, falling back to `defaultPort` — the variable the app's own Vite config is expected to pin its dev server to, so the config targets the server the app actually started. Omit `defaultPort` in an app whose harness always supplies `VITE_PORT`: a missing port then throws rather than silently testing whatever happens to be listening on a default.
+The frontend port is `VITE_PORT`, falling back to `defaultPort` — the variable the app's own Vite config is expected to pin its dev server to, so the config targets the server the app actually started. Omit `defaultPort` in an app whose harness always supplies `VITE_PORT`: a missing port then throws rather than silently testing whatever happens to be listening on a default. An app its own backend serves passes that origin as `baseURL` instead, and `VITE_PORT` is not read.
 
 What it returns (a `PlaywrightTestConfig` via `defineConfig`):
 
 - `testDir: './tests'`, `fullyParallel: true`, `workers: 5`, `retries: 0`, `forbidOnly` when `CI` is set.
 - `timeout: 120_000` — crawl-style specs visit every page and click through every link; Playwright's 30s default is sized for single-interaction tests.
 - Reporter: `html`, `open: 'never'`.
-- `use`: `baseURL` `http://localhost:<port>`, `trace: 'on-first-retry'`, `video: 'retain-on-failure'`.
+- `use`: `baseURL` `http://localhost:<port>` (or the `baseURL` given), `trace: 'on-first-retry'`, `video: 'retain-on-failure'`.
 - One project, `chromium`, on `devices['Desktop Chrome']`.
 - No `webServer`: the app, and whatever backs it, are started by the caller.
 
