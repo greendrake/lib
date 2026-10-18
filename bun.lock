@@ -19,7 +19,7 @@
     },
     "dash": {
       "name": "@greendrake/dash",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "dependencies": {
         "@greendrake/font-inter": "workspace:^",
         "@greendrake/rpc": "workspace:^",
@@ -149,7 +149,7 @@
     },
     "rpc": {
       "name": "@greendrake/rpc",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "dependencies": {
         "@greendrake/util": "workspace:^",
       },
@@ -160,7 +160,7 @@
     },
     "rpc-server": {
       "name": "@greendrake/rpc-server",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "dependencies": {
         "@greendrake/rpc": "workspace:^",
         "@standard-schema/spec": "^1.1.0",
@@ -191,7 +191,7 @@
     },
     "service-state": {
       "name": "@greendrake/service-state",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "@greendrake/rpc-server": "workspace:*",
@@ -284,7 +284,7 @@
     },
     "vue-api": {
       "name": "@greendrake/vue-api",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "dependencies": {
         "@greendrake/rpc": "workspace:^",
         "@greendrake/ui": "workspace:^",

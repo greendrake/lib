@@ -7,8 +7,8 @@ import { ANONYMOUS } from './types'
 import type { AuthInfo, IncomingRequest, RpcResponse } from './types'
 
 export interface WebSocketHandlerOptions {
-    // Run once the socket can be written to. A service that greets a new
-    // connection with its current state does it here.
+    // Run once the socket can be written to, after the registry has greeted it
+    // with every document.
     onOpen?: (conn: Connection) => void
     // Run when the socket has gone, before it leaves the registry.
     onClose?: (conn: Connection) => void
@@ -89,6 +89,11 @@ export const websocketHandler = (dispatcher: Dispatcher, registry: ConnRegistry,
             return server.upgrade(request, { data })
         },
         handlers: {
+            // A socket whose client has stopped reading, once its send buffer
+            // passes Bun's backpressure limit, is closed rather than having its
+            // frames dropped: a frame lost would leave the client silently wrong,
+            // and a closed socket reconnects to be greeted afresh.
+            closeOnBackpressureLimit: true,
             open(conn) {
                 registry.register(conn)
                 options.onOpen?.(conn)

@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from 'bun'
-import { identityCodec } from '@greendrake/rpc'
+import { documentOf, identityCodec, mergePatchBetween, type JsonObject } from '@greendrake/rpc'
 import type { AuthInfo, Codec, EventFrame, ServerFrame } from './types'
 
 // Per-socket state, carried as Bun's websocket `data`.
@@ -24,6 +24,15 @@ export type Connection = ServerWebSocket<ConnectionData>
 export interface EventSink {
     emitToUser(userId: unknown, event: string, data: unknown): void
     broadcastEvent(event: string, data: unknown): void
+}
+
+// What a producer holds of its document: publishing it is the producer's whole part.
+export interface Document {
+    // Publishes the state as `produce` now has it: what changed since it was last
+    // published goes to every socket as one patch, and nothing goes when nothing
+    // changed. So a producer calls it on any change it knows of; a call too many
+    // costs a diff.
+    refresh(): void
 }
 
 // Whether anybody is connected to hear a broadcast, for a producer whose
@@ -65,6 +74,13 @@ const eventFrame = (event: string, data: unknown): EventFrame => ({
     data
 })
 
+// A document the registry publishes: what it is called on the wire, and the state as
+// last published, which is what an opening socket is sent.
+interface Published {
+    type: string
+    doc: JsonObject
+}
+
 // Every open socket, and the index from principal to the sockets bound as it —
 // a user with three tabs has three. Holding all of them as well as the index
 // is what lets a broadcast reach anonymous connections too, which a per-user
@@ -73,8 +89,11 @@ const eventFrame = (event: string, data: unknown): EventFrame => ({
 // And the topics sockets have joined: subscriptions a method takes out for its
 // caller (see Topics), published to by the application and dropped with the
 // socket.
+//
+// And the documents every socket keeps (see document()).
 export class ConnRegistry implements EventSink, Audience {
     readonly #connections = new Set<Connection>()
+    readonly #documents: Published[] = []
     readonly #presence = new Set<(present: boolean) => void>()
     readonly #byUser = new Map<unknown, Set<Connection>>()
     // Where each connection is currently filed, so a principal that changes
@@ -100,6 +119,9 @@ export class ConnRegistry implements EventSink, Audience {
     register(conn: Connection): void {
         const arriving = !this.#connections.has(conn)
         this.#connections.add(conn)
+        if (arriving) {
+            this.#documents.forEach(published => this.#greet(conn, published))
+        }
         if (arriving && this.#connections.size === 1) {
             this.#presence.forEach(listener => listener(true))
         }
@@ -195,6 +217,38 @@ export class ConnRegistry implements EventSink, Audience {
     // payload and needs no event envelope.
     broadcastData(type: string, data: unknown): void {
         this.#connections.forEach(conn => this.send(conn, { type, data }))
+    }
+
+    // A state stream: the whole of some state as one JSON object, kept by every
+    // socket. A socket is sent the document as last published when it opens,
+    // `{type, data: {doc}}`, and each change after that as an RFC 7386 merge
+    // patch over it, `{type, data: {patch}}` — objects merge, null removes a
+    // member, anything else replaces — so what it holds is always the document.
+    // A member produced as null is dropped, the same as one left out, a patch
+    // being unable to tell the two apart (`@greendrake/rpc`'s documentOf, which
+    // the client end shares). `produce` runs now, so every greeting has a
+    // document, and again on each refresh. A state that is no JSON object
+    // throws. Sends are synchronous, so no patch can precede or overtake a
+    // socket's document.
+    document(type: string, produce: () => object): Document {
+        const published: Published = { type, doc: documentOf(type, produce()) }
+        this.#documents.push(published)
+        this.#connections.forEach(conn => this.#greet(conn, published))
+        return {
+            refresh: () => {
+                const next = documentOf(type, produce())
+                const patch = mergePatchBetween(published.doc, next)
+                if (!patch) {
+                    return
+                }
+                published.doc = next
+                this.#connections.forEach(conn => this.send(conn, { type, data: { patch } }))
+            }
+        }
+    }
+
+    #greet(conn: Connection, published: Published): void {
+        this.send(conn, { type: published.type, data: { doc: published.doc } })
     }
 
     get size(): number {

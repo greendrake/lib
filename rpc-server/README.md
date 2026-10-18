@@ -1,6 +1,6 @@
 # @greendrake/rpc-server
 
-The server half of the [`@greendrake/rpc`](../rpc) wire format: one dispatch table, an HTTP endpoint and a WebSocket endpoint over it, per-method auth and argument validation, and a connection registry that pushes to clients unasked. **Runs on [bun](https://bun.sh)** — `Bun.serve` owns the sockets. The protocol core (dispatch, auth, nonce, validation) is pure functions over the wire types and touches no runtime API.
+The server half of the [`@greendrake/rpc`](../rpc) wire format: one dispatch table, an HTTP endpoint and a WebSocket endpoint over it, per-method auth and argument validation, and a connection registry that pushes to clients unasked — events, and the state documents every socket keeps. **Runs on [bun](https://bun.sh)** — `Bun.serve` owns the sockets. The protocol core (dispatch, auth, nonce, validation) is pure functions over the wire types and touches no runtime API.
 
 ## Install
 
@@ -101,6 +101,8 @@ A request carrying a `nonce` runs once: `NonceStore.checkAndSet` answers false f
 
 `websocketHandler(dispatcher, registry, { onOpen?, onClose? })` returns `{ upgrade, handlers }`. The handshake credential is the `token` query parameter — the only channel a browser's WebSocket constructor leaves open, having no headers, and one a reconnect carries again for free. Calls dispatch concurrently, correlated by the `id` the client puts on each frame.
 
+Nothing pushed is ever dropped. Bun drops a frame once a socket's send buffer passes its `backpressureLimit`; `handlers` sets `closeOnBackpressureLimit`, so such a socket is closed instead. A client that has stopped reading would otherwise be left silently wrong. Once it reconnects, its re-read (`liveBinding`) or the documents it is greeted with put it right.
+
 The exception is `auth.token` and `auth.logout`, the in-band frames `@greendrake/rpc`'s `WsTransport` sends: they change who every later call on that socket is made by, so each goes on a per-connection gate the calls wait behind. Without it a call sent right after a bind would race it and come back `UNAUTHENTICATED`.
 
 A codec applies to everything on the wire, in both directions, for a service whose clients obscure or encrypt their payloads: `new ConnRegistry(codec)` for the socket, `httpHandler(dispatcher, { codec })` for the endpoint.
@@ -116,6 +118,23 @@ registry.broadcastData('telemetry', reading) // the bare {type, data} form
 ```
 
 Push-producing code takes the `EventSink` interface (`emitToUser` + `broadcastEvent`) rather than the class, so it can be driven by anything. On the client, `@greendrake/rpc`'s `liveBinding` subscribes to these, folds each push in or re-reads, and re-reads again after a dropped socket returns.
+
+### Documents
+
+State the whole service shares, kept current on every socket, is a document rather than a stream of events:
+
+```ts
+const cameras = registry.document('cameras', () => fleet.states()) // { gate: {…}, porch: {…} }
+
+fleet.onChange(() => cameras.refresh())
+```
+
+- **Greeting.** `document(type, produce)` produces the state now, and every socket that opens is sent it whole: `{type, data: {doc}}`.
+- **Patches.** Each `refresh()` produces the state again and sends every socket the RFC 7386 merge patch from the last one: `{type, data: {patch}}`. Objects merge, `null` removes a member, and anything else replaces, so collections are objects keyed by id. Nothing is sent when nothing changed, so a producer calls `refresh` on any change it knows of.
+- **Shape.** The state must be a JSON object, or `document` throws. A member produced as `null` is dropped, the same as one left out, since a patch could not tell the two apart.
+- **Ordering.** Sends are synchronous, so no patch can precede or overtake a socket's document.
+
+On the client, `@greendrake/rpc`'s `liveDocument` keeps the document. A reconnect is greeted with it afresh, so no re-read is needed.
 
 ### Topics
 

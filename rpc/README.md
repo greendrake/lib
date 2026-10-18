@@ -33,6 +33,13 @@ interface RpcResponse {
 
 The WebSocket transport puts an `id` on both directions for correlation and additionally receives server-push frames, `{ type: 'event', event, data }` and bare `{ type, data }`.
 
+A state stream is a bare frame type whose `data` is one of two shapes:
+
+- `{ doc }`, the whole document, a JSON object. A server sends it first on each socket that is to keep the document.
+- `{ patch }`, an RFC 7386 merge patch over it. Objects merge, `null` removes a member, and anything else replaces, so collections are objects keyed by id.
+
+A document has no `null` members, since a patch could not tell one from a removal. A patch is only ever over the document its own socket was sent.
+
 `packRequest(method, args, nonce, locale?)` builds the request: a fresh random `nonce` when `nonce` is true, `arguments` only when non-empty, `locale` only when supplied. `settleResponse(response, method)` returns `data` on success or throws the mapped error (see Errors); in a Vite dev build a non-success response is also logged with `console.warn`.
 
 ## Typed method map
@@ -180,6 +187,29 @@ The contract:
 - **Coalescing.** One `resync` at a time; pushes arriving during a run collapse into a single follow-up after it, however many there are — they ask the same question. This is `@greendrake/util`'s `coalesced`, which a server building what it pushes can use the same way.
 - **No error policy.** The binding awaits `resync` only to know when the slot is free, and interprets neither outcome: `resync` owns its errors. It must also not be served by a response cache the missed pushes would have invalidated — invalidate the entries its read would hit, then read.
 - **Release.** The returned function detaches every subscription and drops any pending follow-up; calling it twice is harmless.
+
+## State streams
+
+`liveDocument(transport, type, target)` keeps `target` the document the state stream `type` carries, and returns the release function.
+
+```ts
+import { liveDocument, type StateFrame } from '@greendrake/rpc'
+
+interface Pushes {
+    cameras: StateFrame<Record<string, CameraState>>
+}
+
+const cameras = reactive<Record<string, CameraState>>({})
+liveDocument(transport, 'cameras', cameras)
+```
+
+- **Document and patch.** Each `doc` frame replaces `target` whole: a reconnect's greeting carries the state afresh, removals made while the socket was away included. Each `patch` frame is merged in place, so a reactive target re-renders only what the patch touches.
+- **No resync.** The server re-sends the document on every reconnect, which is the re-read a `liveBinding` would otherwise make.
+- **Protocol violations throw.** A patch with no document before it on the same socket is one.
+- **Typing.** `type` must be a key of the transport's data pushes typed `StateFrame<D>`; `target` is a `D`. `MergePatch<T>` is what a patch over `T` can carry.
+- **Any id.** A member named for something every object inherits (`__proto__`, `toString`) lands as the target's own member and reaches no prototype. One named `__proto__` is defined rather than assigned, and Vue does not track a key of that name, so on a reactive target it is held but does not re-render.
+
+A server's half is here too, so that both ends agree on what a document is: `documentOf(type, value)` is a state's wire form (JSON, null members dropped, a JSON object or it throws), and `mergePatchBetween(prev, next)` is the patch from one document to the next, `null` when they are equal. `@greendrake/rpc-server`'s documents are built on them.
 
 ## Errors
 

@@ -188,6 +188,8 @@ The mechanism — relevance, `apply` versus `resync`, the reconnect re-read, coa
 - Its failure neither interrupts nor vanishes. A `NotFoundError` is dropped (the entity went away while the socket was down; the next navigation says so), a `NetworkError` is dropped (the socket went again mid-read, and the binding's own reconnect rule re-reads when it returns), and anything else goes to the `errorSink` configured through `configureApiUX` — reported, never toasted.
 - It must read past a response cache the missed pushes would have invalidated: invalidate the entries the read would hit, then read, so the stale entry is repaired rather than stepped around.
 
+A state stream needs none of this. `@greendrake/rpc`'s `liveDocument` keeps the document in a reactive target, and the server greets a reconnect with the document afresh, so there is no re-read to run and no failure of one to classify.
+
 `backgroundCall` also serves any loader told whether anybody asked for its load — a table re-reading after a push, say, which is where a panel's re-read actually calls the API:
 
 ```ts
