@@ -1,15 +1,17 @@
 import { reactive } from 'vue'
-import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router'
+import type { RouteLocationNormalized, RouteLocationNormalizedLoaded, RouteLocationRaw, Router } from 'vue-router'
 
 // Route-level data prefetch. A route declares `meta.fetch` to load its data;
 // createSpaApp's beforeEach guard awaits it before the matched component
 // mounts and stashes the result in preload[routeName], so components read
 // their data synchronously — no async `setup()`, hence no `<Suspense>`
 // dependency to get wedged when a fetch fails. `getTitle` derives the document
-// title from that data — a live derivation, re-run whenever the slot changes
-// (createSpaApp), so a WebSocket push that replaces the slot retitles the tab
-// as it re-renders the page. Both live on the vue-router RouteMeta via this
-// augmentation so routes and the guard stay typed.
+// title from that data and from the route it is the title of (undefined data
+// for a route that fetches none) — a live derivation, re-run whenever either
+// changes (createSpaApp), so a WebSocket push that replaces the slot retitles
+// the tab as it re-renders the page, and so does a param change. Both live on
+// the vue-router RouteMeta via this augmentation so routes and the guard stay
+// typed.
 //
 // `fetch` is typed against just the route params — all it ever needs to build
 // its request — so it can be driven not only from the navigation guard (which
@@ -27,7 +29,7 @@ import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-rout
 declare module 'vue-router' {
     interface RouteMeta {
         fetch?: (to: Pick<RouteLocationNormalized, 'params'>, callConfig?: object) => Promise<unknown>
-        getTitle?: (data: unknown) => string
+        getTitle?: (data: unknown, route: RouteLocationNormalizedLoaded) => string
     }
 }
 

@@ -231,10 +231,11 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
 
     // The document title is DERIVED, not stamped once per navigation. A route's
     // meta.getTitle runs inside the effect below, over the route's preload slot
-    // — the same reactive slot the page renders from and a WS push replaces — so
-    // an update that re-renders a heading retitles the tab with it, with no
-    // per-page wiring and nothing to forget at a new push site. Any other
-    // reactive state getTitle reads is tracked the same way.
+    // — the same reactive slot the page renders from and a WS push replaces —
+    // and over the route itself, so an update that re-renders a heading
+    // retitles the tab with it, and so does a param change, with no per-page
+    // wiring and nothing to forget at a new push site. Any other reactive state
+    // getTitle reads is tracked the same way.
     //
     // A title that is not a function of route data (one read off the rendered
     // <h1>, say) comes in through setPageTitle instead; it overrides the
@@ -257,8 +258,9 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
             applyTitle(titleOverride.value)
             return
         }
-        const { name, meta } = router.currentRoute.value
-        const derived = meta.getTitle ? meta.getTitle(typeof name === 'string' ? preload[name] : undefined) : meta.title
+        const route = router.currentRoute.value
+        const { name, meta } = route
+        const derived = meta.getTitle ? meta.getTitle(typeof name === 'string' ? preload[name] : undefined, route) : meta.title
         applyTitle(derived === undefined || derived === null ? undefined : String(derived))
     })
 

@@ -18,6 +18,7 @@ const tabs: DashTab[] = [
 
 createDash({
     splash: ['SERVICE'],
+    defaultTitle: 'Service',
     routes: [
         {
             path: '/',

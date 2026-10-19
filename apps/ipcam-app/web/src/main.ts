@@ -7,5 +7,6 @@ void transport.connect()
 
 createDash({
     splash: ['CAMERA'],
+    defaultTitle: 'Camera',
     routes: [{ path: '/', component: Camera }]
 })

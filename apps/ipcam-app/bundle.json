@@ -1,6 +1,6 @@
 {
     "@greendrake/css-reset": "0.7.0",
-    "@greendrake/dash": "0.10.0",
+    "@greendrake/dash": "0.11.0",
     "@greendrake/dev-config": "0.7.0",
     "@greendrake/domains": "0.7.0",
     "@greendrake/e2e": "0.8.0",
@@ -14,7 +14,7 @@
     "@greendrake/util": "0.9.0",
     "@greendrake/vite-preset": "0.8.0",
     "@greendrake/vue-api": "0.10.0",
-    "@greendrake/vue-app": "0.9.0",
+    "@greendrake/vue-app": "0.9.1",
     "@greendrake/vue-kit": "0.9.0",
     "greendrake.nz/go/apiserver": "0.1.0",
     "greendrake.nz/go/camstream": "0.1.0",

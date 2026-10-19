@@ -7,12 +7,14 @@
 import './style.scss'
 import type { RouteRecordRaw } from 'vue-router'
 import { apiUXHooks } from '@greendrake/vue-api'
-import { createSpaApp, type SpaApp } from '@greendrake/vue-app'
+import { createSpaApp, type SpaApp, type SpaAppOptions } from '@greendrake/vue-app'
 import DashRoot from './DashRoot.vue'
 
 export interface DashConfig {
     /** Splash lines, shown until the app's init work and first paint are done. */
     splash: string[]
+    /** The document title, and what a route's own title is joined to (see @greendrake/vue-app). */
+    defaultTitle: NonNullable<SpaAppOptions['defaultTitle']>
     routes: RouteRecordRaw[]
     /** Set when a route component has async setup — see DashRoot's prop. */
     suspense?: boolean
@@ -27,6 +29,7 @@ export const createDash = (config: DashConfig): SpaApp => {
     const app = createSpaApp({
         root: DashRoot,
         rootProps: { splash: config.splash, suspense: config.suspense },
+        defaultTitle: config.defaultTitle,
         routes: config.routes,
         ready: config.ready,
         ...apiUXHooks

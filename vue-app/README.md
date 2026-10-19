@@ -67,7 +67,7 @@ Routes declare their data load on `meta`, typed through a `vue-router` module au
 declare module 'vue-router' {
     interface RouteMeta {
         fetch?: (to: Pick<RouteLocationNormalized, 'params'>, callConfig?: object) => Promise<unknown>
-        getTitle?: (data: unknown) => string
+        getTitle?: (data: unknown, route: RouteLocationNormalizedLoaded) => string
     }
 }
 ```
@@ -82,7 +82,13 @@ const item = computed(() => preload.item as Item)
 
 `preload` is reactive: a param change (`/items/1` → `/items/2`) re-runs the fetch and refreshes the mounted component. A failed fetch is `onRouteFetchError`'s to settle; without it, the navigation fails with the error.
 
-`meta.getTitle(data)` derives the document title from the preloaded data, live: it re-runs whenever the slot changes, so a push that replaces the data retitles the tab as it re-renders the page. Titles render as `<route title> | <defaultTitle>`; a route without a title shows the default.
+`meta.getTitle(data, route)` derives the document title from the preloaded data and the route, live: it re-runs whenever the slot or the route changes, so a push that replaces the data retitles the tab as it re-renders the page, and so does a param change. `data` is undefined for a route that fetches none, which can still title itself from its params:
+
+```ts
+{ path: '/orders/:id', name: 'order', component: Order, meta: { getTitle: (_, route) => `Order ${String(route.params.id)}` } }
+```
+
+Titles render as `<route title> | <defaultTitle>`; a route without a title shows the default.
 
 ### Prefetching ahead of navigation
 

@@ -14,11 +14,12 @@ const tabs: DashTab[] = [
 
 createDash({
     splash: ['ACME', 'OPS'],
+    defaultTitle: 'Acme Ops',
     routes: [{ path: '/', name: 'Dashboard', component: TabDashboard, props: { tabs } }]
 })
 ```
 
-`createDash` returns the `SpaApp` (see `@greendrake/vue-app`), so a host can act on it after boot — open a WebSocket eagerly, say. Pass `suspense: true` when a route component has async setup — the splash then serves as the Suspense boundary's initial content, so there is no blank frame while the route resolves. `ready` takes init work the splash must outlast. `@greendrake/vue-api`'s error UX is wired in (`apiUXHooks`).
+`createDash` returns the `SpaApp` (see `@greendrake/vue-app`), so a host can act on it after boot — open a WebSocket eagerly, say. `defaultTitle` is the document title, and what each route's own title — `meta.getTitle`, `@greendrake/vue-app`'s — is joined to as `<route title> | <defaultTitle>`. Pass `suspense: true` when a route component has async setup — the splash then serves as the Suspense boundary's initial content, so there is no blank frame while the route resolves. `ready` takes init work the splash must outlast. `@greendrake/vue-api`'s error UX is wired in (`apiUXHooks`).
 
 `TabDashboard` renders one panel at a time under a `TabBar`. The registry is the single source for the strip and the panels both: adding a tab is one row. The open tab is the first until the user picks another; a host whose panels open one another binds `v-model:active` to the open tab's id. A panel is unmounted when another tab opens, unless its row sets `keepAlive`: then it is kept as it was, state and all, and shown again without mounting anew. Where a dashboard needs its routes code-split, keep the registry inside the lazily-imported route module, so a lightweight route does not pull in the dashboard panels.
 
@@ -37,7 +38,7 @@ const tabs: DashTab[] = [
 ]
 ```
 
-`service` is the name the backend registered the service's machine under; `api` is an `ApiCaller<ServiceStateMethods>` (`@greendrake/vue-api`'s `ApiClient` is one) and `transport` a `WsTransport<ServiceStatePushes>`, and any number of controls share one of each. Both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads its service's status once, then follows that service's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
+`service` is the name the backend registered the service's machine under; `api` is an `ApiCaller<ServiceStateMethods>` (`@greendrake/vue-api`'s `ApiClient` is one) and `transport` a `WsTransport<ServiceStatePushes>`, and any number of controls share one of each. Both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads its service's status once, under its own loading indicator rather than the page's spinner, then follows that service's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
 
 The command each state offers is `@greendrake/service-state`'s `CONTROLS`: `OFF` offers *Turn ON*, `ON` *Turn OFF*, `ERROR` *Refresh*; `STARTING` and `STOPPING` offer nothing, there being no interfering with a transition already under way. The labels are `serviceStateMessages` (`start`, `stop`, `refresh`), keyed by the command and overridable with `configureServiceStateMessages`, both from this entry. The current state is on the root element as `data-state`, which is what the border colour is drawn from and what an end-to-end test asserts on. `examples/service-pair` is a complete dashboard and backend built on it.
 

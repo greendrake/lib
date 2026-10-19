@@ -29,7 +29,10 @@ const read = async (call: CallOptions = {}): Promise<void> => {
     status.value = await props.api.with(call).call('service.status', { service: props.service })
 }
 
-onMounted(() => read())
+// The control's own Loading stands in until the first reading lands, so the
+// page's spinner would only say the same thing twice. A failure still reaches
+// the error toast: there is nothing else to show here without a status.
+onMounted(() => read({ pending: false }))
 
 useLive(props.transport, {
     events: {

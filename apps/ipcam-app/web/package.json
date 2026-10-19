@@ -3,7 +3,7 @@
     "private": true,
     "description": "One DVRIP or RTSP camera in the browser, its streams, and over DVRIP their sound and the camera's settings, served by a single static binary",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "type": "module",
     "prettier": "@greendrake/dev-config/prettier",
     "scripts": {
