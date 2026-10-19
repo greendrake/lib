@@ -2,10 +2,11 @@
 export interface BottomNavTab {
     id: string
     label: string
-    // The route this tab navigates to. Omit for a tab that acts on the app
-    // shell instead of navigating — an overlay whose existence is a property of
-    // the viewport, not of the URL. Such a tab renders as a button and reports
-    // its state through `select` + aria-expanded rather than aria-current.
+    // Where this tab navigates to, handed to the `link` component as its `to`.
+    // Omit for a tab that acts on the app shell instead of navigating — an
+    // overlay whose existence is a property of the viewport, not of the URL.
+    // Such a tab renders as a button and reports its state through `select` +
+    // aria-expanded rather than aria-current.
     to?: string
     // Marks this tab active. The app owns the mapping (a tab usually covers a
     // family of routes, not one path), so it is a plain flag, not a matcher.
@@ -15,8 +16,13 @@ export interface BottomNavTab {
 }
 </script>
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
-defineProps<{ tabs: BottomNavTab[] }>()
+import type { Component } from 'vue'
+defineProps<{
+    tabs: BottomNavTab[]
+    // What a navigating tab renders as: the app's router link (vue-router's
+    // RouterLink, or any component taking a `to`).
+    link: Component
+}>()
 const emit = defineEmits<{ select: [id: string] }>()
 </script>
 <template>
@@ -27,7 +33,7 @@ const emit = defineEmits<{ select: [id: string] }>()
          of the masked icon, not a child — a mask clips its descendants. -->
     <nav class="BottomNav">
         <component
-            :is="tab.to ? RouterLink : 'button'"
+            :is="tab.to ? link : 'button'"
             v-for="tab in tabs"
             :key="tab.id"
             :to="tab.to"

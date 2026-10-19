@@ -1,0 +1,13 @@
+{
+  "Enable": false,
+  "Server": {
+    "Address": "0x00000000",
+    "Anonymity": false,
+    "Name": "NTP",
+    "Password": "",
+    "Port": 123,
+    "UserName": ""
+  },
+  "TimeZone": 14,
+  "UpdatePeriod": 60
+}

@@ -1,6 +1,7 @@
 import './dom'
 import { afterEach, describe, expect, test } from 'bun:test'
-import { fmtBytes, fmtDate, fmtDateTime, fmtDay, fmtMarkupText, fmtNumber, parseInstant } from '../src/formatters'
+import { fmtBytes, fmtDate, fmtDateTime, fmtDay, fmtMarkupText, fmtNumber, fmtYesNo, parseInstant } from '../src/formatters'
+import { configureUiDataMessages } from '../src/messages'
 
 // Intl's output is the test machine's locale's; the cases below assert what
 // does not depend on it, or build the expectation through Intl too.
@@ -92,6 +93,19 @@ describe('date styles', () => {
         expect(new Intl.DateTimeFormat(undefined, { day: 'numeric' }).format(new Date('2026-10-17'))).toBe('16')
         expect(fmtDay('long')('2026-10-17')).toBe(new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeZone: 'UTC' }).format(Date.UTC(2026, 9, 17)))
         expect(fmtDay('long')('2026-10-17')).toContain('17')
+    })
+})
+
+describe('fmtYesNo', () => {
+    afterEach(() => configureUiDataMessages({ yes: 'yes', no: 'no' }))
+
+    test('any value read as a boolean, in English unless told otherwise', () => {
+        expect([true, 1, 'x', false, 0, '', null, undefined].map(fmtYesNo)).toEqual(['yes', 'yes', 'yes', 'no', 'no', 'no', 'no', 'no'])
+    })
+
+    test('in the words configured, from then on', () => {
+        configureUiDataMessages({ yes: 'ja', no: 'nein' })
+        expect([fmtYesNo(true), fmtYesNo(false)]).toEqual(['ja', 'nein'])
     })
 })
 

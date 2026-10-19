@@ -1,4 +1,29 @@
 <script lang="ts">
+import type { Filters, Sort } from './InfiniteScrollTable.types'
+
+// What rows are fetched under besides their window: the search text and the
+// order when there are any, and the filters that are not empty.
+interface Query {
+    text?: string
+    sort?: Sort
+    filters: Record<string, string>
+}
+
+const queryOf = (text: string | undefined, sort: Sort | undefined, filters: Filters): Query => ({
+    ...(text ? { text } : {}),
+    ...(sort ? { sort } : {}),
+    filters: Object.fromEntries(Object.entries(filters).filter((entry): entry is [string, string] => entry[1] != null && entry[1] !== ''))
+})
+
+const sameFilters = (a: Record<string, string>, b: Record<string, string>): boolean => {
+    const keys = Object.keys(a)
+    return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key])
+}
+
+// Whether rows matching `text` are all among those matching `baseline`: a
+// text containing the baseline only narrows it.
+const narrows = (text: string | undefined, baseline: string | undefined): boolean => !baseline || (text ?? '').toLowerCase().includes(baseline.toLowerCase())
+
 const DEBOUNCE_MS = 150
 // Inertial scrolling: a released pan keeps scrolling, its velocity decaying
 // exponentially with time constant τ. The velocity floor is both the minimum
@@ -11,13 +36,12 @@ const FLING_SAMPLE_WINDOW_MS = 100
 <script setup lang="ts" generic="T extends Record<string, unknown>">
 import { ref, computed, watch, onMounted, onUnmounted, type Ref } from 'vue'
 import { useSelection, useWidthDrag, capturePointer, messages, TOUCH_PAN_SLOP_PX } from '@greendrake/ui'
-import { rowKeyOf, type Props, type DropTarget, type Filters, type LoaderParams, type LoaderResponse, type RowPosition, type VisibleRange, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
+import { rowKeyOf, type Props, type DropTarget, type LoaderResponse, type RowPosition, type VisibleRange, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
 
 const props = withDefaults(defineProps<Props<T>>(), {
     rowHeight: 45,
     visibleHeight: null,
     filters: () => ({}),
-    textFilterKey: 'q',
     localSearchFields: () => ['title'],
     rowKey: 'id',
     selectable: false,
@@ -51,7 +75,10 @@ const calculatedHeight = ref(600)
 const theadRef = ref<HTMLElement | null>(null)
 const theadHeight = ref(0)
 const lastRequestOffset = ref<number | null>(null)
-const baselineFilters = ref<Filters | null>(null)
+// The query the dataset in memory was fetched under, while the whole dataset
+// is in memory.
+const baseline = ref<Query | null>(null)
+const query = computed(() => queryOf(props.text, props.sort, props.filters))
 const hasAllRecords = ref(false)
 const colWidths = ref<number[]>([])
 const { active: colResizing, start: startColDrag, move: onColResizeMove, end: onColResizeEnd } = useWidthDrag(30)
@@ -217,28 +244,16 @@ const visibleRange = computed(() => {
     }
 })
 
-// Local filtering/sorting helpers
-const isTextFilterRefinement = (newFilters: Filters, baseline: Filters, textKey: string): boolean => {
-    const newText = newFilters[textKey] || ''
-    const baseText = baseline[textKey] || ''
-    if (!baseText) return true
-    return newText.toLowerCase().includes(baseText.toLowerCase())
-}
-
-const canOperateLocally = (newFilters: Filters): boolean => {
+// Local filtering/sorting helpers. The order and a narrowing of the text are
+// served from the dataset in memory; a change to the filters is a new dataset.
+const canOperateLocally = (next: Query): boolean => {
     // localSearchFields: false = the caller's search semantics cannot be
-    // mirrored client-side; text-filter changes always go remote.
-    if (props.localSearchFields === false || !hasAllRecords.value || !baselineFilters.value) return false
-    const textKey = props.textFilterKey
-    const sortKeys = ['sort_by', 'sort_dir']
-    for (const key of Object.keys(newFilters)) {
-        if (key === textKey || sortKeys.includes(key)) continue
-        if (newFilters[key] !== baselineFilters.value[key]) return false
-    }
-    return isTextFilterRefinement(newFilters, baselineFilters.value, textKey)
+    // mirrored client-side; every change goes remote.
+    if (props.localSearchFields === false || !hasAllRecords.value || !baseline.value) return false
+    return sameFilters(next.filters, baseline.value.filters) && narrows(next.text, baseline.value.text)
 }
 
-const applyLocalFilter = (data: T[], textFilter: string | null | undefined, searchFields: string[] | false): T[] => {
+const applyLocalFilter = (data: T[], textFilter: string | undefined, searchFields: string[] | false): T[] => {
     if (!textFilter || searchFields === false) return data
     const lowerFilter = textFilter.toLowerCase()
     return data.filter(record =>
@@ -275,17 +290,17 @@ const compareValues = (a: unknown, b: unknown, type: 'string' | 'number' | 'date
     }
 }
 
-const applyLocalSort = (data: T[], sortBy: string | null | undefined, sortDir: string | null | undefined): T[] => {
-    if (!sortBy) return data
-    const type = getFieldType(sortBy, data)
-    const dir = sortDir === 'asc' ? 1 : -1
-    return [...data].sort((a, b) => dir * compareValues(a[sortBy], b[sortBy], type))
+const applyLocalSort = (data: T[], sort: Sort | undefined): T[] => {
+    if (!sort) return data
+    const { by } = sort
+    const type = getFieldType(by, data)
+    const dir = sort.dir === 'asc' ? 1 : -1
+    return [...data].sort((a, b) => dir * compareValues(a[by], b[by], type))
 }
 
 const applyLocalOperations = (resetScroll = true): void => {
-    const textFilter = props.filters[props.textFilterKey]
-    let result = applyLocalFilter(fullDataset.value, textFilter, props.localSearchFields)
-    result = applyLocalSort(result, props.filters.sort_by, props.filters.sort_dir)
+    let result = applyLocalFilter(fullDataset.value, props.text, props.localSearchFields)
+    result = applyLocalSort(result, props.sort)
     filteredSortedData.value = result
     totalRecords.value = result.length
     if (resetScroll) {
@@ -295,18 +310,16 @@ const applyLocalOperations = (resetScroll = true): void => {
 }
 
 // API functions
-const fetchData = async (offset: number, limit: number, background: boolean): Promise<LoaderResponse<T>> => {
-    const params: LoaderParams = {
-        offset,
-        limit
-    }
-    Object.entries(props.filters).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-            params[key] = value
-        }
-    })
-    return props.loader(params, loading, background)
-}
+const fetchData = (offset: number, limit: number, background: boolean): Promise<LoaderResponse<T>> =>
+    props.loader(
+        {
+            offset,
+            limit,
+            ...query.value
+        },
+        loading,
+        background
+    )
 
 const loadBuffer = async (targetOffset: number, scrollingDown = true, background = false): Promise<void> => {
     const paddingTotal = Math.max(0, props.bufferSize - renderCount.value)
@@ -330,7 +343,7 @@ const loadBuffer = async (targetOffset: number, scrollingDown = true, background
     if (data.length >= total) {
         fullDataset.value = data
         hasAllRecords.value = true
-        baselineFilters.value = { ...props.filters }
+        baseline.value = query.value
         applyLocalOperations()
     } else {
         hasAllRecords.value = false
@@ -561,16 +574,16 @@ onUnmounted(() => {
     }
 })
 
-// Watch filters
+// Watch the query: deep, so an order object changed in place counts too.
 watch(
-    () => props.filters,
-    newFilters => {
+    query,
+    next => {
         stopFling()
-        if (canOperateLocally(newFilters)) {
+        if (canOperateLocally(next)) {
             applyLocalOperations()
         } else {
             hasAllRecords.value = false
-            baselineFilters.value = null
+            baseline.value = null
             scrollPosition.value = 0
             lastRequestOffset.value = null
             loadBuffer(0)
@@ -595,7 +608,7 @@ watch(
 // the read is done and what it did — a foreground press ignores it.
 const refresh = (background = false): Promise<void> => {
     hasAllRecords.value = false
-    baselineFilters.value = null
+    baseline.value = null
     lastRequestOffset.value = null
     return loadBuffer(firstIndex.value, true, background)
 }
@@ -728,7 +741,7 @@ const getRow = (keyValue: string | number): T | undefined => {
 // dataset rather than a remote fetch — same predicate the filter watcher uses to
 // route the change. Lets a consumer (e.g. its SearchField) debounce a purely local
 // filter more eagerly than one that hits the network.
-const willFilterLocally = (value: string | undefined): boolean => canOperateLocally({ ...props.filters, [props.textFilterKey]: value })
+const willFilterLocally = (value: string | undefined): boolean => canOperateLocally(queryOf(value, props.sort, props.filters))
 
 const exposed: InfiniteScrollTableExposed<T> = {
     refresh,

@@ -32,7 +32,7 @@ const props = withDefaults(
         filters: () => ({}),
         thumbnailField: 'thumbnail',
         titleField: 'title',
-        idField: 'node_id',
+        idField: 'id',
         pageSize: 24
     }
 )

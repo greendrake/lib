@@ -23,7 +23,7 @@ const serving = (registry: ConnRegistry): { url: string; stop: () => void } => {
     const server = Bun.serve({
         port: 0,
         websocket: ws.handlers,
-        fetch: async (request, srv) => ((await ws.upgrade(request, srv)) ? undefined : new Response(null, { status: 400 }))
+        fetch: (request, srv) => ws.upgrade(request, srv)
     })
     return { url: `ws://localhost:${server.port}/`, stop: () => void server.stop(true) }
 }

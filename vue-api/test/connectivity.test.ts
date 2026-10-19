@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { NetworkError } from '@greendrake/util'
-import { useConnectivity } from '../src/connectivity'
+import { useConnectionMessage, useConnectivity } from '../src/connectivity'
+import { apiMessages, configureApiMessages } from '../src/messages'
 import { retryWhenOnline } from '../src/retryWhenOnline'
 import { FakeSource, setDeviceOnline, withSource } from './support'
 
@@ -107,6 +108,21 @@ describe('useConnectivity', () => {
         // The device saying it is offline is not evidence that calls cannot
         // succeed — only the transport is.
         expect(connectivity.offline).toBe(false)
+    })
+})
+
+describe('useConnectionMessage', () => {
+    test("says which of the two it is by the device's claim, in the words the app configured", () => {
+        withSource(new FakeSource())
+        const message = useConnectionMessage()
+        expect(message.value).toBe(apiMessages.unreachable)
+
+        setDeviceOnline(false)
+        dispatchEvent(new Event('offline'))
+        expect(message.value).toBe(apiMessages.deviceOffline)
+
+        configureApiMessages({ deviceOffline: 'Hors ligne' })
+        expect(message.value).toBe('Hors ligne')
     })
 })
 

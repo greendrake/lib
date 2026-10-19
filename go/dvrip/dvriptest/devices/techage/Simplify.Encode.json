@@ -1,0 +1,32 @@
+[
+  {
+    "ExtraFormat": {
+      "AudioEnable": true,
+      "Video": {
+        "BitRate": 1024,
+        "BitRateControl": "VBR",
+        "Compression": "H.265",
+        "FPS": 15,
+        "GOP": 2,
+        "Quality": 4,
+        "Resolution": "HD1",
+        "VirtualGOP": 1
+      },
+      "VideoEnable": true
+    },
+    "MainFormat": {
+      "AudioEnable": true,
+      "Video": {
+        "BitRate": 5120,
+        "BitRateControl": "VBR",
+        "Compression": "H.265",
+        "FPS": 10,
+        "GOP": 2,
+        "Quality": 3,
+        "Resolution": "4K",
+        "VirtualGOP": 1
+      },
+      "VideoEnable": true
+    }
+  }
+]

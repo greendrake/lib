@@ -1,0 +1,16 @@
+{
+  "AeMeansure": 0,
+  "AutomaticAdjustment": 3,
+  "BroadTrends": {
+    "AutoGain": 0,
+    "Gain": 50
+  },
+  "CorridorMode": 0,
+  "Dis": 0,
+  "ExposureTime": "0x00000100",
+  "Ldc": 0,
+  "LowLuxMode": 1,
+  "PreventOverExpo": 1,
+  "SoftPhotosensitivecontrol": 0,
+  "Style": "type1"
+}

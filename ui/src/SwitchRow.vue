@@ -35,6 +35,7 @@ defineProps<{
     // reach it).
     color: var(--font-color);
     text-decoration: none;
+    cursor: default;
     gap: var(--space-2);
     &__text {
         color: var(--font-color);

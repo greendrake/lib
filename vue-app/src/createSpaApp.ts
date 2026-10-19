@@ -45,6 +45,11 @@ export interface SpaAppOptions {
     // as an unhandled rejection, which is where an app with no error UX of its
     // own has it logged.
     onBootError?: (error: Error) => void
+    // What a route's failed data fetch makes of its navigation: what a
+    // beforeRoute returns. Absent, the error is rethrown and the navigation
+    // fails with it, for the router's error handling; an error UX that has
+    // already shown the failure answers false, aborting it quietly.
+    onRouteFetchError?: (error: Error, to: RouteLocationNormalized) => NavigationGuardReturn
 }
 
 export interface SpaApp {
@@ -67,7 +72,7 @@ export interface SpaApp {
     setPageTitle(title?: string): void
 }
 
-const KNOWN_OPTIONS = new Set<keyof SpaAppOptions>(['root', 'rootProps', 'routes', 'plugins', 'piniaPlugins', 'defaultTitle', 'routeClasses', 'beforeRoute', 'ready', 'onRouter', 'onBootError'])
+const KNOWN_OPTIONS = new Set<keyof SpaAppOptions>(['root', 'rootProps', 'routes', 'plugins', 'piniaPlugins', 'defaultTitle', 'routeClasses', 'beforeRoute', 'ready', 'onRouter', 'onBootError', 'onRouteFetchError'])
 
 // Route-level code splitting puts a network fetch between a navigation and the
 // component that serves it: vue-router awaits the `() => import(…)` loader once
@@ -183,17 +188,17 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
         // the component to read synchronously; getTitle sets meta.title ahead
         // of the title join below. If the upcoming navigation was set up via
         // prefetch(), consume that one-off primed result instead of fetching
-        // again. A failed fetch aborts the navigation silently: the api
-        // client's error toast already owns the failure's UX (retry re-runs
-        // the fetch; acknowledge navigates home), so the router must treat it
-        // as a settled decision, not an error to re-raise.
+        // again. A failed fetch is onRouteFetchError's to settle.
         const { fetch } = to.meta
         if (fetch) {
             try {
                 const primed = takePrimed(to.fullPath)
                 preload[to.name as string] = primed.hit ? primed.data : await fetch(to)
-            } catch {
-                return false
+            } catch (e) {
+                if (!options.onRouteFetchError) {
+                    throw e
+                }
+                return options.onRouteFetchError(e as Error, to)
             }
         }
     })

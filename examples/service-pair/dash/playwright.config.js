@@ -25,7 +25,11 @@ export default spaPlaywright({
                 cwd: '../api',
                 url: `http://localhost:${apiPort}/readyz`,
                 reuseExistingServer: false,
-                env: { API_PORT: apiPort, ADMIN_API_KEY: adminKey }
+                env: {
+                    API_PORT: apiPort,
+                    ADMIN_API_KEY: adminKey,
+                    DASH_ORIGIN: `http://localhost:${vitePort}`
+                }
             },
             {
                 command: 'bun run dev',

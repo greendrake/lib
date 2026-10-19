@@ -47,7 +47,9 @@ const appRoot = ({ dependencies = {}, devDependencies = {}, installed = {}, miss
 }
 
 // `build` rather than `serve`, so the VITE_PORT requirement stays out of it.
-const optimizeDepsAt = (root: string, options: Partial<VueSpaOptions> = {}) => vueSpa({ dirname: root, ...options })({ command: 'build', mode: 'prod' }).optimizeDeps
+const buildConfig = (root: string, options: Partial<VueSpaOptions> = {}) => vueSpa({ dirname: root, ...options })({ command: 'build', mode: 'prod' })
+
+const optimizeDepsAt = (root: string, options: Partial<VueSpaOptions> = {}) => buildConfig(root, options).optimizeDeps
 
 const optimizeDeps = (fixture: Fixture, options: Partial<VueSpaOptions> = {}) => optimizeDepsAt(appRoot(fixture), options)
 
@@ -225,5 +227,43 @@ describe('which dependencies are pinned into the pre-bundle', () => {
 
     test('a source package declared but never installed is an error, not a gap in the list', () => {
         expect(() => optimizeDeps({ dependencies: { '@acme/ui': '1.0.0' }, missing: ['@acme/ui'] }, ACME)).toThrow(/@acme\/ui is declared but not installed/)
+    })
+})
+
+describe('which framework libraries are deduped', () => {
+    test('those the app declares, wherever it declares them', () => {
+        expect(buildConfig(appRoot({ dependencies: { vue: '3.5.0' }, devDependencies: { 'vue-router': '4.6.0' } })).resolve?.dedupe).toEqual(['vue', 'vue-router'])
+    })
+
+    test('none for an app that declares none of them', () => {
+        expect(buildConfig(appRoot({ dependencies: { 'some-library': '1.0.0' } })).resolve?.dedupe).toEqual([])
+    })
+})
+
+describe('what the dev server may read', () => {
+    // `serve` without a port pin, so no VITE_PORT is asked for.
+    const allowedAt = (root: string, options: Partial<VueSpaOptions> = {}) =>
+        vueSpa({
+            dirname: root,
+            port: false,
+            ...options
+        })({ command: 'serve', mode: 'dev' }).server?.fs?.allow
+
+    test('the workspace above the app, wherever in it the app sits', () => {
+        const workspace = appRoot({})
+        writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'workspace', workspaces: ['apps/*/*'] }))
+        const app = path.join(workspace, 'apps', 'group', 'app')
+        mkdirSync(app, { recursive: true })
+        writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'app' }))
+        expect(allowedAt(app)).toEqual([workspace])
+    })
+
+    test("the app's own root outside any workspace, and every static root beside it", () => {
+        const app = appRoot({})
+        expect(allowedAt(app, { staticRoots: [{ dir: '/srv/catalogue', urlPath: '/catalogue' }] })).toEqual([app, '/srv/catalogue'])
+    })
+
+    test('nothing is set for a build, which serves no files', () => {
+        expect(buildConfig(appRoot({})).server).toBeUndefined()
     })
 })

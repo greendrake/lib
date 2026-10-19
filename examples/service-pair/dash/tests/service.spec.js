@@ -12,7 +12,7 @@ const isIn = async (page, state) => await expect(control(page)).toHaveAttribute(
 
 // The API as an operator calls it, for the test setting the world up rather
 // than anything the dashboard does.
-const api = new RpcClient(new HttpTransport({ url: API, headers: () => ({ Authorization: ADMIN_KEY }) }))
+const api = new RpcClient(new HttpTransport({ url: API, headers: () => ({ Authorization: `Bearer ${ADMIN_KEY}` }) }))
 
 test('the service is turned on and off, and every state change is seen live', async ({ page, context }) => {
     await page.goto('/')

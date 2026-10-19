@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { RpcClient, WebSocketClosedError, WebSocketPipe, WsTransport } from '../src/main'
-import type { RpcRequest } from '../src/main'
+import { RpcClient, WebSocketClosedError, WebSocketPipe, WsTransport, tokenAuth } from '../src/main'
 import { nextTick, startWsServer } from './wsServer'
 
 interface Methods {
@@ -80,13 +79,7 @@ describe('WsTransport', () => {
     test('auth is applied once and re-applied on reconnect', async () => {
         authCalls.length = 0
         const pipe = new WebSocketPipe({ url: wsUrl, reconnectDelayMs: () => 10 })
-        const transport = new WsTransport<Record<never, never>, Record<never, never>>({
-            pipe,
-            auth: {
-                authenticate: (send, token) => send({ method: 'auth.token', arguments: [token] }),
-                deauthenticate: send => send({ method: 'auth.logout' })
-            }
-        })
+        const transport = new WsTransport<Record<never, never>, Record<never, never>>({ pipe, auth: tokenAuth })
         await transport.authenticate('tok-1')
         expect(authCalls).toEqual(['tok-1'])
 
@@ -96,12 +89,6 @@ describe('WsTransport', () => {
         expect(authCalls).toEqual(['tok-1', 'tok-1'])
         pipe.dispose()
     })
-
-    // The auth strategy every identity test below drives.
-    const tokenAuth = {
-        authenticate: (send: (payload: RpcRequest) => Promise<unknown>, token: string) => send({ method: 'auth.token', arguments: [token] }),
-        deauthenticate: (send: (payload: RpcRequest) => Promise<unknown>) => send({ method: 'auth.logout' })
-    }
 
     test('a refused bind still re-applies the identity on reconnect', async () => {
         authCalls.length = 0
@@ -343,11 +330,6 @@ describe('WsTransport', () => {
 // "connected" must mean calls can succeed, which for an identified connection
 // is strictly later than the socket opening.
 describe('WsTransport connection readiness', () => {
-    const tokenAuth = {
-        authenticate: (send: (payload: RpcRequest) => Promise<unknown>, token: string) => send({ method: 'auth.token', arguments: [token] }),
-        deauthenticate: (send: (payload: RpcRequest) => Promise<unknown>) => send({ method: 'auth.logout' })
-    }
-
     test('an open with no identity to bind reports connected at once', async () => {
         const pipe = new WebSocketPipe({ url: wsUrl })
         const transport = new WsTransport<Record<never, never>, Record<never, never>>({ pipe })

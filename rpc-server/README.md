@@ -13,34 +13,37 @@ TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d
 ## A service, whole
 
 ```ts
-import { ConnRegistry, clientIp, createDispatcher, httpHandler, keyAuthResolver, memoryNonceStore, method, websocketHandler } from '@greendrake/rpc-server'
+import { ConnRegistry, createDispatcher, httpHandler, keyAuthResolver, memoryNonceStore, method, websocketHandler, type Methods } from '@greendrake/rpc-server'
 import { z } from 'zod'
 
-const registry = new ConnRegistry()
+// The application's principal: here the one operator a static key names.
+type Operator = 'operator'
 
-const methods = {
+const registry = new ConnRegistry<Operator>()
+
+const methods: Methods<Operator> = {
     'user.get': method({
-        auth: 'user',
+        auth: 'none',
         args: z.object({ id: z.string() }),
         handler: (ctx, args) => users.get(args.id, ctx.signal)
     }),
-    'user.list': method({ auth: 'admin', handler: () => users.all() })
+    'user.list': method({ auth: 'required', handler: () => users.all() })
 }
 
 const dispatcher = createDispatcher(methods, {
-    auth: keyAuthResolver(process.env.ADMIN_API_KEY!, { userId: 'operator', isAdmin: true, phantom: false }),
+    auth: keyAuthResolver<Operator>(process.env.ADMIN_API_KEY!, 'operator'),
     nonces: memoryNonceStore(5 * 60 * 1000)
 })
 const api = httpHandler(dispatcher)
-const ws = websocketHandler(dispatcher, registry)
+const ws = websocketHandler(dispatcher, registry, { origins: ['https://dash.example.com'] })
 
 Bun.serve({
     port: 8080,
     websocket: ws.handlers,
-    async fetch(request, server) {
+    fetch(request, server) {
         const { pathname } = new URL(request.url)
-        if (pathname === '/v1/ws') return (await ws.upgrade(request, server)) ? undefined : new Response(null, { status: 400 })
-        if (pathname === '/v1/api') return api(request, clientIp(request, server))
+        if (pathname === '/v1/ws') return ws.upgrade(request, server)
+        if (pathname === '/v1/api') return api(request, server)
         return new Response(null, { status: 404 })
     }
 })
@@ -51,11 +54,11 @@ Bun.serve({
 A `MethodDef` is what a method requires of its caller, what its argument looks like, and what runs:
 
 ```ts
-interface MethodDef<A = void, R = unknown> {
-    auth: 'none' | 'user' | 'admin'
-    allowPhantom?: boolean
+interface MethodDef<A = void, R = unknown, P = never> {
+    auth: 'none' | 'required'
+    access?(principal: P | null): true | string
     args?: StandardSchemaV1<unknown, A>
-    handler(ctx: HandlerContext, args: A): R | Promise<R>
+    handler(ctx: HandlerContext<P>, args: A): R | Promise<R>
 }
 ```
 
@@ -63,7 +66,7 @@ interface MethodDef<A = void, R = unknown> {
 
 `method()` is identity at runtime and exists for inference — written inline in a table, a definition has nowhere to get its argument type from, because the table's own type erases it. Wrap each entry in it and the schema's output type reaches the handler's parameter.
 
-`HandlerContext` carries `auth`, `locale`, `clientIp` and a `signal` that aborts when the caller goes away — an HTTP client disconnecting, a WebSocket closing. Pass it to whatever I/O the handler does, so work nobody is waiting for is abandoned rather than run to completion. It also carries `topics`, the calling socket's subscriptions (see [Pushing](#pushing)), which is `null` for a call that came over HTTP.
+`HandlerContext` carries `principal`, `locale`, `clientIp` and a `signal` that aborts when the caller goes away — an HTTP client disconnecting, a WebSocket closing, an abort naming the call. Pass it to whatever I/O the handler does, so work nobody is waiting for is abandoned rather than run to completion. It also carries `topics`, the calling socket's subscriptions (see [Pushing](#pushing)), which is `null` for a call that came over HTTP.
 
 ### Argument validation
 
@@ -77,42 +80,58 @@ interface MethodDef<A = void, R = unknown> {
 
 ### Authentication
 
-`AuthResolver` turns a credential into an `AuthInfo { userId, isAdmin, phantom }`, or `null` where it names nobody — a stranger, not a refusal, since what a method requires of a principal is the dispatcher's business. `userId` is `unknown`: it is the application's own id type, and nothing here reads it.
+The principal is the application's: `P`, whatever it names its callers by — a user id, a session, an operator. An `AuthResolver<P>` turns a credential into one, or `null` where it names nobody: a stranger, not a refusal, since what a method requires of its caller is the method's business. `keyAuthResolver(key, principal)` is the static-key pattern — one pre-shared secret standing for one principal, for a dashboard behind an operator gate or a deployment tool. It compares in constant time, and an empty key matches nothing.
 
-`keyAuthResolver(key, info)` is the static-key pattern — one pre-shared secret standing for one identity, for a dashboard behind an operator gate or a deployment tool. An empty key matches nothing.
+What a method asks of its caller is its `MethodAccess<P>`, decided in this order:
 
-The auth rules, in the order a refusal is decided:
+1. `auth: 'required'` refuses a caller no credential named with `AUTH_REQUIRED`. `'none'` lets anyone through.
+2. `access`, where the method has one, is its own policy over the caller's principal (`null` for an anonymous caller of an `auth: 'none'` method): `true` admits, and anything else is the code the call is refused with.
 
-| `auth` | Refuses with |
-| --- | --- |
-| `'none'` | nothing |
-| `'user'` | `AUTH_REQUIRED` for an anonymous caller |
-| `'admin'` | `AUTH_REQUIRED`, then `ADMIN_REQUIRED` |
+```ts
+const adminOnly = (user: User | null) => (user?.admin ? true : 'ADMIN_REQUIRED')
 
-A phantom — a provisional principal the application has not fully registered — is additionally refused with `PHANTOM_NOT_ALLOWED` unless the method sets `allowPhantom`.
+const methods: Methods<User> = {
+    'user.ban': method({ auth: 'required', access: adminOnly, args: banArgs, handler: (ctx, args) => users.ban(args.id) })
+}
+```
+
+A library shipping methods takes their `MethodAccess` from the application rather than deciding it, since only the application knows its principals. A dispatcher with no resolver has no principals, and `createDispatcher` throws on a method that requires one.
 
 ### Nonces
 
-A request carrying a `nonce` runs once: `NonceStore.checkAndSet` answers false for a repeat, and the call is refused with `DUPLICATE_REQUEST`. `memoryNonceStore(ttlMs)` is one process's worth — behind a load balancer the replicas would each keep their own set, so use a shared store (Redis `SET NX PX` implements the interface in a few lines).
+A request carrying a `nonce` runs once: `NonceStore.checkAndSet` answers false for a repeat, and the call is refused with `DUPLICATE_REQUEST`. The nonce is checked once the method, the principal and its access are settled, so a call refused before then leaves it unspent. `memoryNonceStore(ttlMs)` is one process's worth — behind a load balancer the replicas would each keep their own set, so use a shared store (Redis `SET NX PX` implements the interface in a few lines).
+
+### Faults and addresses
+
+`createDispatcher(methods, options)` also takes:
+
+- `onFault(method, error)` — where a fault goes: anything a method fails with but an `ApiError`, while its caller is still there. `console.error` unless given.
+- `clientIp(request, peer)` — how both transports derive `ctx.clientIp`. The socket peer's address unless given: a header naming another is the client's to write. `trustProxy` takes the rightmost `X-Forwarded-For` entry, the address the proxy in front saw, for a service every request reaches through one that appends to it.
+- `locale` — a `LocaleResolver` mapping the envelope's tag onto one the application ships.
 
 ## Transports
 
-`httpHandler(dispatcher, { codec? })` returns `(request, clientIp) => Promise<Response>`: POST only (405 otherwise), the credential from the `Authorization` header (`Bearer <token>` or a bare pre-shared key), and one call per request. `clientIp(request, server)` reads `X-Forwarded-For`, then `X-Real-Ip`, then the socket.
+`httpHandler(dispatcher, { codec?, credential? })` returns `(request, server) => Promise<Response>`: POST only (405 otherwise), one call per request. The credential is the `Bearer` token of the `Authorization` header unless `credential(request)` says otherwise.
 
-`websocketHandler(dispatcher, registry, { onOpen?, onClose? })` returns `{ upgrade, handlers }`. The handshake credential is the `token` query parameter — the only channel a browser's WebSocket constructor leaves open, having no headers, and one a reconnect carries again for free. Calls dispatch concurrently, correlated by the `id` the client puts on each frame.
+`websocketHandler(dispatcher, registry, options)` returns `{ upgrade, handlers }`. `upgrade(request, server)` answers `undefined` once Bun has the socket, which is what a `fetch` returns for an upgraded request, and otherwise the refusal: 403 for an origin not admitted, 400 for a request that is no handshake. Calls dispatch concurrently, correlated by the `id` the client puts on each frame. Options:
+
+- `origins` — the browser origins admitted beside the endpoint's own, which always is (`@greendrake/util`'s `OriginPolicy`: `'*'`, a list, or a predicate). A browser page anywhere can open a socket to any host, so without this check any page its user visits could drive the service as them. A client sending no `Origin` is no browser, and is not asked.
+- `tokenParam` — the handshake credential's query parameter, `token` unless given: the only channel a browser's WebSocket constructor leaves open, and one a reconnect carries again for free.
+- `authFrames` — `{ token, logout }`, the methods binding the socket to a token's principal and unbinding it; the wire's `auth.token` and `auth.logout` unless given. They change who every later call on that socket is made by, so each goes on a per-connection gate the calls wait behind. Without it a call sent right after a bind would race it and come back `AUTH_REQUIRED`.
+- `onOpen(conn)`, `onClose(conn)`.
+
+A frame carrying `abort: <nonce>` cancels the request on the same socket that nonce names: its handler's `signal` aborts and its response is never sent.
 
 Nothing pushed is ever dropped. Bun drops a frame once a socket's send buffer passes its `backpressureLimit`; `handlers` sets `closeOnBackpressureLimit`, so such a socket is closed instead. A client that has stopped reading would otherwise be left silently wrong. Once it reconnects, its re-read (`liveBinding`) or the documents it is greeted with put it right.
 
-The exception is `auth.token` and `auth.logout`, the in-band frames `@greendrake/rpc`'s `WsTransport` sends: they change who every later call on that socket is made by, so each goes on a per-connection gate the calls wait behind. Without it a call sent right after a bind would race it and come back `UNAUTHENTICATED`.
-
-A codec applies to everything on the wire, in both directions, for a service whose clients obscure or encrypt their payloads: `new ConnRegistry(codec)` for the socket, `httpHandler(dispatcher, { codec })` for the endpoint.
+A codec applies to everything on the wire, in both directions, for a service whose clients obscure or encrypt their payloads: `new ConnRegistry({ codec })` for the socket, `httpHandler(dispatcher, { codec })` for the endpoint.
 
 ## Pushing
 
-`ConnRegistry` holds every open socket and indexes them by principal and by [topic](#topics):
+`ConnRegistry<P>` holds every open socket and indexes them by principal and by [topic](#topics). A primitive principal is its own key; an object one, a fresh object for every socket its credential is resolved on, names the key its sockets share — `new ConnRegistry<User>({ userKey: user => user.id })` — and the type insists.
 
 ```ts
-registry.emitToUser(userId, 'thread.updated', { id })  // {type:'event', event, data} to that user's sockets
+registry.emitToUser(userKey, 'thread.updated', { id })  // {type:'event', event, data} to that user's sockets
 registry.broadcastEvent('job.progress', progress) // …to every socket
 registry.broadcastData('telemetry', reading) // the bare {type, data} form
 ```
@@ -167,23 +186,11 @@ The registry is also an `Audience`: `size` is how many sockets are open, and `on
 
 ## Error codes
 
-Codes, not sentences: the client keys on them. A handler's own outcomes are `throw new ApiError(code, details?)`; anything else it throws is a fault, logged and answered `INTERNAL_ERROR`.
+Codes, not sentences: the client keys on them. A handler's own outcomes are `throw new ApiError(code, details?)`; anything else it throws is a fault, reported to `onFault` and answered `INTERNAL_ERROR`. An `access` refusal answers with the code it returned.
 
-| Code | Meaning |
-| --- | --- |
-| `UNKNOWN_METHOD` | no such method in the table |
-| `INVALID_JSON` | the body or frame did not parse |
-| `INVALID_ARGUMENT` | the argument failed the method's schema |
-| `AUTH_REQUIRED` | the method needs a caller and there is none |
-| `ADMIN_REQUIRED` | the caller is not an admin |
-| `PHANTOM_NOT_ALLOWED` | the caller is provisional and this method is not open to one |
-| `UNAUTHENTICATED` | an `auth.token` frame named nobody |
-| `AUTH_NOT_CONFIGURED` | an auth frame reached a service with no resolver |
-| `DUPLICATE_REQUEST` | this nonce has already been used |
-| `WEBSOCKET_REQUIRED` | a method that subscribes its caller was called over HTTP (`topicsOf`) |
-| `INTERNAL_ERROR` | a handler faulted |
+The codes the protocol answers with itself are specified by `@greendrake/rpc`'s wire section. `INVALID_ARGUMENT`'s details here are `{ field, message }` per schema issue. `WEBSOCKET_REQUIRED` answers a method that subscribes its caller (`topicsOf`) called over HTTP. This server sets no body limit of its own, so `REQUEST_TOO_LARGE` is not among its answers: Bun's `maxRequestBodySize` bounds a body.
 
-By convention a code ending `_NOT_FOUND` becomes a `NotFoundError` client-side, which is the one class `@greendrake/rpc` maps specially. Nothing here enforces it.
+A code ending `_NOT_FOUND` becomes a `NotFoundError` client-side, the one class `@greendrake/rpc` maps specially.
 
 ## The pair's typing
 

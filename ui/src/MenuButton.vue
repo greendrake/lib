@@ -13,7 +13,7 @@ const popperOptions = { modifiers: [{ name: 'computeStyles', options: { gpuAccel
 const appendTo = () => document.fullscreenElement ?? document.body
 </script>
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Tippy } from 'vue-tippy'
 
 interface TippyInstance {
@@ -54,7 +54,16 @@ const onCreate = (instance: TippyInstance) => {
     instance.popper.addEventListener('click', () => instance.hide())
     if (props.boxClass) getBox(instance)?.classList.add(...props.boxClass.split(' ').filter(Boolean))
 }
+// Whether the menu shows, wherever the pointer is: for the trigger to say so, as its
+// aria-expanded. Tippy's own aria-expanded would land on its wrapper, not the trigger.
+const open = ref(false)
+// Returns nothing: a hook returning false cancels the hide.
+const onHide = (): void => {
+    open.value = false
+}
+
 const onShow = (instance: TippyInstance) => {
+    open.value = true
     if (!props.matchTriggerWidth) return
     // The HMenu theme applies min-width: 100px to tippy-box, which would
     // override a narrower trigger. Set both width and min-width on the box so
@@ -67,8 +76,8 @@ const onShow = (instance: TippyInstance) => {
 }
 </script>
 <template>
-    <Tippy :append-to="appendTo" :aria="{ content: null, expanded: false }" :arrow="false" theme="HMenu" :interactive="true" :offset="props.offset" :popper-options="popperOptions" placement="bottom-end" trigger="mouseenter click" :on-create="onCreate" :on-show="onShow">
-        <slot name="main" />
+    <Tippy :append-to="appendTo" :aria="{ content: null, expanded: false }" :arrow="false" theme="HMenu" :interactive="true" :offset="props.offset" :popper-options="popperOptions" placement="bottom-end" trigger="mouseenter click" :on-create="onCreate" :on-show="onShow" :on-hide="onHide">
+        <slot name="main" :open="open" />
         <template #content>
             <div :class="menuClasses">
                 <slot name="menuitems" />

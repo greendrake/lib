@@ -1,4 +1,5 @@
 import { inlineMarkup } from './inlineMarkup'
+import { messages } from './messages'
 
 // Wire timestamps drift between carrying an explicit zone ('Z' or ±hh:mm) and
 // omitting it. JavaScript parses a zoneless date-time string as LOCAL time, so
@@ -29,8 +30,8 @@ export const fmtDate = blankable(v => parseInstant(v).toISOString().replace('T',
 /** Table-cell boolean: a tick for true, blank for false. */
 export const fmtBool = (v: unknown): string => (v ? '✓' : '')
 
-/** Prose boolean for detail views. */
-export const fmtYesNo = (v: unknown): string => (v ? 'yes' : 'no')
+/** Prose boolean for detail views, in the words `configureUiDataMessages` sets. */
+export const fmtYesNo = (v: unknown): string => (v ? messages.yes : messages.no)
 
 // A number or a numeric string, as Intl formats it: a string exactly, digit
 // for digit.

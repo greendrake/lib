@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { HttpError, NetworkError, fetchJson } from '../src/net'
+import { HttpError, NetworkError, admitsOrigin, fetchJson } from '../src/net'
 
 const server = Bun.serve({
     port: 0,
@@ -32,5 +32,17 @@ describe('fetchJson', () => {
 
     test('throws NetworkError on transport failure', async () => {
         await expect(fetchJson('http://127.0.0.1:1/')).rejects.toBeInstanceOf(NetworkError)
+    })
+})
+
+describe('admitsOrigin', () => {
+    test.each([
+        ['any origin', '*', 'https://evil.example', true],
+        ['a listed origin', ['https://app.example.com', 'app://localhost'], 'app://localhost', true],
+        ['an unlisted one', ['https://app.example.com'], 'https://app.example.com.evil.example', false],
+        ['one a predicate admits', (origin: string) => origin.endsWith('.example.com'), 'https://dash.example.com', true],
+        ['one it does not', (origin: string) => origin.endsWith('.example.com'), 'https://example.org', false]
+    ] as const)('%s', (_name, policy, origin, admitted) => {
+        expect(admitsOrigin(policy, origin)).toBe(admitted)
     })
 })

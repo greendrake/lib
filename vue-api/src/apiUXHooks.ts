@@ -2,7 +2,7 @@ import { useExceptionState } from './exceptionState'
 import { configureApiUX } from './uxConfig'
 
 // The error-UX pipeline's half of an app's boot, for a bootstrap that offers
-// these two hooks. The router is typed by the one method used, so this package
+// these hooks. The router is typed by the one method used, so this package
 // takes no vue-router dependency.
 export const apiUXHooks = {
     // The not-found toast's "To the home page" navigates through the app's
@@ -20,5 +20,9 @@ export const apiUXHooks = {
     // A failed boot surfaces through the same toast as any other failure.
     onBootError: (error: Error): void => {
         useExceptionState().fail(error)
-    }
+    },
+    // A route's data is fetched through the client, whose toast has already
+    // shown the failure — Retry re-runs the fetch, acknowledging a not-found
+    // goes home — so the navigation is only abandoned, quietly.
+    onRouteFetchError: (): false => false
 }

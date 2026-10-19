@@ -1,0 +1,35 @@
+{
+    "name": "ipcam-app",
+    "private": true,
+    "description": "One DVRIP or RTSP camera in the browser, its streams, and over DVRIP their sound and the camera's settings, served by a single static binary",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "version": "0.1.0",
+    "type": "module",
+    "prettier": "@greendrake/dev-config/prettier",
+    "scripts": {
+        "dev": "bun --bun vite --mode dev --host",
+        "build": "bun --bun vite build --mode prod",
+        "check": "vue-tsc --noEmit",
+        "p": "prettier -w ./src"
+    },
+    "dependencies": {
+        "@greendrake/dash": "workspace:*",
+        "@greendrake/ipcam": "workspace:*",
+        "@greendrake/rpc": "workspace:*",
+        "@greendrake/scss-kit": "workspace:*",
+        "@greendrake/vite-preset": "workspace:*",
+        "pinia": "^3.0.4",
+        "vue": "^3.5.34",
+        "vue-router": "^4.6.4"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@greendrake/e2e": "workspace:*",
+        "@greendrake/mse-video": "workspace:*",
+        "@playwright/test": "1.60.0",
+        "sass-embedded": "^1.83.4",
+        "typescript": "6.0.3",
+        "vite": "^8.2.1",
+        "vue-tsc": "^2.2.0"
+    }
+}

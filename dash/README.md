@@ -13,7 +13,7 @@ const tabs: DashTab[] = [
 ]
 
 createDash({
-    splash: ['L1', 'ADMIN'],
+    splash: ['ACME', 'OPS'],
     routes: [{ path: '/', name: 'Dashboard', component: TabDashboard, props: { tabs } }]
 })
 ```
@@ -37,9 +37,9 @@ const tabs: DashTab[] = [
 ]
 ```
 
-`service` is the name the backend registered the service's machine under; `api` is an `ApiClient<ServiceStateMethods>` and `transport` a `WsTransport<ServiceStatePushes>`, and any number of controls share one of each. Both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads its service's status once, then follows that service's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
+`service` is the name the backend registered the service's machine under; `api` is an `ApiCaller<ServiceStateMethods>` (`@greendrake/vue-api`'s `ApiClient` is one) and `transport` a `WsTransport<ServiceStatePushes>`, and any number of controls share one of each. Both contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control reads its service's status once, then follows that service's `service.state` pushes — so a transition another operator started shows here too — and re-reads after a dropped socket returns.
 
-`ON` offers *Turn OFF*, `OFF` offers *Turn ON*, `ERROR` offers *Refresh*; `STARTING` and `STOPPING` offer nothing, there being no interfering with a transition already under way. The current state is on the root element as `data-state`, which is what the border colour is drawn from and what an end-to-end test asserts on. `examples/service-pair` is a complete dashboard and backend built on it.
+The command each state offers is `@greendrake/service-state`'s `CONTROLS`: `OFF` offers *Turn ON*, `ON` *Turn OFF*, `ERROR` *Refresh*; `STARTING` and `STOPPING` offer nothing, there being no interfering with a transition already under way. The labels are `serviceStateMessages` (`start`, `stop`, `refresh`), keyed by the command and overridable with `configureServiceStateMessages`, both from this entry. The current state is on the root element as `data-state`, which is what the border colour is drawn from and what an end-to-end test asserts on. `examples/service-pair` is a complete dashboard and backend built on it.
 
 ## Vite and env
 

@@ -51,6 +51,7 @@ Options:
 
 - `dist` (required) — absolute path to the app's built output. The factory throws when it does not exist; build first.
 - `defaultPort` — as for `spaPlaywright()`.
+- `previewCommand(port)` — the command serving `dist` on `port`, for an app whose preview is not Vite's own. Default: `bun --bun vite preview --port <port> --strictPort`, which serves on exactly that port or fails rather than drifting to a free one.
 - `previewEnv` — extra environment for the preview server, for a Vite config that resolves something before it will start.
 - `notifications` — run on the full Chromium build (`channel: 'chromium'`) rather than the headless shell Playwright otherwise picks for a headless run. Required by any suite that asserts on notifications: the shell ships without the notification platform and hard-denies the permission — `grantPermissions()` is accepted and `Notification.permission` still reads `"denied"`, making a worker's push handling untestable. Off by default: the shell starts faster, and the two builds are not behaviourally identical.
 - `overrides` — as for `spaPlaywright()`.
@@ -58,9 +59,9 @@ Options:
 What it returns:
 
 - `testDir: './tests/sw'`, `fullyParallel: false`, `workers: 1` — every test drives the same origin's worker registration and cache storage, which are shared browser-wide state.
-- `forbidOnly` when `FORBID_ONLY` is set; `timeout: 60_000`; reporter `html`, `open: 'never'`.
+- `forbidOnly` when `CI` is set; `timeout: 60_000`; reporter `html`, `open: 'never'`.
 - `use`: `devices['Desktop Chrome']`, `baseURL` `http://localhost:<port>`, plus `channel: 'chromium'` under `notifications`.
-- `webServer`: `bun --bun vite preview` at `http://localhost:<port>`, `reuseExistingServer: false`, with `VITE_PORT` and `previewEnv` in its environment.
+- `webServer`: `previewCommand(port)` at `http://localhost:<port>`, `reuseExistingServer: false`, with `VITE_PORT` (for an app config that requires it whenever a server starts) and `previewEnv` in its environment.
 
 ## `crawlLocalLinks()`
 

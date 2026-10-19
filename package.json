@@ -3,6 +3,7 @@
     "private": true,
     "type": "module",
     "workspaces": [
+        "apps/ipcam-app/web",
         "css-reset",
         "dash",
         "dev-config",
@@ -12,6 +13,8 @@
         "examples/service-pair/api",
         "examples/service-pair/dash",
         "fonts/inter",
+        "ipcam",
+        "mse-video",
         "rpc",
         "rpc-server",
         "scss-kit",
@@ -29,9 +32,9 @@
     "scripts": {
         "check": "bun run --filter '*' check",
         "lint": "eslint .",
-        "test": "bun test util/test rpc/test domains/test vite-preset/test vue-api/test rpc-server/test service-state/test ui-data/test server/test examples/service-pair/api/test",
-        "e2e:browsers": "(cd examples/service-pair/dash && bunx playwright install --with-deps chromium)",
-        "e2e": "(cd examples/service-pair/dash && bun --bun playwright test)"
+        "test": "bun test util/test rpc/test domains/test vite-preset/test vue-api/test rpc-server/test service-state/test mse-video/test ui-data/test ipcam/test server/test examples/service-pair/api/test",
+        "e2e:browsers": "(cd examples/service-pair/dash && bunx playwright install --with-deps chromium) && (cd apps/ipcam-app/web && bunx playwright install --with-deps chromium)",
+        "e2e": "(cd examples/service-pair/dash && bun --bun playwright test) && (cd apps/ipcam-app/server && ./build) && (cd apps/ipcam-app/web && bun --bun playwright test)"
     },
     "devDependencies": {
         "@greendrake/eslint-config": "workspace:*",

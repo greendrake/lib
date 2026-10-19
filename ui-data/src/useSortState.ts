@@ -1,12 +1,10 @@
 import { ref, computed, type Ref, type ComputedRef } from 'vue'
-import type { ColumnDefinition } from './InfiniteScrollTable.types'
-
-export type SortDir = 'asc' | 'desc'
+import type { ColumnDefinition, Sort, SortDir } from './InfiniteScrollTable.types'
 
 export type ColumnOptions<T = Record<string, unknown>> = Omit<ColumnDefinition<T>, 'field' | 'label' | 'sortable' | 'sortIcon' | 'onHeaderClick'> & {
     /**
      * Sort field sent to the backend when it differs from `field`
-     * (e.g. field 'asking_price' sorting by 'price'); `false` makes the
+     * (e.g. field 'display_name' sorting by 'name'); `false` makes the
      * column unsortable. Defaults to `field`.
      */
     sortKey?: string | false
@@ -18,8 +16,8 @@ export interface SortState {
     /** Same field flips direction; a new field takes over with its default direction. */
     toggleSort: (field: string) => void
     sortIcon: (field: string) => string | undefined
-    /** `{ sort_by, sort_dir }` in the wire shape InfiniteScrollTable filters / LoaderParams carry. */
-    sortFilters: ComputedRef<{ sort_by: string; sort_dir: SortDir }>
+    /** The order as a table's `sort` takes it, and its loader is handed. */
+    sort: ComputedRef<Sort>
     /**
      * ColumnDefinition factory wired to this sort state (header click toggles,
      * icon reflects). Build the columns array inside a `computed` so the icons
@@ -43,7 +41,7 @@ export const useSortState = (initialBy: string, initialDir: SortDir = 'desc', de
 
     const sortIcon = (field: string): string | undefined => (sortBy.value === field ? (sortDir.value === 'asc' ? '▲' : '▼') : undefined)
 
-    const sortFilters = computed(() => ({ sort_by: sortBy.value, sort_dir: sortDir.value }))
+    const sort = computed(() => ({ by: sortBy.value, dir: sortDir.value }))
 
     const column = <T = Record<string, unknown>>(field: string, label: string, options: ColumnOptions<T> = {}): ColumnDefinition<T> => {
         const { sortKey = field, ...rest } = options
@@ -61,7 +59,7 @@ export const useSortState = (initialBy: string, initialDir: SortDir = 'desc', de
         sortDir,
         toggleSort,
         sortIcon,
-        sortFilters,
+        sort,
         column
     }
 }

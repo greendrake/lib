@@ -33,6 +33,15 @@ interface ServiceStatus {
 
 `ServiceStateMethods` is the four methods (`service.status`, `service.start`, `service.stop`, `service.refresh`), each taking a `ServiceRef` — `{ service }`, the name of the service it is about — and answering its `ServiceStatus`; hand it to a typed client. `ServiceStatePushes` types the `service.state` event, which carries a status to **every** connected socket: a service has one state, and everyone watching it is watching the same thing. The status names its service, so a socket watching several tells their pushes apart by it.
 
+`TRANSITIONS` is the machine's table: each command's `{ from, during, to }`. `CONTROLS` is what a control offers in each state — `OFF` → `start`, `ON` → `stop`, `ERROR` → `refresh`, and nothing (`null`) while `STARTING` or `STOPPING`, there being no interfering with a transition under way.
+
+A call is refused with:
+
+- `SERVICE_BUSY` — the state cannot take the command: a transition is under way, or the command would take the service where it already is. A control offers neither, so this is what a client that ignored the state gets told.
+- `SERVICE_NOT_FOUND` — the call names a service the backend does not serve. A `_NOT_FOUND` code, which `@greendrake/rpc` makes a `NotFoundError`.
+
+Both are exported as constants of those names.
+
 ## The machine
 
 ```ts
@@ -50,7 +59,8 @@ const unit = (name: string) => ({
 // old a reading may get before the machine takes another, in milliseconds.
 const machines = await Promise.all([createServiceStateMachine('web', unit('web.service'), registry, 30_000), createServiceStateMachine('worker', unit('worker.service'), registry, 30_000)])
 
-const methods = { ...serviceStateMethods(machines), ...whateverElse }
+// Who may work the services is the application's to say, in its own principals.
+const methods = { ...serviceStateMethods(machines, { auth: 'required', access: user => (user?.admin ? true : 'ADMIN_REQUIRED') }), ...whateverElse }
 
 // On shutdown, stop the re-reads and the listening for watchers.
 machines.forEach(machine => machine.close())
@@ -69,6 +79,6 @@ With nobody asking and nobody watching, the service is left alone. A transition 
 
 `start` and `stop` **return as soon as the transition has begun**, with the in-flight status. Where it ends up is the machine's next state, pushed to everyone — not the caller's answer, because everyone watching needs it equally and one of them happening to have asked changes nothing. A hook that rejects lands the machine in `ERROR` carrying its message.
 
-One transition at a time, and each only from the state it is defined for. Anything else — `start` while already `ON`, `refresh` mid-transition — is refused with `SERVICE_BUSY`. A client showing the state never triggers it, because the state it is showing offers no such button.
+One transition at a time, and each only from the state it is defined for. Anything else — `start` while already `ON`, `refresh` mid-transition — throws a `ServiceBusyError`.
 
-`serviceStateMethods(machines, auth = 'admin')` returns the four `MethodDef`s over every machine given, so one dispatch table — and one socket — serves them all. A call's argument is checked for its shape before any machine is reached (`INVALID_ARGUMENT` on `service`); one naming a service the table does not serve is refused with `SERVICE_NOT_FOUND` — a `_NOT_FOUND` code, which clients following `@greendrake/rpc-server`'s convention treat as not found. Two machines under one name are refused as the table is built. Admin-only by default: turning a service off is not a read.
+`serviceStateMethods(machines, access)` returns the four `MethodDef`s over every machine given, so one dispatch table — and one socket — serves them all. `access` is `@greendrake/rpc-server`'s `MethodAccess`, required: turning a service off is not a read, and only the application knows its principals. A call's argument is checked for its shape before any machine is reached (`INVALID_ARGUMENT` on `service`); one naming a service the table does not serve is refused with `SERVICE_NOT_FOUND`, and a `ServiceBusyError` is answered `SERVICE_BUSY`. Two machines under one name are refused as the table is built.

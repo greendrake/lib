@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test'
-import { ApiError, createDispatcher } from '@greendrake/rpc-server'
-import type { Audience, EventSink } from '@greendrake/rpc-server'
-import { SERVICE_STATE_EVENT, createServiceStateMachine, serviceStateMethods } from '../src/server'
+import { ApiError, createDispatcher, keyAuthResolver } from '@greendrake/rpc-server'
+import type { Audience, EventSink, HandlerContext, MethodAccess } from '@greendrake/rpc-server'
+import { CONTROLS, SERVICE_STATES, SERVICE_STATE_EVENT, ServiceBusyError, TRANSITIONS, createServiceStateMachine, serviceStateMethods } from '../src/server'
 import type { ServiceImplementation, ServiceState, ServiceStateMachine, ServiceStatus } from '../src/server'
 
 type Sink = EventSink & Audience & { states: () => ServiceState[]; pushes: ServiceStatus[]; watch: () => void; leave: () => void }
@@ -108,18 +108,32 @@ afterEach(() => {
     jest.useRealTimers()
 })
 
-// What a handler is called with, from an admin.
-const ctx = {
-    auth: {
-        userId: 'root',
-        isAdmin: true,
-        phantom: false
-    },
+// The application's policy over its principals, user ids here: root alone may
+// work the services.
+const ROOT_ONLY: MethodAccess<string> = {
+    auth: 'required',
+    access: caller => (caller === 'root' ? true : 'ADMIN_REQUIRED')
+}
+
+// What a handler is called with, from root.
+const ctx: HandlerContext<string> = {
+    principal: 'root',
     clientIp: '',
     locale: '',
     signal: AbortSignal.any([]),
     topics: null
 }
+
+describe('the contract', () => {
+    test("a state's control offers each transition from it, a refresh out of ERROR, and nothing mid-transition", () => {
+        for (const [command, { from, during }] of Object.entries(TRANSITIONS)) {
+            expect(CONTROLS[from]).toBe(command as keyof typeof TRANSITIONS)
+            expect(CONTROLS[during]).toBeNull()
+        }
+        expect(CONTROLS.ERROR).toBe('refresh')
+        expect(Object.keys(CONTROLS).sort()).toEqual([...SERVICE_STATES].sort())
+    })
+})
 
 describe('the machine', () => {
     let service: ReturnType<typeof controllable>
@@ -183,9 +197,9 @@ describe('the machine', () => {
     test('nothing is accepted while a transition is in flight', async () => {
         const machine = await make('web', service, events)
         machine.start()
-        expect(() => machine.stop()).toThrow(new ApiError('SERVICE_BUSY'))
-        expect(() => machine.start()).toThrow(new ApiError('SERVICE_BUSY'))
-        await expect(machine.refresh()).rejects.toThrow(new ApiError('SERVICE_BUSY'))
+        expect(() => machine.stop()).toThrow(new ServiceBusyError('stop', 'STARTING'))
+        expect(() => machine.start()).toThrow(new ServiceBusyError('start', 'STARTING'))
+        await expect(machine.refresh()).rejects.toThrow(new ServiceBusyError('refresh', 'STARTING'))
         service.settle()
         await settled()
     })
@@ -193,7 +207,7 @@ describe('the machine', () => {
     test('a command the state has nowhere to go with is refused', async () => {
         service.observed = 'ON'
         const machine = await make('web', service, events)
-        expect(() => machine.start()).toThrow(new ApiError('SERVICE_BUSY'))
+        expect(() => machine.start()).toThrow(new ServiceBusyError('start', 'ON'))
     })
 
     test('a refresh adopts what the service reports, and only pushes a change', async () => {
@@ -477,11 +491,14 @@ describe('reading the service only when somebody needs it', () => {
 })
 
 describe('the methods', () => {
-    test('all four, admin-only by default, each answering the status of the service it names', async () => {
+    test("all four, under the application's policy, each answering the status of the service it names", async () => {
         const service = controllable()
-        const methods = serviceStateMethods([await make('web', service, sink())])
+        const methods = serviceStateMethods([await make('web', service, sink())], ROOT_ONLY)
         expect(Object.keys(methods)).toEqual(['service.status', 'service.start', 'service.stop', 'service.refresh'])
-        expect(Object.values(methods).every(def => def.auth === 'admin')).toBe(true)
+        for (const def of Object.values(methods)) {
+            expect(def.auth).toBe('required')
+            expect(def.access?.('someone')).toBe('ADMIN_REQUIRED')
+        }
 
         const web = { service: 'web' }
         expect(await methods['service.status'].handler(ctx, web)).toMatchObject({ service: 'web', state: 'OFF' })
@@ -497,7 +514,7 @@ describe('the methods', () => {
     test('one table over several services, each call reaching only the one it names', async () => {
         const events = sink()
         const [web, worker] = [controllable(), controllable()]
-        const methods = serviceStateMethods([await make('web', web, events), await make('worker', worker, events)])
+        const methods = serviceStateMethods([await make('web', web, events), await make('worker', worker, events)], ROOT_ONLY)
 
         expect(await methods['service.start'].handler(ctx, { service: 'worker' })).toMatchObject({ service: 'worker', state: 'STARTING' })
         expect(await methods['service.status'].handler(ctx, { service: 'web' })).toMatchObject({ service: 'web', state: 'OFF' })
@@ -506,18 +523,27 @@ describe('the methods', () => {
         await settled()
     })
 
+    test('a command the state cannot take is SERVICE_BUSY on the wire', async () => {
+        const service = controllable()
+        const methods = serviceStateMethods([await make('web', service, sink())], ROOT_ONLY)
+        await methods['service.start'].handler(ctx, { service: 'web' })
+        await expect(methods['service.start'].handler(ctx, { service: 'web' })).rejects.toThrow(new ApiError('SERVICE_BUSY'))
+        service.settle()
+        await settled()
+    })
+
     test('a service the table does not serve is not found', async () => {
-        const methods = serviceStateMethods([await make('web', controllable(), sink())])
-        expect(() => methods['service.status'].handler(ctx, { service: 'db' })).toThrow(new ApiError('SERVICE_NOT_FOUND'))
+        const methods = serviceStateMethods([await make('web', controllable(), sink())], ROOT_ONLY)
+        await expect(methods['service.status'].handler(ctx, { service: 'db' })).rejects.toThrow(new ApiError('SERVICE_NOT_FOUND'))
     })
 
     test('two machines under one name are refused as the table is built', async () => {
         const [first, second] = [await make('web', controllable(), sink()), await make('web', controllable(), sink())]
-        expect(() => serviceStateMethods([first, second])).toThrow('two machines share a name')
+        expect(() => serviceStateMethods([first, second], ROOT_ONLY)).toThrow('two machines share a name')
     })
 
     test('a call that names no service is refused before any machine is reached', async () => {
-        const dispatcher = createDispatcher(serviceStateMethods([await make('web', controllable(), sink())]))
+        const dispatcher = createDispatcher(serviceStateMethods([await make('web', controllable(), sink())], ROOT_ONLY), { auth: keyAuthResolver('key', 'root') })
         expect(await dispatcher.dispatch({ method: 'service.status', arguments: [{}] }, ctx)).toMatchObject({
             success: false,
             error: 'INVALID_ARGUMENT',
@@ -525,8 +551,10 @@ describe('the methods', () => {
         })
     })
 
-    test('the auth requirement can be relaxed for a read-only console', async () => {
+    test('a read-only console may leave them open', async () => {
         const machine = await make('web', controllable(), sink())
-        expect(serviceStateMethods([machine], 'user')['service.status'].auth).toBe('user')
+        const methods = serviceStateMethods([machine], { auth: 'none' })
+        expect(methods['service.status'].auth).toBe('none')
+        expect(methods['service.status'].access).toBeUndefined()
     })
 })

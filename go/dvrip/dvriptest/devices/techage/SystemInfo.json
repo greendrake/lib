@@ -1,0 +1,22 @@
+{
+  "AlarmInChannel": 0,
+  "AlarmOutChannel": 1,
+  "AudioInChannel": 1,
+  "BuildTime": "2023-04-10 15:49:50",
+  "CombineSwitch": 0,
+  "DeviceModel": "IPC_NT98566_N8F",
+  "DeviceRunTime": "0x00029c08",
+  "DigChannel": 0,
+  "EncryptVersion": "Unknown",
+  "ExtraChannel": 0,
+  "HardWare": "IPC_NT98566_N8F",
+  "HardWareVersion": "Unknown",
+  "SerialNo": "00000000000000000000",
+  "SoftWareVersion": "V5.00.R02.H72749N8.10010.140300.0020000",
+  "TalkInChannel": 1,
+  "TalkOutChannel": 1,
+  "UpdataTime": "",
+  "UpdataType": "0x00000000",
+  "VideoInChannel": 1,
+  "VideoOutChannel": 1
+}

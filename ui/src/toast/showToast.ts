@@ -12,8 +12,11 @@ export type ToastVariant = 'accent' | 'warning'
 export interface ToastOptions {
     content: string | VNode
     // Auto-dismiss on the next user interaction (key press / pointer down)
-    // after the toast appears. Default true; blocking error toasts opt out.
+    // after the toast appears. Default true; a blocking toast is never.
     hideOnClick?: boolean
+    // The toast must be answered: an overlay holds the page under it until the
+    // toast goes, and nothing done elsewhere dismisses it.
+    blocking?: boolean
     // Defaults to `accent`: most toasts confirm something, and a failure says
     // so explicitly rather than every caller restating the ordinary case.
     variant?: ToastVariant
@@ -44,16 +47,19 @@ export const showToast = (options: ToastOptions): ToastHandle => {
     const shellProps = { variant: options.variant ?? 'accent' }
     const vnode = isText ? h(ToastShell, { ...shellProps, text: options.content as string }) : h(ToastShell, shellProps, { default: () => options.content as VNode })
     render(vnode, host)
+    // Under the toast layer and over everything else, styled with the shell.
+    const overlay = options.blocking ? document.body.appendChild(Object.assign(document.createElement('div'), { className: 'BlockingOverlay' })) : null
 
     const destroy = (): void => {
         detachDismiss()
         render(null, host)
         host.remove()
+        overlay?.remove()
         options.onHidden?.()
     }
 
     let detachDismiss = (): void => {}
-    if (options.hideOnClick !== false) {
+    if (!options.blocking && options.hideOnClick !== false) {
         // Pointer-downs inside ANY toast don't dismiss: destroying at
         // pointerdown would unmount interactive content (e.g. a link) before
         // the browser ever synthesizes its click — and destroying a toast

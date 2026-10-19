@@ -1,0 +1,14 @@
+{
+  "AutomaticAdjustment": 3,
+  "BroadTrends": {
+    "AutoGain": 0,
+    "Gain": 50
+  },
+  "CorridorMode": 0,
+  "ExposureTime": "0x100",
+  "LightRestrainLevel": 16,
+  "LowLuxMode": 0,
+  "PreventOverExpo": 0,
+  "SoftPhotosensitivecontrol": 0,
+  "Style": "type1"
+}

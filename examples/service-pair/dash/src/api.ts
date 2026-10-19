@@ -1,4 +1,4 @@
-import { WebSocketPipe, WsTransport } from '@greendrake/rpc'
+import { TOKEN_PARAM, WebSocketPipe, WsTransport } from '@greendrake/rpc'
 import { ApiClient, configureApiUX } from '@greendrake/vue-api'
 import type { ServiceStateMethods, ServiceStatePushes } from '@greendrake/service-state'
 
@@ -12,7 +12,7 @@ declare const __ADMIN_API_KEY__: string
 export const transport = new WsTransport<ServiceStatePushes>({
     pipe: new WebSocketPipe({
         url: __WS_URL__,
-        queryAuth: { param: 'token', token: __ADMIN_API_KEY__ }
+        queryAuth: { param: TOKEN_PARAM, token: __ADMIN_API_KEY__ }
     })
 })
 

@@ -22,8 +22,9 @@ export class FakeSource implements ConnectionSource {
 }
 
 // How a scripted call ends: served, or dropped by a socket that took the
-// request with it, or refused before the request could be written at all.
-export type Outcome = 'ok' | 'in-flight-drop' | 'never-sent'
+// request with it, or refused before the request could be written at all, or
+// failed with the error given.
+export type Outcome = 'ok' | 'in-flight-drop' | 'never-sent' | Error
 
 const closed = (inFlight: boolean): WebSocketClosedError => {
     const error = new WebSocketClosedError(new CloseEvent('close', { code: 1006, wasClean: false }))
@@ -42,7 +43,7 @@ export class ScriptedTransport implements Transport {
         if (outcome === 'ok') {
             return Promise.resolve('result')
         }
-        return Promise.reject(closed(outcome === 'in-flight-drop'))
+        return Promise.reject(outcome instanceof Error ? outcome : closed(outcome === 'in-flight-drop'))
     }
 }
 

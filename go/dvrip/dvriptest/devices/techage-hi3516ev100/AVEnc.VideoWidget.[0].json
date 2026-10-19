@@ -1,0 +1,129 @@
+{
+  "ChannelTitle": {
+    "Name": "pond",
+    "SerialNo": "20081125"
+  },
+  "ChannelTitleAttribute": {
+    "BackColor": "0x80000000",
+    "EncodeBlend": true,
+    "FrontColor": "0xF0FFFFFF",
+    "PreviewBlend": true,
+    "RelativePos": [
+      0,
+      7728,
+      255,
+      24
+    ]
+  },
+  "Covers": [
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    },
+    {
+      "BackColor": "0x80000000",
+      "EncodeBlend": false,
+      "FrontColor": "0xF0FFFFFF",
+      "PreviewBlend": false,
+      "RelativePos": [
+        1024,
+        1024,
+        2048,
+        2048
+      ]
+    }
+  ],
+  "CoversNum": 0,
+  "TimeTitleAttribute": {
+    "BackColor": "0x80000000",
+    "EncodeBlend": true,
+    "FrontColor": "0xF0FFFFFF",
+    "PreviewBlend": true,
+    "RelativePos": [
+      6582,
+      0,
+      255,
+      24
+    ]
+  }
+}

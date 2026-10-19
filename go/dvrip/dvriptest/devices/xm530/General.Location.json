@@ -1,0 +1,27 @@
+{
+  "DSTEnd": {
+    "Day": 1,
+    "Hour": 1,
+    "Minute": 1,
+    "Month": 10,
+    "Week": 0,
+    "Year": 2027
+  },
+  "DSTRule": "Off",
+  "DSTStart": {
+    "Day": 1,
+    "Hour": 1,
+    "Minute": 1,
+    "Month": 5,
+    "Week": 0,
+    "Year": 2027
+  },
+  "DateFormat": "YYMMDD",
+  "DateSeparator": "-",
+  "IranCalendar": 0,
+  "Language": "English",
+  "TimeFormat": "24",
+  "VideoFormat": "PAL",
+  "Week": null,
+  "WorkDay": 62
+}

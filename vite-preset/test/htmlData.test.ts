@@ -6,7 +6,7 @@ import { build } from 'vite'
 import { htmlData } from '../src/html'
 
 describe('htmlData', () => {
-    // The built index carries each element in exactly the form greendrake/spa
+    // The built index carries each element in exactly the form greendrake.nz/go/spa
     // fills: its JSON with < escaped, or nothing for the serving binary.
     test('writes a data element per entry into the built index', async () => {
         const root = mkdtempSync(path.join(tmpdir(), 'html-data-'))

@@ -16,12 +16,12 @@ bun add -d @greendrake/vite-preset vite
 
 ```ts
 import { defineConfig } from 'vite'
-import { vueSpa } from '@greendrake/vite-preset'
+import { buildHash, vueSpa } from '@greendrake/vite-preset'
 
 export default defineConfig(
     vueSpa({
         dirname: import.meta.dirname,
-        define: { __API_URL__: process.env.API_URL },
+        define: { __BUILD_HASH__: buildHash() },
         overrides: { plugins: [myPlugin()] }
     })
 )
@@ -42,8 +42,8 @@ What the preset sets:
 
 - plugins: `@vitejs/plugin-vue` and the HMR circular-import guard, plus the `staticRoots`, `htmlPlaceholders` and `htmlData` plugins when their options are given;
 - `server.port`/`preview.port` from `VITE_PORT` with `strictPort`, for `vite dev` and `vite preview` only — builds run in deploy contexts that never define a dev port;
-- `server.fs.allow`: the parent of the app root (a workspace), and every static root's directory;
-- `resolve.alias`: `@` → `<dirname>/src`; `resolve.dedupe`: `vue`, `pinia`, `vue-router` — each must also be a direct dependency of the app, or Vite fails to resolve it;
+- `server.fs.allow`: what Vite allows by default — the workspace root it finds above the app (`searchForWorkspaceRoot`), or the app's own root outside any workspace — and every static root's directory. Setting the list replaces Vite's default, which is why the root is named;
+- `resolve.alias`: `@` → `<dirname>/src`; `resolve.dedupe`: those of `vue`, `pinia` and `vue-router` the app declares (in either dependency list) — Vite resolves an entry from the app root, and fails on one the app does not have;
 - `optimizeDeps`: every source-shipped dependency of the app is excluded from pre-bundling, and `vue`, `pinia` and `vue-router` (those the app declares) are pinned into it. A source-shipped package is TypeScript and SFC rather than a build; pre-bundling one from `node_modules` would inline its TypeScript modules and their imports while externalising its `.vue` files, leaving the app with two copies of Pinia and everything else. Served raw, a package resolves to one copy of itself and meets the app on the pre-bundled framework modules. Workspace-linked packages are never pre-bundled, so in a monorepo the exclusion decides no pre-bundling either way — it still matters for what the scanner sees, below. Which dependencies those are is the `sourcePackages` option — an entry ending in `/` matches a whole scope, anything else an exact package name. It defaults to `['@greendrake/']`; an app with source packages of its own lists them, and lists that scope again if it uses any:
 
   ```ts
@@ -60,7 +60,14 @@ What the preset sets:
 export default defineConfig(configEnv =>
     vueSpa({
         dirname: import.meta.dirname,
-        define: { __API_TARGET_ENV__: apiTargetEnv(configEnv.command === 'serve') }
+        define: {
+            __API_TARGET_ENV__: {
+                dev: configEnv.command === 'serve',
+                apiPort: process.env.API_PORT,
+                publicFeHost: process.env.PUBLIC_FE_HOST,
+                publicApiHost: process.env.PUBLIC_API_HOST
+            } satisfies ApiTargetEnv
+        }
     })(configEnv)
 )
 ```
@@ -72,14 +79,12 @@ An HMR update whose accepted module sits inside an import cycle cannot be re-exe
 ## Env helpers
 
 ```ts
-import { loadAppEnv, requirePort, envBool, deriveImageBaseUrl, apiTargetEnv, buildHash } from '@greendrake/vite-preset'
+import { loadAppEnv, requirePort, envBool, buildHash } from '@greendrake/vite-preset'
 ```
 
 - `loadAppEnv(mode, dirname)` — the app's `.env` / `.env.<mode>` files, every key (not only `VITE_`-prefixed ones): they carry plain build inputs, and the `export` prefix they may be written with is stripped so the same file can be shell-sourced. `process.env` outranks the file. Do not name the files `.env.development` / `.env.production`: bun auto-loads those into `process.env` at startup, and whichever one it picked would then outrank the mode's file.
 - `requirePort()` — `VITE_PORT`, required; the single port convention.
 - `envBool(value)` — `"1"`, `"t"`, `"true"` (any case) are true; `"0"`, `"false"`, unset and everything else are false. `Boolean(process.env.X)` would take the literal string `"0"` as true.
-- `deriveImageBaseUrl(env = process.env)` — the prefix for object-storage image URLs. A defined `S3_PREFIX` wins outright, even when empty; otherwise `AWS_S3_ENDPOINT/AWS_S3_BUCKET`; otherwise `''`.
-- `apiTargetEnv(dev, paths?)` — the `ApiTargetEnv` of `resolveApiTarget`, read from `API_PORT`, `PUBLIC_FE_HOST`, `PUBLIC_API_HOST`, with optional `apiPath`/`wsPath`. Bake it into one define and feed the same object to anything else that resolves the host.
 - `buildHash()` — `git rev-parse --short HEAD`, for a `__BUILD_HASH__` define. If git fails the build fails.
 
 ## Plugins
@@ -90,7 +95,7 @@ Substitutes build-time values into `index.html` before Vite processes it — a g
 
 ### `htmlData(map)`
 
-Writes `<script type="application/json" id="<id>">JSON</script>` into the head of `index.html` per entry — settings the app reads at runtime (`JSON.parse` of the element's text) rather than through a compile-time define. `<` in the JSON is escaped, so no value ends the element. A `null` value leaves the element empty for a Go binary that serves the build to fill from its own configuration: `greendrake/spa`'s `Data` matches the element in exactly this form. `vueSpa`'s `htmlData` option installs it.
+Writes `<script type="application/json" id="<id>">JSON</script>` into the head of `index.html` per entry — settings the app reads at runtime (`JSON.parse` of the element's text) rather than through a compile-time define. `<` in the JSON is escaped, so no value ends the element. A `null` value leaves the element empty for a Go binary that serves the build to fill from its own configuration: `greendrake.nz/go/spa`'s `Data` matches the element in exactly this form. `vueSpa`'s `htmlData` option installs it.
 
 ### `staticRoots(roots)` and `staticRootFiles(root)`
 
@@ -102,11 +107,17 @@ Some assets belong to the product rather than to the frontend — a locale catal
 import { resolveApiTarget, browserRuntime } from '@greendrake/vite-preset/api-target'
 ```
 
-The single source of truth for where the API lives, pure and environment-free, so the same rules serve a vite config and the browser bundle. `resolveApiTarget(env, runtime?)` returns `{ apiUrl, wsUrl }`:
+The single source of truth for where the API lives, pure and environment-free, so the same rules serve a vite config and the browser bundle. `resolveApiTarget(env, runtime?)` returns the API's origins, `{ httpOrigin, wsOrigin }`, with no trailing slash; the paths the API answers on are the app's to append:
+
+```ts
+const { httpOrigin, wsOrigin } = resolveApiTarget(__API_TARGET_ENV__, browserRuntime())
+const api = new HttpTransport({ url: `${httpOrigin}/rpc` })
+```
 
 - dev (`env.dev`): `http`/`ws` against `localhost:<env.apiPort>`; with `env.publicApiHost` set instead, `https`/`wss` against that host (a dev server pointed at a remote API). Neither set is an error.
 - prod: the same bundle can be served on two hosts. On `env.publicFeHost` — where a CDN may not proxy WebSockets — the API is `env.publicApiHost`; on any other host it is same-origin, i.e. `runtime.host`. The scheme follows `runtime.https`. `runtime` is required, and `publicApiHost` is required when serving on `publicFeHost`.
-- `env.apiPath` and `env.wsPath` replace the default `/v1/api` and `/v1/ws`; a backend that routes at the host root sets `apiPath: ''`.
+
+`ApiTargetEnv` is `{ dev, apiPort?, publicFeHost?, publicApiHost? }`: where its values come from — which environment variables a deployment sets — is the app's. Build it once, bake it into one define, and feed the same object to anything else that resolves the host.
 
 `browserRuntime()` is the `runtime` argument as a browser bundle supplies it: `{ host: location.host, https: location.protocol === 'https:' }`.
 

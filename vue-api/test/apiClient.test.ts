@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { ref } from 'vue'
+import { ApiError, NotFoundError } from '@greendrake/rpc'
+import { NetworkError } from '@greendrake/util'
 import { useAppState } from '@greendrake/vue-kit'
-import { ApiClient, UnacceptableResultError } from '../src/ApiClient'
+import { ApiClient, UnacceptableResultError, bubbled } from '../src/ApiClient'
 import { useConnectivity } from '../src/connectivity'
-import { useExceptionState } from '../src/exceptionState'
+import { classifyException, useExceptionState } from '../src/exceptionState'
 import { FakeSource, ScriptedTransport, setDeviceOnline, tick, withSource } from './support'
 
 interface Methods {
@@ -224,5 +226,52 @@ describe('per-call cache refusal', () => {
         await api.call('thing.create')
         expect(transport.sent.length).toBe(2)
         expect(transport.sent[0]!.nonce).toBeString()
+    })
+})
+
+describe('error handlers', () => {
+    const handled = (outcome: Error) => {
+        const { transport } = offlineCall()
+        transport.outcomes = [outcome]
+        const seen: ApiError[] = []
+        const api = new ApiClient<Methods>({ transport, errorHandlers: { REFUSED: e => seen.push(e), THING_NOT_FOUND: e => seen.push(e) } })
+        void api.call('thing.create').catch(() => undefined)
+        return seen
+    }
+
+    test.each([
+        ['a code of its own', new ApiError('REFUSED', { why: 'no' })],
+        ['a not-found, by its code', new NotFoundError('THING_NOT_FOUND')]
+    ])('take %s, the error itself in hand', async (_name, error) => {
+        const seen = handled(error)
+        await tick()
+        expect(seen).toEqual([error])
+        expect(useExceptionState().exception).toBe(false)
+    })
+
+    test('take only what the server answered with: an error whose message reads like a code is not one', async () => {
+        const seen = handled(new NetworkError('REFUSED'))
+        await tick()
+        expect(seen).toEqual([])
+        expect(useExceptionState().exception).toBe('network')
+    })
+})
+
+describe('the toast', () => {
+    test.each([
+        ['a not-found is only acknowledged', new NotFoundError(), 'notfound'],
+        ['a socket gone is a network failure', new NetworkError('gone'), 'network'],
+        ['any other answer may be tried again', new ApiError('REFUSED'), 'other']
+    ] as const)('%s', (_name, error, kind) => {
+        expect(classifyException(error)).toBe(kind)
+    })
+})
+
+describe('bubbled', () => {
+    test('throws each code’s error back, as given or as turned', () => {
+        const refused = new ApiError('REFUSED')
+        expect(Object.keys(bubbled(['REFUSED', 'GONE']))).toEqual(['REFUSED', 'GONE'])
+        expect(() => bubbled(['REFUSED']).REFUSED!(refused)).toThrow(refused)
+        expect(() => bubbled(['REFUSED'], e => new Error(`told ${e.code}`)).REFUSED!(refused)).toThrow('told REFUSED')
     })
 })

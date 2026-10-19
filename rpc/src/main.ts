@@ -1,6 +1,6 @@
 export { identityCodec, type Caller, type Codec, type HeadersProvider, type RpcRequest, type RpcResponse, type MethodMap, type MethodMapConstraint, type Transport } from './types'
-export { ApiError, NotFoundError, OneOutcomeError, WebSocketClosedError, codeOf } from './errors'
-export { makeError, packRequest, settleResponse } from './protocol'
+export { ApiError, NotFoundError, WebSocketClosedError } from './errors'
+export { AUTH_LOGOUT_METHOD, AUTH_TOKEN_METHOD, PROTOCOL_CODES, TOKEN_PARAM, makeError, packRequest, settleResponse, tokenAuth, type ProtocolCode } from './protocol'
 export { HttpTransport, type HttpTransportOptions } from './http'
 export { WebSocketPipe, type WebSocketPipeEvents, type WebSocketPipeOptions } from './WebSocketPipe'
 export { WsTransport, type PushMap, type PushMapConstraint, type WsAuthStrategy, type WsSend, type WsTransportOptions } from './WsTransport'

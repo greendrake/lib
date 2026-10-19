@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/ui",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "description": "Vue 3 component library: form controls, modals, search, tabs, toasts, layout",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -20,6 +20,10 @@
         ".": {
             "types": "./src/main.ts",
             "default": "./src/main.ts"
+        },
+        "./messages": {
+            "types": "./src/messages.ts",
+            "default": "./src/messages.ts"
         }
     },
     "files": [
@@ -39,14 +43,12 @@
         "vue-tippy": "^6.7.1"
     },
     "peerDependencies": {
-        "vue": "^3.5.34",
-        "vue-router": "^4.6.4"
+        "vue": "^3.5.34"
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
         "typescript": "6.0.3",
         "vue": "^3.5.34",
-        "vue-router": "^4.6.4",
         "vue-tsc": "^2.2.0"
     }
 }

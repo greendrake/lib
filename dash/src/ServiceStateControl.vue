@@ -1,45 +1,29 @@
-<script lang="ts">
-import type { ServiceState, ServiceStateMethods } from '@greendrake/service-state'
-
-// The command a state offers, if any. Every other state — the two the service
-// passes through mid-transition — has no row and therefore no button: there is
-// no interfering with something already under way.
-interface StateCommand {
-    label: string
-    method: Exclude<keyof ServiceStateMethods, 'service.status'>
-}
-
-const COMMANDS: Partial<Record<ServiceState, StateCommand>> = {
-    ON: { label: 'Turn OFF', method: 'service.stop' },
-    OFF: { label: 'Turn ON', method: 'service.start' },
-    ERROR: { label: 'Refresh', method: 'service.refresh' }
-}
-</script>
 <script setup lang="ts">
 // One backend service, live: its state, why it failed if it did, and the one
-// command that state accepts. The state comes from the server's pushes, so
-// every operator watching sees the same thing at the same time — including
-// transitions somebody else started. Several controls can share one api and
-// transport, each following the service it names.
+// command that state accepts (CONTROLS). The state comes from the server's
+// pushes, so every operator watching sees the same thing at the same time —
+// including transitions somebody else started. Several controls can share one
+// api and transport, each following the service it names.
 import { computed, onMounted, ref } from 'vue'
 import { Loading } from '@greendrake/ui'
-import { SERVICE_STATE_EVENT, type ServiceStatePushes, type ServiceStatus } from '@greendrake/service-state'
+import { CONTROLS, SERVICE_STATE_EVENT, type ServiceStateMethods, type ServiceStatePushes, type ServiceStatus } from '@greendrake/service-state'
 import type { WsTransport } from '@greendrake/rpc'
-import { backgroundCall, useLive, type ApiClient, type CallOptions } from '@greendrake/vue-api'
+import { backgroundCall, useLive, type ApiCaller, type CallOptions } from '@greendrake/vue-api'
+import { serviceStateMessages } from './serviceStateMessages'
 
 const props = defineProps<{
     // Which of the backend's services this is: every call names it, and it is
     // what this control's pushes are told apart by on a socket shared with
     // others.
     service: string
-    api: ApiClient<ServiceStateMethods>
+    api: ApiCaller<ServiceStateMethods>
     transport: WsTransport<ServiceStatePushes>
 }>()
 
 const status = ref<ServiceStatus>()
 const busy = ref(false)
 
-const command = computed(() => (status.value ? COMMANDS[status.value.state] : undefined))
+const command = computed(() => (status.value ? CONTROLS[status.value.state] : null))
 
 const read = async (call: CallOptions = {}): Promise<void> => {
     status.value = await props.api.with(call).call('service.status', { service: props.service })
@@ -60,8 +44,8 @@ useLive(props.transport, {
     resync: () => read(backgroundCall(true))
 })
 
-const run = async (method: StateCommand['method']): Promise<void> => {
-    status.value = await props.api.with({ pending: busy }).call(method, { service: props.service })
+const run = async (offered: NonNullable<typeof command.value>): Promise<void> => {
+    status.value = await props.api.with({ pending: busy }).call(`service.${offered}`, { service: props.service })
 }
 </script>
 <template>
@@ -70,7 +54,7 @@ const run = async (method: StateCommand['method']): Promise<void> => {
         <template v-else>
             <span class="ServiceStateControl-state">{{ status.state }}</span>
             <p v-if="status.error" class="ServiceStateControl-error">{{ status.error }}</p>
-            <button v-if="command" type="button" :disabled="busy" @click="run(command.method)">{{ command.label }}</button>
+            <button v-if="command" type="button" :disabled="busy" @click="run(command)">{{ serviceStateMessages[command] }}</button>
         </template>
     </div>
 </template>

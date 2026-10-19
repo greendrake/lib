@@ -5,7 +5,7 @@ const makeCache = (): ResponseCache =>
     new ResponseCache({
         ttl: 300,
         endpoints: {
-            'search.listings': true,
+            'thing.search': true,
             'user.profile': 0.02
         }
     })
@@ -13,16 +13,16 @@ const makeCache = (): ResponseCache =>
 describe('ResponseCache', () => {
     test('ttlFor reflects config', () => {
         const cache = makeCache()
-        expect(cache.ttlFor('search.listings')).toBe(300)
+        expect(cache.ttlFor('thing.search')).toBe(300)
         expect(cache.ttlFor('user.profile')).toBe(0.02)
         expect(cache.ttlFor('other')).toBe(false)
     })
 
     test('set/get keyed by method+args; uncached methods are no-ops', () => {
         const cache = makeCache()
-        cache.set('search.listings', [{ q: 'a' }], 'result-a')
-        expect(cache.get('search.listings', [{ q: 'a' }])).toEqual({ hit: true, data: 'result-a' })
-        expect(cache.get('search.listings', [{ q: 'b' }]).hit).toBe(false)
+        cache.set('thing.search', [{ q: 'a' }], 'result-a')
+        expect(cache.get('thing.search', [{ q: 'a' }])).toEqual({ hit: true, data: 'result-a' })
+        expect(cache.get('thing.search', [{ q: 'b' }]).hit).toBe(false)
 
         cache.set('other', [], 'x')
         expect(cache.get('other', []).hit).toBe(false)
@@ -38,25 +38,25 @@ describe('ResponseCache', () => {
 
     test('invalidate: exact args vs whole method family', () => {
         const cache = makeCache()
-        cache.set('search.listings', ['a'], 1)
-        cache.set('search.listings', ['b'], 2)
-        cache.invalidate('search.listings', 'a')
-        expect(cache.get('search.listings', ['a']).hit).toBe(false)
-        expect(cache.get('search.listings', ['b']).hit).toBe(true)
-        cache.invalidate('search.listings')
-        expect(cache.get('search.listings', ['b']).hit).toBe(false)
+        cache.set('thing.search', ['a'], 1)
+        cache.set('thing.search', ['b'], 2)
+        cache.invalidate('thing.search', 'a')
+        expect(cache.get('thing.search', ['a']).hit).toBe(false)
+        expect(cache.get('thing.search', ['b']).hit).toBe(true)
+        cache.invalidate('thing.search')
+        expect(cache.get('thing.search', ['b']).hit).toBe(false)
     })
 
     test('clear drops every entry, whatever its method', () => {
         const cache = makeCache()
-        cache.set('search.listings', ['a'], 1)
+        cache.set('thing.search', ['a'], 1)
         cache.set('user.profile', ['u1'], 2)
         cache.clear()
-        expect(cache.get('search.listings', ['a']).hit).toBe(false)
+        expect(cache.get('thing.search', ['a']).hit).toBe(false)
         expect(cache.get('user.profile', ['u1']).hit).toBe(false)
         // Still usable afterwards: clearing empties the entries, not the config.
-        cache.set('search.listings', ['a'], 3)
-        expect(cache.get('search.listings', ['a'])).toEqual({ hit: true, data: 3 })
+        cache.set('thing.search', ['a'], 3)
+        expect(cache.get('thing.search', ['a'])).toEqual({ hit: true, data: 3 })
     })
 
     test('a scope keeps answers to the same call apart', () => {
@@ -78,23 +78,23 @@ describe('ResponseCache', () => {
 
     test('invalidate reaches every scope: the data changed, not the language', () => {
         let locale = 'en-GB'
-        const cache = new ResponseCache({ ttl: 300, endpoints: { 'listing.get': true, 'search.listings': true } }, () => locale)
-        cache.set('listing.get', ['L1'], 'english')
-        cache.set('search.listings', [{ q: 'a' }], 'english results')
+        const cache = new ResponseCache({ ttl: 300, endpoints: { 'thing.get': true, 'thing.search': true } }, () => locale)
+        cache.set('thing.get', ['T1'], 'english')
+        cache.set('thing.search', [{ q: 'a' }], 'english results')
         locale = 'he'
-        cache.set('listing.get', ['L1'], 'hebrew')
-        cache.set('search.listings', [{ q: 'a' }], 'hebrew results')
+        cache.set('thing.get', ['T1'], 'hebrew')
+        cache.set('thing.search', [{ q: 'a' }], 'hebrew results')
 
         // By args, from whichever scope happens to be current…
-        cache.invalidate('listing.get', 'L1')
-        expect(cache.get('listing.get', ['L1']).hit).toBe(false)
+        cache.invalidate('thing.get', 'T1')
+        expect(cache.get('thing.get', ['T1']).hit).toBe(false)
         locale = 'en-GB'
-        expect(cache.get('listing.get', ['L1']).hit).toBe(false)
+        expect(cache.get('thing.get', ['T1']).hit).toBe(false)
 
         // …and by method, the whole family.
-        cache.invalidate('search.listings')
-        expect(cache.get('search.listings', [{ q: 'a' }]).hit).toBe(false)
+        cache.invalidate('thing.search')
+        expect(cache.get('thing.search', [{ q: 'a' }]).hit).toBe(false)
         locale = 'he'
-        expect(cache.get('search.listings', [{ q: 'a' }]).hit).toBe(false)
+        expect(cache.get('thing.search', [{ q: 'a' }]).hit).toBe(false)
     })
 })

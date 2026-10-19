@@ -8,7 +8,7 @@ The Vue/Pinia binding of `@greendrake/rpc`. `ApiClient` adds loading-state wirin
 bun add @greendrake/vue-api vue pinia
 ```
 
-`vue` (^3.5.34) and `pinia` (^3.0.4) are peers. The package ships TypeScript source and one Vue SFC with an SCSS style block as-is (no build step, no `.d.ts`): the consuming Vite + Vue 3 app compiles them, so it needs `@vitejs/plugin-vue` and a Sass implementation in its toolchain. `@greendrake/rpc`, `@greendrake/ui` (the toast and its message strings), `@greendrake/util` and `@greendrake/vue-kit` (the global loading state) install as dependencies.
+`vue` (^3.5.34) and `pinia` (^3.0.4) are peers. The package ships TypeScript source and one Vue SFC with an SCSS style block as-is (no build step, no `.d.ts`): the consuming Vite + Vue 3 app compiles them, so it needs `@vitejs/plugin-vue` and a Sass implementation in its toolchain. `@greendrake/rpc`, `@greendrake/ui` (the toast, and its `ok` and `cancel` strings), `@greendrake/util` and `@greendrake/vue-kit` (the global loading state) install as dependencies.
 
 ## The app's `api.ts`
 
@@ -40,12 +40,10 @@ The same with a WebSocket transport, in-band session auth and server push:
 
 ```ts
 // src/api.ts
-import { WebSocketPipe, WsTransport, type WsAuthStrategy } from '@greendrake/rpc'
-import { ApiClient, configureApiUX } from '@greendrake/vue-api'
+import { WebSocketPipe, WsTransport, tokenAuth } from '@greendrake/rpc'
+import { ApiClient, bubbled, configureApiUX } from '@greendrake/vue-api'
 
 export interface Methods {
-    'auth.token': (token: string) => void
-    'auth.logout': () => void
     'taxonomy.tree': (args: { taxonomy: string }) => TaxonomyNode[]
     'thread.message.create': (args: { thread_id: string; body: string }) => { message: Message }
 }
@@ -54,12 +52,7 @@ export interface Pushes {
     'thread.message': ThreadMessageEvent
 }
 
-const auth: WsAuthStrategy = {
-    authenticate: (send, token) => send({ method: 'auth.token', arguments: [token] }),
-    deauthenticate: send => send({ method: 'auth.logout' })
-}
-
-export const transport = new WsTransport<Pushes>({ pipe: new WebSocketPipe({ url: __WS_URL__ }), auth })
+export const transport = new WsTransport<Pushes>({ pipe: new WebSocketPipe({ url: __WS_URL__ }), auth: tokenAuth })
 
 // This socket carries every call, so it is the app's connectivity oracle.
 configureApiUX({ connectionSource: transport })
@@ -69,10 +62,8 @@ export const api = new ApiClient<Methods>({
     locale: () => i18n.global.locale.value,
     cache: { ttl: 300, endpoints: { 'taxonomy.tree': true } },
     errorHandlers: {
-        UNAUTHENTICATED: () => session.end(),
-        INVALID_INPUT: e => {
-            throw e
-        }
+        SESSION_EXPIRED: () => session.end(),
+        ...bubbled(['INVALID_ARGUMENT'])
     }
 })
 ```
@@ -99,7 +90,7 @@ const vlans = await api.with({ silent: true }).call('vlan.list') // no spinner, 
 
 - `transport` — any `@greendrake/rpc` `Transport`.
 - `cache?: CacheConfig` — the `@greendrake/rpc` `ResponseCache` config. The endpoint list decides two things at once: a listed method is served from and stored in the cache and goes out without a nonce; every other method carries a nonce and is never cached. List only stateless, platform-static reads.
-- `errorHandlers?: Record<string, (e: Error) => void>` — keyed by server error code (`codeOf`), consulted before the toast. A handler that throws bubbles the error to the caller with its `ApiError.details` intact, bypassing the toast; a handler that returns parks the call forever — its side effect (logout, redirect) supersedes the call's flow.
+- `errorHandlers?: Record<string, (e: ApiError) => void>` — keyed by the `code` of the `ApiError` a call fails with (a `NotFoundError` included), consulted before the toast. A handler that throws bubbles the error to the caller with its `details` intact, bypassing the toast; a handler that returns parks the call forever — its side effect (logout, redirect) supersedes the call's flow. `bubbled(codes, as?)` is the handlers bubbling each of `codes`, as `as` turns the error (the error itself by default).
 - `locale?: () => string | undefined` — the UI language tag put in every request envelope, evaluated per call.
 
 `CallOptions`:
@@ -115,18 +106,17 @@ Cache access on the client: `invalidateCache(method, ...args)` (with args, that 
 
 ## Error-UX pipeline
 
-A non-silent call that fails, and that no error handler claimed, raises the failure on `useExceptionState()`, which shows one blocking toast at a time (`@greendrake/ui`'s `showToast`, `variant: 'warning'`, behind a full-screen overlay). The toast's kind is `classifyException(e)`:
+A non-silent call that fails, and that no error handler claimed, raises the failure on `useExceptionState()`, which shows one blocking toast at a time (`@greendrake/ui`'s `showToast`, `variant: 'warning'`, `blocking`). The toast's kind is `classifyException(e)`:
 
 | kind | error | toast |
 | --- | --- | --- |
-| `notfound` | `NotFoundError` | acknowledge-only: "To the home page" when nothing usable is on screen yet, otherwise "OK" and the visitor stays put |
-| `oneoutcome` | any other `OneOutcomeError` | acknowledge-only, shows the error's own message |
+| `notfound` | `NotFoundError` | acknowledge-only — asking again would ask for what is not there: "To the home page" when nothing usable is on screen yet, otherwise "OK" and the visitor stays put |
 | `network` | `NetworkError` (fetch failure, socket closed) | Try again / Cancel |
 | `other` | everything else | Try again / Cancel; also reported to the error sink and logged with `console.warn` |
 
-Retry re-runs the same call (the button reads "Trying..." until the retried attempt settles, and a repeat failure counts up in the message); Cancel rejects the call's promise with the original error. A call's success clears its own toast, never one raised by a concurrent call. A same-kind failure while a toast is showing re-drives the existing toast rather than stacking another. The copy is `@greendrake/ui`'s `messages` (`errorNetwork`, `errorNotFound`, `errorOther`, `tryAgain`, `trying`, `cancel`, `ok`, `toHomePage`), overridable with `configureUiMessages`.
+Retry re-runs the same call (the button reads "Trying..." until the retried attempt settles, and a repeat failure counts up in the message); Cancel rejects the call's promise with the original error. A call's success clears its own toast, never one raised by a concurrent call. A same-kind failure while a toast is showing re-drives the existing toast rather than stacking another.
 
-`useExceptionState()`: state `exception: ExceptionKind` (`'network' | 'notfound' | 'oneoutcome' | 'other' | false`); action `fail(e: Error | false, options?: FailOptions)`, where `false` clears the toast. `FailOptions`: `retry?: () => Promise<void>`, `cancel?: () => void`, `onDismiss?: () => void` (runs when an acknowledge-only toast is acknowledged), `reportContext?: Record<string, unknown>` (attached to the error report). An app raises its own errors through the same store, e.g. `fail(new NotFoundError())` from a route that resolved to nothing.
+`useExceptionState()`: state `exception: ExceptionKind` (`'network' | 'notfound' | 'other' | false`); action `fail(e: Error | false, options?: FailOptions)`, where `false` clears the toast. `FailOptions`: `retry?: () => Promise<void>`, `cancel?: () => void`, `onDismiss?: () => void` (runs when a not-found's toast is acknowledged), `reportContext?: Record<string, unknown>` (attached to the error report). An app raises its own errors through the same store, e.g. `fail(new NotFoundError())` from a route that resolved to nothing.
 
 Boot wiring, `configureApiUX({ errorSink?, goHome?, connectionSource? })`:
 
@@ -134,7 +124,14 @@ Boot wiring, `configureApiUX({ errorSink?, goHome?, connectionSource? })`:
 - `goHome` — the not-found toast's home action; default `location.assign('/')`. `getGoHome()` returns the configured function for modules that navigate home outside a component.
 - `connectionSource: ConnectionSource` — `{ readonly connected: boolean; onConnectionChange(listener) }`, read once when `useConnectivity` first materialises, so configure it before the store is first used. `@greendrake/rpc`'s `WsTransport` satisfies it as-is.
 
-`apiUXHooks` is `{ onRouter(router), onBootError(error) }`, for an app bootstrap that offers those two hooks: `onRouter` sets `goHome` to `router.push('/')` the moment the router exists, and `onBootError` shows a failed boot through `useExceptionState().fail`. The router is typed structurally (`{ push(to: string): unknown }`), so this package takes no router dependency.
+`apiUXHooks` is `{ onRouter(router), onBootError(error), onRouteFetchError() }`, for an app bootstrap that offers those hooks (`@greendrake/vue-app`'s `createSpaApp` does): `onRouter` sets `goHome` to `router.push('/')` the moment the router exists, `onBootError` shows a failed boot through `useExceptionState().fail`, and `onRouteFetchError` abandons a navigation whose data fetch failed, quietly — the fetch went through the client, whose toast has already shown the failure. The router is typed structurally (`{ push(to: string): unknown }`), so this package takes no router dependency.
+
+### Strings
+
+Every string this package shows is in one reactive `apiMessages` object (`ApiMessages`), built with `@greendrake/ui`'s `configurableMessages`. `configureApiMessages(overrides)` merges overrides in; call it at boot and again on locale change. Keys and defaults:
+
+- the toast's: `errorOther` "Oops.. Sorry, something went wrong", `errorNetwork` "Looks like a network connectivity issue", `errorNotFound` "The requested page not found", `tryAgain`, `trying` "Trying...", `toHomePage` "To the home page". Its OK and Cancel are `@greendrake/ui`'s `ok` and `cancel`.
+- the connection's (see `useConnectionMessage`): `deviceOffline` "You appear to be offline — waiting for your connection…", `unreachable` "Cannot reach the site — waiting for the connection…".
 
 ### Offline parking
 
@@ -148,6 +145,8 @@ A non-silent call that fails with a `NetworkError` while `useConnectivity().offl
 - `confirmedOffline` — offline and a reconnect attempt has failed too (the second consecutive `false` report). Surfaces that interrupt a working screen wait for this, so a socket that reconnects on its first try passes unremarked. Without a source the device signal confirms itself.
 - `deviceOffline` — the device's own claim. With a source it is never authoritative; it only picks wording.
 - `whenOnline(): Promise<void>` — resolves the moment calls can succeed; immediately when they already can.
+
+`useConnectionMessage()` is the message an offline surface shows, as a computed string: `apiMessages.deviceOffline` while the device says it is offline, `apiMessages.unreachable` otherwise — "your connection is gone" and "the site cannot be reached" being different things to tell someone, and the device's claim the one thing telling them apart.
 
 `retryWhenOnline(attempt)` re-runs `attempt` each time connectivity returns, for fetch sites that bypass `ApiClient` (static content, locale files) and would otherwise be a dead end after an offline miss. Only a `NetworkError` while `offline` is retried; anything else propagates on the first attempt.
 

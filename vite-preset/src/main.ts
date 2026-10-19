@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import vue from '@vitejs/plugin-vue'
-import { mergeConfig, type ConfigEnv, type UserConfig, type UserConfigFnObject } from 'vite'
+import { mergeConfig, searchForWorkspaceRoot, type ConfigEnv, type UserConfig, type UserConfigFnObject } from 'vite'
 
-export { envBool, deriveImageBaseUrl, loadAppEnv, requirePort, apiTargetEnv, buildHash } from './env'
+export { envBool, loadAppEnv, requirePort, buildHash } from './env'
 // Re-exported so config factories building on vueSpa speak this package's
 // vite types: a second vite copy resolved downstream is a structurally
 // unrelated set of the same names.
@@ -22,7 +22,7 @@ export interface VueSpaOptions {
     dirname: string
     // Compile-time globals; values are serialized automatically (strings become
     // string literals, booleans become true/false, objects become object
-    // literals — e.g. the ApiTargetEnv carried by __API_TARGET_ENV__).
+    // literals — e.g. an ApiTargetEnv for resolveApiTarget).
     define?: Record<string, string | number | boolean | object | null | undefined> | undefined
     // Extra scss @use resolution roots (e.g. the app's src/scss).
     scssLoadPaths?: string[]
@@ -56,7 +56,8 @@ export interface VueSpaOptions {
 }
 
 // The libraries the app and every component package it renders must share one
-// instance of.
+// instance of — those of them the app declares: Vite resolves a dedupe or
+// pre-bundle entry from the app root, and fails on one the app does not have.
 const FRAMEWORK = ['vue', 'pinia', 'vue-router']
 
 // Source-shipped by construction, so an app that names none of its own still
@@ -71,10 +72,8 @@ const declaredDependencies = (dirname: string): DeclaredDependencies => {
 
 // The Vite config a Vue 3 single-page app would otherwise assemble for itself:
 // the vue plugin, the strict VITE_PORT pin, workspace fs.allow, the @ alias,
-// the dedupe list (each entry must also be a direct dependency of the app, or
-// Vite fails to resolve it), the pre-bundling rules a source-shipped package
-// needs, and unhashed font asset names so index.html can prefetch them by a
-// stable name.
+// the dedupe list, the pre-bundling rules a source-shipped package needs, and
+// unhashed font asset names so index.html can prefetch them by a stable name.
 //
 // Returns the function form of a Vite config so the VITE_PORT requirement
 // applies only to `vite dev`: a production build runs in deploy contexts that
@@ -84,6 +83,7 @@ export const vueSpa =
     ({ command }: ConfigEnv): UserConfig => {
         const deps = declaredDependencies(options.dirname)
         const allDeps = [...deps.runtime, ...deps.dev]
+        const framework = FRAMEWORK.filter(name => allDeps.includes(name))
         const sourcePackages = options.sourcePackages ?? SOURCE_PACKAGES
         const isSourcePackage = (name: string): boolean => sourcePackages.some(pattern => (pattern.endsWith('/') ? name.startsWith(pattern) : name === pattern))
         // Only the dev server and preview pin a port, so an app that supplies
@@ -102,14 +102,12 @@ export const vueSpa =
                 ? {
                       server: {
                           ...portPin,
-                          // '..' reaches the workspace an app sits directly
-                          // inside. Anything the dev server must read from
-                          // further afield — a static root beside the backend,
-                          // package source a level or two above an app nested
-                          // deeper — needs its own entry (server.fs.allow in
-                          // the app's overrides), or dev requests for it are
-                          // refused.
-                          fs: { allow: ['..', ...(options.staticRoots ?? []).map(root => root.dir)] }
+                          // What Vite allows by default — the workspace root it
+                          // finds above the app, or the app's own root outside
+                          // any workspace — plus the static roots, which live
+                          // outside the app by definition. Setting the list
+                          // replaces Vite's default, hence the root's being named.
+                          fs: { allow: [searchForWorkspaceRoot(options.dirname), ...(options.staticRoots ?? []).map(root => root.dir)] }
                       }
                   }
                 : {}),
@@ -118,7 +116,7 @@ export const vueSpa =
             ...(portPin && { preview: portPin }),
             resolve: {
                 alias: { '@': path.resolve(options.dirname, './src') },
-                dedupe: FRAMEWORK
+                dedupe: framework
             },
             // A source-shipped package (see sourcePackages) is TypeScript
             // and SFC rather than a build. Pre-bundling one from node_modules
@@ -137,7 +135,7 @@ export const vueSpa =
             // nestedDependencies).
             optimizeDeps: {
                 exclude: allDeps.filter(isSourcePackage),
-                include: [...new Set([...FRAMEWORK.filter(name => allDeps.includes(name)), ...nestedDependencies(options.dirname, deps, isSourcePackage)])]
+                include: [...new Set([...framework, ...nestedDependencies(options.dirname, deps, isSourcePackage)])]
             },
             ...(options.scssLoadPaths && {
                 css: {

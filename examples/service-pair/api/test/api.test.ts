@@ -1,27 +1,29 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { ApiError, HttpTransport, RpcClient, WebSocketPipe, WsTransport } from '@greendrake/rpc'
+import { ApiError, HttpTransport, RpcClient, TOKEN_PARAM, WebSocketPipe, WsTransport } from '@greendrake/rpc'
 import type { RunningService } from '@greendrake/server'
 import type { ConnectionData } from '@greendrake/rpc-server'
 import { SERVICE_STATE_EVENT } from '@greendrake/service-state'
 import type { ServiceState, ServiceStatePushes, ServiceStatus } from '@greendrake/service-state'
 import { startApi } from '../src/service'
 import { MOCK_SERVICE } from '../src/mock'
-import type { ApiMethods } from '../src/methods'
+import type { ApiMethods, Operator } from '../src/methods'
 
 const KEY = 'test-admin-key'
+const DASH_ORIGIN = 'http://localhost:5180'
 // What every service-state call names: the one service this API serves.
 const MOCK = { service: MOCK_SERVICE }
 // The mock's three seconds are for a person watching a dashboard; a test only
 // needs the transition to be observable.
 const TRANSITION_MS = 20
 
-let service: RunningService<ConnectionData>
+let service: RunningService<ConnectionData<Operator>>
 let host: string
 
 beforeAll(async () => {
     service = await startApi({
         port: 0,
         adminKey: KEY,
+        dashOrigin: DASH_ORIGIN,
         transitionMs: TRANSITION_MS
     })
     host = service.server.url.host
@@ -31,12 +33,12 @@ beforeAll(async () => {
 // re-reads along with the listener.
 afterAll(async () => expect(await service.stop()).toBe('clean'))
 
-const httpClient = (token?: string): RpcClient<ApiMethods> => new RpcClient<ApiMethods>(new HttpTransport({ url: `http://${host}/v1/api`, headers: (): Record<string, string> => (token ? { Authorization: token } : {}) }))
+const httpClient = (token?: string): RpcClient<ApiMethods> => new RpcClient<ApiMethods>(new HttpTransport({ url: `http://${host}/v1/api`, headers: (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}) }))
 
 // A dashboard's socket: calls and pushes over one connection, authenticated at
 // the handshake.
 const dashboard = async (): Promise<{ client: RpcClient<ApiMethods>; seen: ServiceStatus[]; close: () => void }> => {
-    const pipe = new WebSocketPipe({ url: `ws://${host}/v1/ws`, queryAuth: { param: 'token', token: KEY } })
+    const pipe = new WebSocketPipe({ url: `ws://${host}/v1/ws`, queryAuth: { param: TOKEN_PARAM, token: KEY } })
     const transport = new WsTransport<ServiceStatePushes>({ pipe })
     const seen: ServiceStatus[] = []
     transport.onEvent(SERVICE_STATE_EVENT, status => seen.push(status))
@@ -92,6 +94,20 @@ describe('the example API', () => {
         expect(operator.seen.at(-1)).toMatchObject({ state: 'ERROR', error: 'mock service failed to start' })
         expect(await operator.client.call('service.refresh', MOCK)).toMatchObject({ state: 'OFF', error: null })
         operator.close()
+    })
+
+    test("the dashboard's page may open a socket, and no other page may", async () => {
+        const opens = (origin: string): Promise<boolean> =>
+            new Promise(resolve => {
+                const socket = new WebSocket(`ws://${host}/v1/ws`, { headers: { Origin: origin } })
+                socket.addEventListener('open', () => {
+                    socket.close()
+                    resolve(true)
+                })
+                socket.addEventListener('error', () => resolve(false))
+            })
+        expect(await opens(DASH_ORIGIN)).toBe(true)
+        expect(await opens('https://evil.example')).toBe(false)
     })
 
     test('an argument the schema refuses comes back named', async () => {

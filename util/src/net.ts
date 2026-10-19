@@ -33,6 +33,18 @@ export const safeFetch = async (...args: Parameters<typeof fetch>): Promise<Resp
     }
 }
 
+// Which browser origins a server admits: every one ('*'), those listed as
+// browsers send them ('https://app.example.com', 'app://localhost'), or
+// those a predicate admits.
+export type OriginPolicy = '*' | readonly string[] | ((origin: string) => boolean)
+
+export const admitsOrigin = (policy: OriginPolicy, origin: string): boolean => {
+    if (policy === '*') {
+        return true
+    }
+    return typeof policy === 'function' ? policy(origin) : policy.includes(origin)
+}
+
 // Typed JSON GET/…: NetworkError on transport failure, HttpError on non-2xx.
 export const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
     const response = await safeFetch(url, init)

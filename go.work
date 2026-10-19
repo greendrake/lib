@@ -1,0 +1,26 @@
+go 1.25.0
+
+use (
+	./apps/ipcam-app/server
+	./go/apiserver
+	./go/camstream
+	./go/dvrip
+	./go/ipcam
+	./go/ipcamrpc
+	./go/rpcserver
+	./go/rtsp
+	./go/spa
+	./go/webcast
+)
+
+replace (
+	greendrake.nz/go/apiserver v0.1.0 => ./go/apiserver
+	greendrake.nz/go/camstream v0.1.0 => ./go/camstream
+	greendrake.nz/go/dvrip v0.1.0 => ./go/dvrip
+	greendrake.nz/go/ipcam v0.1.0 => ./go/ipcam
+	greendrake.nz/go/ipcamrpc v0.1.0 => ./go/ipcamrpc
+	greendrake.nz/go/rpcserver v0.1.0 => ./go/rpcserver
+	greendrake.nz/go/rtsp v0.1.0 => ./go/rtsp
+	greendrake.nz/go/spa v0.1.0 => ./go/spa
+	greendrake.nz/go/webcast v0.1.0 => ./go/webcast
+)

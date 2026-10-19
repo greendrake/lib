@@ -1,0 +1,13 @@
+#!/bin/bash
+# Every module of the Go workspace (go.work): formatted, vetted and tested.
+set -euo pipefail
+cd "$(dirname "$0")"
+dirs=$(go list -m -f '{{.Dir}}')
+unformatted=$(gofmt -l $dirs)
+if [ -n "$unformatted" ]; then
+    printf 'not gofmt-formatted:\n%s\n' "$unformatted" >&2
+    exit 1
+fi
+for dir in $dirs; do
+    (cd "$dir" && go vet ./... && go test ./...)
+done

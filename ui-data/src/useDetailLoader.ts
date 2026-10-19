@@ -1,5 +1,5 @@
 import { ref, watch, toValue, type Ref, type WatchSource } from 'vue'
-import { errorMessage } from './errorMessage'
+import { errorMessage } from '@greendrake/ui'
 
 export interface DetailLoader<T> {
     data: Ref<T | null>

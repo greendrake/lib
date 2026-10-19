@@ -4,6 +4,8 @@
 // inline bootstrap generation) and the browser bundle — import via the
 // ./api-target subpath there; the package's main entry is Node-only.
 //
+// It resolves origins only: which paths the API answers on is the app's.
+//
 // Host resolution:
 //   Prod — the same bundle is deployed to two hosts. On the public FE host
 //   (e.g. example.com) a CDN may not proxy WS, so the API is on its own host
@@ -17,15 +19,11 @@
 export interface ApiTargetEnv {
     // True under `vite dev` (command === 'serve'); false in production builds.
     dev: boolean
-    // Undefined as readily as absent: each is an environment variable, which
-    // is either set or not.
+    // Undefined as readily as absent: each typically comes from an environment
+    // variable, which is either set or not.
     apiPort?: string | undefined
     publicFeHost?: string | undefined
     publicApiHost?: string | undefined
-    // Endpoint paths appended to the resolved origin (defaults /v1/api and
-    // /v1/ws). A backend that routes POST at the host root sets apiPath: ''.
-    apiPath?: string
-    wsPath?: string
 }
 
 export interface ApiTargetRuntime {
@@ -35,9 +33,10 @@ export interface ApiTargetRuntime {
     https: boolean
 }
 
+// The API's origins, without a trailing slash: the app appends its paths.
 export interface ApiTarget {
-    apiUrl: string
-    wsUrl: string
+    httpOrigin: string
+    wsOrigin: string
 }
 
 export const resolveApiTarget = (env: ApiTargetEnv, runtime?: ApiTargetRuntime): ApiTarget => {
@@ -69,8 +68,8 @@ export const resolveApiTarget = (env: ApiTargetEnv, runtime?: ApiTargetRuntime):
         secure = runtime.https
     }
     return {
-        apiUrl: `${secure ? 'https' : 'http'}://${host}${env.apiPath ?? '/v1/api'}`,
-        wsUrl: `${secure ? 'wss' : 'ws'}://${host}${env.wsPath ?? '/v1/ws'}`
+        httpOrigin: `${secure ? 'https' : 'http'}://${host}`,
+        wsOrigin: `${secure ? 'wss' : 'ws'}://${host}`
     }
 }
 

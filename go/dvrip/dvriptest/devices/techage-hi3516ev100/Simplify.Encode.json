@@ -1,0 +1,30 @@
+[
+  {
+    "ExtraFormat": {
+      "AudioEnable": false,
+      "Video": {
+        "BitRate": 1099,
+        "BitRateControl": "VBR",
+        "Compression": "H.265",
+        "FPS": 15,
+        "GOP": 10,
+        "Quality": 6,
+        "Resolution": "D1"
+      },
+      "VideoEnable": true
+    },
+    "MainFormat": {
+      "AudioEnable": true,
+      "Video": {
+        "BitRate": 3519,
+        "BitRateControl": "VBR",
+        "Compression": "H.265",
+        "FPS": 15,
+        "GOP": 10,
+        "Quality": 6,
+        "Resolution": "1080P"
+      },
+      "VideoEnable": true
+    }
+  }
+]

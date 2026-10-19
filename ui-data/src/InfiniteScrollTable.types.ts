@@ -16,10 +16,29 @@ export interface ColumnDefinition<T = Record<string, unknown>> {
     componentProps?: (record: T) => Record<string, unknown>
 }
 
+export type SortDir = 'asc' | 'desc'
+
+// The order a table asks its rows in: a field, and which way.
+export interface Sort {
+    by: string
+    dir: SortDir
+}
+
+// What a table holds its rows to beyond the search text and the order: each
+// filter by name, an empty one (null, undefined, '') meaning none.
+export type Filters = Record<string, string | null | undefined>
+
+// One window of rows a table asks its loader for, in no backend's terms: what
+// the loader's own API calls these is the loader's to map.
 export interface LoaderParams {
     offset: number
     limit: number
-    [key: string]: string | number
+    // The search text, when there is any.
+    text?: string
+    // The order, when the table was given one.
+    sort?: Sort
+    // The filters that are not empty.
+    filters: Record<string, string>
 }
 
 export interface LoaderResponse<T> {
@@ -32,12 +51,6 @@ export interface LoaderResponse<T> {
 // connection. What that means for the request is the caller's: typically a
 // quiet call that shows no spinner and raises no error prompt.
 export type LoaderFunction<T> = (params: LoaderParams, loading: Ref<boolean>, background: boolean) => Promise<LoaderResponse<T>>
-
-export interface Filters {
-    [key: string]: string | null | undefined
-    sort_by?: string
-    sort_dir?: 'asc' | 'desc'
-}
 
 // A row's identity: either the name of the field holding it, or a function
 // deriving it (for composite keys — e.g. an email+name pair joined into one
@@ -52,10 +65,15 @@ export interface Props<T = Record<string, unknown>> {
     rowHeight?: number
     visibleHeight?: number | null
     filters?: Filters
-    textFilterKey?: string
+    // The search text, empty meaning none: served from memory, when the whole
+    // dataset is there, as long as it narrows the text the dataset was
+    // fetched under.
+    text?: string
+    // The order: served from memory when the whole dataset is there.
+    sort?: Sort
     // Fields the local text filter matches against when the whole dataset is
     // in memory. `false` opts out of local filter routing entirely — every
-    // text-filter change goes to the server (for search semantics the client
+    // text or order change goes to the server (for search semantics the client
     // cannot mirror, e.g. full-text over fields absent from the rows).
     localSearchFields?: string[] | false
     rowKey?: RowKey<T>

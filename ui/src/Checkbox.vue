@@ -7,6 +7,9 @@ const props = defineProps<{
     // Render as an iOS-style sliding switch instead of the default tick box.
     switch?: boolean
     disabled?: boolean
+    // Shown as neither ticked nor not, whatever the value: a tick standing for some of
+    // several, a tree's folder say. A click sets the value as it would otherwise.
+    indeterminate?: boolean
 }>()
 
 const value = defineModel<boolean>()
@@ -15,7 +18,7 @@ const cls = computed(() => ['Checkbox', { 'Checkbox--switch': props.switch }])
 </script>
 <template>
     <div :class="cls">
-        <input :id="id" v-model="value" type="checkbox" :disabled="props.disabled" />
+        <input :id="id" v-model="value" type="checkbox" :disabled="props.disabled" :indeterminate="props.indeterminate" />
         <label v-if="props.label" :for="id">{{ props.label }}</label>
     </div>
 </template>
@@ -59,6 +62,17 @@ const cls = computed(() => ['Checkbox', { 'Checkbox--switch': props.switch }])
             // biases the box up to optical centre.
             margin-bottom: 3px;
             transform: rotate(45deg);
+        }
+
+        // Neither ticked nor not: a dash, over the tick it takes precedence over.
+        input[type='checkbox']:indeterminate::after {
+            content: '';
+            width: 10px;
+            height: 0;
+            border: solid var(--font-color);
+            border-width: 0 0 2px;
+            margin-bottom: 0;
+            transform: none;
         }
     }
 

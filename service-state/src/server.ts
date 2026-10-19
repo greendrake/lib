@@ -1,7 +1,17 @@
 import { ApiError } from '@greendrake/rpc-server'
-import type { Audience, AuthRequirement, EventSink, MethodDef } from '@greendrake/rpc-server'
-import { SERVICE_STATE_EVENT, TRANSITIONS } from './main'
+import type { Audience, EventSink, MethodAccess, MethodDef } from '@greendrake/rpc-server'
+import { SERVICE_BUSY, SERVICE_NOT_FOUND, SERVICE_STATE_EVENT, TRANSITIONS } from './main'
 import type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatus } from './main'
+
+// What the machine throws for a command its state is in no position to take:
+// a transition already under way, or one that would take the service where it
+// already is. serviceStateMethods answers it SERVICE_BUSY.
+export class ServiceBusyError extends Error {
+    constructor(command: ServiceCommand | 'refresh', state: ServiceState) {
+        super(`cannot ${command} a service ${state}`)
+        this.name = 'ServiceBusyError'
+    }
+}
 
 // What a concrete service plugs in. `start` and `stop` resolve once the
 // service is up or down; rejecting puts the machine in ERROR with the
@@ -37,16 +47,6 @@ export interface ServiceStateMachine {
     // shutting down.
     close(): void
 }
-
-// The command a state is in no position to take. One code covers both cases —
-// a transition already under way, and a command that would take the service
-// where it already is — because the control never offers either, so this is
-// what a client that ignored the state gets told.
-const BUSY = 'SERVICE_BUSY'
-
-// A call naming a service the table does not serve. A `_NOT_FOUND` code, so
-// clients following rpc-server's convention treat it as not found.
-const NOT_FOUND = 'SERVICE_NOT_FOUND'
 
 // The service-state machine over a concrete implementation. Reads the service
 // before returning, so it never reports a state it has not verified — a
@@ -136,7 +136,7 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
     const run = (command: ServiceCommand): ServiceStatus => {
         const { from, during, to } = TRANSITIONS[command]
         if (transitioning || current.state !== from) {
-            throw new ApiError(BUSY)
+            throw new ServiceBusyError(command, current.state)
         }
         transitioning = true
         transitions += 1
@@ -182,7 +182,7 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
 
     const refresh = async (): Promise<ServiceStatus> => {
         if (transitioning) {
-            throw new ApiError(BUSY)
+            throw new ServiceBusyError('refresh', current.state)
         }
         return read()
     }
@@ -207,7 +207,7 @@ export const createServiceStateMachine = async (name: string, service: ServiceIm
 
 // Derived from the client-facing contract rather than restated beside it: a
 // method added there has to be defined here before this compiles.
-export type ServiceStateMethodDefs = { [K in keyof ServiceStateMethods]: MethodDef<Parameters<ServiceStateMethods[K]>[0], ReturnType<ServiceStateMethods[K]>> }
+export type ServiceStateMethodDefs<P> = { [K in keyof ServiceStateMethods]: MethodDef<Parameters<ServiceStateMethods[K]>[0], ReturnType<ServiceStateMethods[K]>, P> }
 
 // The argument every method takes, checked for its shape. Whether it names a
 // service the table serves is the table's to say, as SERVICE_NOT_FOUND. Written
@@ -221,9 +221,10 @@ const SERVICE_REF: NonNullable<MethodDef<ServiceRef>['args']> = {
 }
 
 // The four methods over every machine given, ready to merge into a dispatch
-// table: one socket serves them all, each call naming its service. Admin-only
-// by default: turning a service off is not a read.
-export const serviceStateMethods = (machines: readonly ServiceStateMachine[], auth: AuthRequirement = 'admin'): ServiceStateMethodDefs => {
+// table: one socket serves them all, each call naming its service. Who may
+// call them is the application's to say — turning a service off is not a read,
+// and only the application knows its principals.
+export const serviceStateMethods = <P>(machines: readonly ServiceStateMachine[], access: MethodAccess<P>): ServiceStateMethodDefs<P> => {
     const byName = new Map(machines.map(machine => [machine.name, machine]))
     if (byName.size !== machines.length) {
         throw new Error(`serviceStateMethods: two machines share a name among ${machines.map(machine => machine.name).join(', ')}`)
@@ -231,15 +232,19 @@ export const serviceStateMethods = (machines: readonly ServiceStateMachine[], au
     // Each method is the same three steps — the argument checked, the service
     // it names found, one thing asked of that service's machine — and differs
     // only in what is asked.
-    const asking = (ask: (machine: ServiceStateMachine) => ServiceStatus | Promise<ServiceStatus>): MethodDef<ServiceRef, ServiceStatus> => ({
-        auth,
+    const asking = (ask: (machine: ServiceStateMachine) => ServiceStatus | Promise<ServiceStatus>): MethodDef<ServiceRef, ServiceStatus, P> => ({
+        ...access,
         args: SERVICE_REF,
-        handler: (_ctx, { service }) => {
+        handler: async (_ctx, { service }) => {
             const machine = byName.get(service)
             if (!machine) {
-                throw new ApiError(NOT_FOUND)
+                throw new ApiError(SERVICE_NOT_FOUND)
             }
-            return ask(machine)
+            try {
+                return await ask(machine)
+            } catch (e) {
+                throw e instanceof ServiceBusyError ? new ApiError(SERVICE_BUSY) : e
+            }
         }
     })
     return {
@@ -250,5 +255,5 @@ export const serviceStateMethods = (machines: readonly ServiceStateMachine[], au
     }
 }
 
-export { SERVICE_STATE_EVENT, SERVICE_STATES, TRANSITIONS } from './main'
+export { CONTROLS, SERVICE_BUSY, SERVICE_NOT_FOUND, SERVICE_STATE_EVENT, SERVICE_STATES, TRANSITIONS } from './main'
 export type { ServiceCommand, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatePushes, ServiceStatus } from './main'

@@ -1,0 +1,22 @@
+[
+  {
+    "Enable": false,
+    "Interface": "eth0"
+  },
+  {
+    "Enable": false,
+    "Interface": "eth1"
+  },
+  {
+    "Enable": false,
+    "Interface": "eth2"
+  },
+  {
+    "Enable": false,
+    "Interface": "eth3"
+  },
+  {
+    "Enable": false,
+    "Interface": "bond0"
+  }
+]

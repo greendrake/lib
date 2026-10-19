@@ -1,0 +1,10 @@
+{
+    "extends": "@greendrake/dev-config/tsconfig/vue.json",
+    "compilerOptions": {
+        "types": ["vite/client"],
+        "paths": {
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["src"]
+}

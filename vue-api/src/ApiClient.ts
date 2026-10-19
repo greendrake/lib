@@ -1,6 +1,6 @@
 import { isRef, type Ref } from 'vue'
 import { createDeferred, NetworkError, TimeOutPromise } from '@greendrake/util'
-import { ResponseCache, WebSocketClosedError, codeOf, packRequest } from '@greendrake/rpc'
+import { ApiError, ResponseCache, WebSocketClosedError, packRequest } from '@greendrake/rpc'
 import type { CacheConfig, Caller, MethodMap, MethodMapConstraint, Transport } from '@greendrake/rpc'
 import { useAppState } from '@greendrake/vue-kit'
 import { useConnectivity } from './connectivity'
@@ -31,7 +31,7 @@ export interface CallOptions {
     // freshness on a method that is worth caching everywhere else — the same
     // query serving a "what's here right now" surface and a search box. It
     // says nothing about the method: an unlisted one cannot be opted in, and a
-    // listed one keeps its nonce-lessness (see `call`). See DATA_CACHING.md §4.
+    // listed one keeps its nonce-lessness (see `call`).
     cache?: false
 }
 
@@ -43,11 +43,12 @@ export interface ApiClientOptions {
     // other method carries a nonce and is never cached. Only list stateless,
     // platform-static reads — never per-user data that mutates in-session.
     cache?: CacheConfig
-    // Per-error-code interception, keyed by code (the error's message). A
-    // handler that re-throws bubbles the error to the caller (bypassing the
-    // toast); a handler that returns parks the call forever — its flow is
-    // abandoned, superseded by the handler's side effect (logout, redirect).
-    errorHandlers?: Record<string, (e: Error) => void>
+    // Per-error-code interception, keyed by the code of the ApiError a call
+    // fails with. A handler that re-throws bubbles the error to the caller
+    // (bypassing the toast); a handler that returns parks the call forever —
+    // its flow is abandoned, superseded by the handler's side effect (logout,
+    // redirect).
+    errorHandlers?: Record<string, (e: ApiError) => void>
     // The caller's UI language tag, evaluated per request. Server-resolved
     // labels (taxonomy names, breadcrumbs, facet chips) come back in it, so a
     // locale switch must take effect on the next call rather than at
@@ -56,12 +57,27 @@ export interface ApiClientOptions {
     locale?: () => string | undefined
 }
 
+/**
+ * Error handlers bubbling each of codes to the call that failed — as `as` turns it, the
+ * error itself by default — for the caller to show where the call was made rather than
+ * the toast.
+ */
+export const bubbled = (codes: readonly string[], as: (e: ApiError) => Error = e => e): Record<string, (e: ApiError) => void> =>
+    Object.fromEntries(
+        codes.map(code => [
+            code,
+            (e: ApiError) => {
+                throw as(e)
+            }
+        ])
+    )
+
 // What calls the methods of M as ApiClient does: its own calls, under no options,
 // and those made under some.
 export interface ApiCaller<M extends MethodMapConstraint<M>> extends Caller<M> {
     // The calls made under options. A separate entry point rather than a trailing
     // parameter: nothing at runtime tells trailing options from a last argument.
-    //    api.with({ pending: false }).call('listing.get', { listing_id })
+    //    api.with({ pending: false }).call('thing.get', { id })
     with(options: CallOptions): Caller<M>
 }
 
@@ -70,7 +86,7 @@ export interface ApiCaller<M extends MethodMapConstraint<M>> extends Caller<M> {
 export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements ApiCaller<M> {
     readonly transport: Transport
     readonly #cache?: ResponseCache
-    readonly #errorHandlers?: Record<string, (e: Error) => void>
+    readonly #errorHandlers?: Record<string, (e: ApiError) => void>
     // Dev-only per-method artificial delays (ms), keyed by method name. See
     // setDebugDelay / #debugDelay.
     readonly #debugDelays = new Map<string, number>()
@@ -89,7 +105,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
     // DEV DEBUGGING ONLY. Register an artificial delay (ms) for a method, held
     // while the call is pending — so the pending/loading state (spinner, busy
     // ref, disabled controls) can be inspected in devtools before the response
-    // lands. Set it from the console, e.g. `api.setDebugDelay('search.listings',
+    // lands. Set it from the console, e.g. `api.setDebugDelay('thing.search',
     // 3000)`; pass 0 to clear. The delay is applied only in dev builds (see
     // #debugDelay), so a stray registration is inert in production. A `read`
     // served from cache is instant and bypasses the delay (no pending to see);
@@ -131,28 +147,26 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
     //   not listed                → straight to the wire WITH a nonce
     //
     // Why that pairing, and why it is safe to let one list decide both: a
-    // nonce's only server-side effect is `SETNX` dedup (the server's dispatch
-    // rejects a repeat with DUPLICATE_REQUEST), and a fresh random nonce is
-    // minted per call, so on a read it buys nothing and costs one Redis write.
-    // Sending it is therefore harmless but pointless — which makes "cacheable"
-    // the only axis worth declaring. The protocol's rule that nonce-bearing
-    // requests are never cached is preserved by construction.
+    // nonce's server-side effects are dedup (a repeat is refused with
+    // DUPLICATE_REQUEST) and abort-by-nonce, and a fresh random nonce is minted
+    // per call, so on a read it buys nothing and costs the server a write to
+    // its nonce store. Sending it is therefore harmless but pointless — which
+    // makes "cacheable" the only axis worth declaring. The protocol's rule that
+    // nonce-bearing requests are never cached is preserved by construction.
     //
     // The trade being made: a method that is idempotent but deliberately
     // uncached — left off the list, not merely read past it by a call site —
-    // now pays that one Redis write per call. Revisit the split — declaring idempotency per method,
-    // separate from cacheability — if those writes ever start to matter, or if
-    // server-side response caching is built (there is none today, so nonce-less
-    // buys nothing extra), or if `Request.Abort` (which cancels by nonce) gets
-    // wired up on a cacheable method.
+    // pays that one nonce-store write per call. Declaring idempotency per
+    // method, separate from cacheability, is the split for when those writes
+    // matter, or for a cacheable method a caller would abort by its nonce.
     async #call<K extends keyof M & string>(options: CallOptions, method: K, args: Parameters<M[K]>): Promise<Awaited<ReturnType<M[K]>>> {
         const cacheable = this.#cache?.ttlFor(method) !== false && this.#cache !== undefined
         // Refusing the cache is about this answer, not about the method: it
         // suppresses the lookup and the store, and deliberately does NOT touch
         // the nonce. The protocol's rule runs one way — a nonce-bearing request
         // is never cached — so a cacheable method read fresh stays nonce-less
-        // and keeps what nonce-lessness buys it, which is not only the Redis
-        // write it saves but offline parking: a nonce-less read dropped in
+        // and keeps what nonce-lessness buys it, which is not only the
+        // nonce-store write it saves but offline parking: a nonce-less read dropped in
         // flight waits out the outage instead of asking the user to retry it.
         const useCache = cacheable && options.cache !== false
         if (useCache) {
@@ -170,7 +184,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
 
     // Drop every cached response. What the session identity changing costs: a
     // cached read was answered for whoever was signed in when it was made, and
-    // the audience-dependent ones (what a listing shows, what a search returns,
+    // the audience-dependent ones (what a record shows, what a search returns,
     // what an account owns) do not survive that change even when their TTL has
     // not run out.
     clearCache(): void {
@@ -246,7 +260,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                 settleRetryAttempt?.()
                 // Offline: wait for the connection instead of asking the user
                 // to. Each attempt re-runs send(), which mints a fresh nonce
-                // (see packRequest), so the server's SETNX dedup cannot span a
+                // (see packRequest), so the server's nonce dedup cannot span a
                 // retry — parking is only safe where re-issuing cannot
                 // double-apply. That holds when the request demonstrably never
                 // left this machine (the socket was already down, so the
@@ -273,17 +287,18 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                     continue
                 }
                 switchLoading(false)
-                // Keyed by backend code, which for a *_NOT_FOUND lives on the
-                // error rather than in its message — see codeOf.
-                const handler = this.#errorHandlers?.[codeOf(e as Error)]
-                if (handler) {
-                    // Pass the original error so a handler that re-throws (the
-                    // bubble pattern) preserves its payload (ApiError.details).
-                    handler(e as Error)
-                    // A non-throwing handler's side effect (logout, redirect)
-                    // supersedes this call's flow: park it forever rather than
-                    // lie with an undefined result.
-                    return new Promise<never>(() => {})
+                if (e instanceof ApiError) {
+                    const handler = this.#errorHandlers?.[e.code]
+                    if (handler) {
+                        // Pass the original error so a handler that re-throws
+                        // (the bubble pattern) preserves its payload
+                        // (ApiError.details).
+                        handler(e)
+                        // A non-throwing handler's side effect (logout,
+                        // redirect) supersedes this call's flow: park it
+                        // forever rather than lie with an undefined result.
+                        return new Promise<never>(() => {})
+                    }
                 }
                 const decision = createDeferred<void>()
                 const retryAttempt = createDeferred<void>()

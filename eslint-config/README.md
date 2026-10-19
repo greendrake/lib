@@ -41,4 +41,4 @@ Language options: `ecmaVersion: 'latest'`, `sourceType: 'module'`, the `typescri
 
 ## Ignores
 
-`**/dist*/**`, `**/node_modules/**`, `**/playwright-report/**`, `**/test-results/**`, `**/.playwright-mcp/**`. `dist*` rather than `dist` because apps emit sibling build outputs beside it, and every one of them is generated code no rule has an opinion about — so no tracked source directory may have a name starting with `dist`.
+`**/dist*/**`, `**/node_modules/**`, `**/playwright-report/**`, `**/test-results/**`. `dist*` rather than `dist` because apps emit sibling build outputs beside it, and every one of them is generated code no rule has an opinion about — so no tracked source directory may have a name starting with `dist`.

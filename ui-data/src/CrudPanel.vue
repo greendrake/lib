@@ -28,7 +28,7 @@ import { SearchField, Modal, messages } from '@greendrake/ui'
 import InfiniteScrollTable from './InfiniteScrollTable.vue'
 import MasterDetail from './MasterDetail.vue'
 import { localFilterDebounce } from './localFilterDebounce'
-import { rowKeyOf, type ColumnDefinition, type Filters, type LoaderFunction, type RowKey, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
+import { rowKeyOf, type ColumnDefinition, type Filters, type LoaderFunction, type RowKey, type Sort, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
 
 // Master/detail CRUD shell: search box + InfiniteScrollTable on the left,
 // tabbed detail panes on the right. Opt-in Create / Delete affordances live
@@ -67,6 +67,8 @@ const props = withDefaults(
         rowKey?: RowKey<T>
         rowHeight?: number
         filters?: Filters
+        // The order, for a list that has one (the search box supplies the text).
+        sort?: Sort
         initialWidth?: number
         minWidth?: number
         fullWidthUntilTab?: boolean
@@ -131,10 +133,6 @@ const visibleRange = ref({
     total: 0
 })
 
-const mergedFilters = computed<Filters>(() => ({
-    ...props.filters,
-    q: searchQuery.value || undefined
-}))
 const singleColumn = computed(() => props.columns.length === 1)
 
 function onRangeChanged(range: VisibleRange): void {
@@ -250,7 +248,7 @@ defineExpose(exposed)
                         <p>{{ deleteConfirm }}</p>
                     </Modal>
                 </div>
-                <InfiniteScrollTable ref="tableRef" :loader="loader" :columns="columns" :row-height="rowHeight" :filters="mergedFilters" :row-key="rowKey" :hide-header="singleColumn" v-bind="localSearchFields !== null ? { localSearchFields } : {}" selectable @rowactivate="onRowActivate" @range-changed="onRangeChanged" />
+                <InfiniteScrollTable ref="tableRef" :loader="loader" :columns="columns" :row-height="rowHeight" :filters="filters" :text="searchQuery" :sort="sort" :row-key="rowKey" :hide-header="singleColumn" v-bind="localSearchFields !== null ? { localSearchFields } : {}" selectable @rowactivate="onRowActivate" @range-changed="onRangeChanged" />
             </template>
             <template #detail="{ tab }">
                 <slot name="detail" :tab="tab" :is-new="tab.id.startsWith('new:')" :record="tab.id.startsWith('new:') ? undefined : tableRef?.getRow(tab.id)" :is-dupe="isDupe" />

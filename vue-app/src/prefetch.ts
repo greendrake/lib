@@ -32,7 +32,7 @@ declare module 'vue-router' {
 }
 
 // Route-scoped prefetch results, keyed by route name. Reactive so a param
-// change (e.g. /L1 → /L2) re-runs meta.fetch and refreshes the
+// change (e.g. /items/1 → /items/2) re-runs meta.fetch and refreshes the
 // already-mounted component. Read sites cast the entry to the concrete type
 // the route's fetch produced.
 export const preload = reactive<Record<string, unknown>>({})
@@ -41,8 +41,8 @@ export const preload = reactive<Record<string, unknown>>({})
 // time and stashes the result here; the navigation guard consumes it (via
 // takePrimed) on the matching navigation and skips the otherwise-redundant
 // fetch. Keyed by the target's fullPath — not route name — so a primed result
-// is only ever delivered to the exact location it was loaded for (priming /L1
-// never satisfies a navigation to /L2). Entries are removed on consumption:
+// is only ever delivered to the exact location it was loaded for (priming
+// /items/1 never satisfies a navigation to /items/2). Entries are removed on consumption:
 // this is a deterministic single-use handoff, not a TTL cache.
 const primed = new Map<string, unknown>()
 

@@ -20,6 +20,8 @@ export { validationScopeKey } from './validationScope'
 // Form submission state machine
 export { default as FormC } from './Form.vue'
 export { default as AsyncAction } from './AsyncAction.vue'
+export { useAsyncAction, type AsyncActionState } from './useAsyncAction'
+export { errorMessage } from './errorMessage'
 export { default as OptionSwitch } from './OptionSwitch.vue'
 export type { OptionValue, OptionsArray, OptionsMap } from './OptionSwitch.vue'
 export { default as SegmentedControl } from './SegmentedControl.vue'

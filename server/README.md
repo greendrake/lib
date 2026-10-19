@@ -27,13 +27,25 @@ const service = serve({
     ],
     probeTimeoutMs: 2000,
     shutdown: { deadlineMs: 15_000, lameDuckMs: 3000 },
+    cors: { origin: ['https://billing.example.com'] },
     drain: () => worker.finish()
 })
 ```
 
-`websocket` takes a `Bun.serve` WebSocket handler where the service has one. `cors` takes `{ origin?, allowHeaders?, exposeHeaders? }`, or `false` for a service no browser reaches.
+`websocket` takes a `Bun.serve` WebSocket handler where the service has one.
 
-The returned handle carries the `Bun.Server`, a `draining` flag the application can read to stop taking on work of its own, and `stop()` — the same sequence the signal handlers run, so a test can drive it without the process exiting.
+The returned handle carries the `Bun.Server`, a `draining` flag the application can read to stop taking on work of its own, and `stop()` — the same sequence the signal handlers run, so a test can drive it without the process exiting. Calling `stop()` again joins the sequence under way.
+
+## CORS
+
+`cors` says which browser pages may call the service, or is `false` for a service no browser reaches:
+
+- `origin` — `'*'`, a list of origins as browsers send them (`'https://app.example.com'`, `'app://localhost'`), or a predicate over one (`@greendrake/util`'s `OriginPolicy`). A request from an admitted origin is answered with that origin (`'*'` with `*`); one from any other gets no CORS headers, and its browser keeps the response from the page.
+- `credentials` — lets a page send its cookies and HTTP authentication. With `'*'` it would hand every site the user visits their session, so `serve` throws.
+- `allowHeaders` — request headers beyond the ones a JSON API needs (`Accept`, `Authorization`, `Cache-Control`, `Content-Type`, `Origin`, `X-Requested-With`).
+- `exposeHeaders` — response headers the page may read.
+
+Every response carries `Vary: Origin`, so no cache serves one origin's answer to another.
 
 ## Probes
 
@@ -58,3 +70,5 @@ On SIGINT or SIGTERM, in order:
 3. The listener stops accepting, then `drain()` runs: finish in-flight work, close pools, flush.
 
 The whole sequence races `deadlineMs`. Past it `stop()` answers `'forced'` and the signal handler exits non-zero — task brokers and HTTP clients recover from that (re-delivery, retry), whereas a binary that will not die has to be killed by something else.
+
+The process has one pair of signal handlers, installed with its first service and removed once its last has stopped. A signal stops every service it runs at once, and the process exits once all have, non-zero if any was forced.

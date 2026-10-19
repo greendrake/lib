@@ -1,0 +1,56 @@
+{
+    "name": "@greendrake/mse-video",
+    "version": "0.1.0",
+    "description": "MSE live video over WebSocket: framework-free playback core with stall watchdogs and a server reset protocol, plus a thin Vue wrapper",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "mse-video"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/mse-video#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        },
+        "./vue": {
+            "types": "./src/vue.ts",
+            "default": "./src/vue.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/util": "workspace:^"
+    },
+    "peerDependencies": {
+        "vue": "^3.5.34"
+    },
+    "peerDependenciesMeta": {
+        "vue": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-tsc": "^2.2.0"
+    }
+}

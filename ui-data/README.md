@@ -1,6 +1,6 @@
 # @greendrake/ui-data
 
-Data-heavy dashboard components on top of `@greendrake/ui`: a virtualised `InfiniteScrollTable`, the `MasterDetail` split and the `CrudPanel` shell built on it, the `useRecordEditor` diff-and-patch editing convention, and an admin-CRUD kit of loader adapters, sort state, detail/action composables, formatters and `DescriptionList`. Ships as TypeScript + SFC source; the consuming Vite app compiles it.
+Data-heavy dashboard components on top of `@greendrake/ui`: a virtualised `InfiniteScrollTable`, the `MasterDetail` split and the `CrudPanel` shell built on it, the `useRecordEditor` diff-and-patch editing convention, and an admin-CRUD kit of sort state, detail composables, formatters, the `NoteActions` shell and `DescriptionList`. Ships as TypeScript + SFC source; the consuming Vite app compiles it.
 
 ## Install
 
@@ -8,7 +8,7 @@ Data-heavy dashboard components on top of `@greendrake/ui`: a virtualised `Infin
 bun add @greendrake/ui-data vue
 ```
 
-`vue` is the peer dependency; `@greendrake/ui` and `@greendrake/scss-kit` come in as dependencies, so `@greendrake/ui`'s own peer `vue-router` must be installed as well.
+`vue` is the peer dependency; `@greendrake/ui` and `@greendrake/scss-kit` come in as dependencies.
 
 No build step, no `.d.ts`: `exports` points at `src/main.ts` and the consumer's Vite + `vue-tsc` toolchain compiles the SFCs, whose generics (`InfiniteScrollTable<T>`, `CrudPanel<T>`) are written against the `vueCompilerOptions` of `@greendrake/dev-config/tsconfig/vue.json`. A consumer's tsconfig extends it:
 
@@ -35,7 +35,13 @@ Virtualised table: only the rows that fit the measured viewport (plus two clippe
 interface LoaderParams {
     offset: number
     limit: number
-    [key: string]: string | number // every non-empty `filters` entry
+    text?: string // the `text` prop, when there is any
+    sort?: Sort // the `sort` prop, when there is one
+    filters: Record<string, string> // the `filters` entries that are not empty
+}
+interface Sort {
+    by: string
+    dir: SortDir // 'asc' | 'desc'
 }
 interface LoaderResponse<T> {
     data: T[]
@@ -44,6 +50,8 @@ interface LoaderResponse<T> {
 type LoaderFunction<T> = (params: LoaderParams, loading: Ref<boolean>, background: boolean) => Promise<LoaderResponse<T>>
 ```
 
+The params are in no backend's terms: what the loader's API calls the text, the order and the filters is the loader's to map.
+
 `loading` is the table's spinner flag, handed to the loader to set around its call. The spinner also shows while the viewport overlaps rows not yet buffered, so a loader that never touches `loading` still gets one for gaps.
 
 `background` is true when nobody asked for the load — a live binding re-reading after a server push or a dropped connection (`refresh(true)`). What that means for the request is the loader's to decide — typically a call that shows no spinner and raises no error prompt.
@@ -51,14 +59,10 @@ type LoaderFunction<T> = (params: LoaderParams, loading: Ref<boolean>, backgroun
 `T` must satisfy `Record<string, unknown>`, so declare row types as type aliases (`type User = { … }`), not interfaces: an interface carries no implicit index signature and is rejected where the table's generic is inferred.
 
 ```ts
-interface Filters {
-    [key: string]: string | null | undefined
-    sort_by?: string
-    sort_dir?: 'asc' | 'desc'
-}
+type Filters = Record<string, string | null | undefined> // an empty value (null, undefined, '') is no filter
 ```
 
-A `filters` change re-fetches from offset 0 unless the whole dataset is in memory and the change is a refinement of the text filter (`textFilterKey`) or a sort change, in which case it is applied locally over `localSearchFields`.
+A change to `text`, `sort` or `filters` re-fetches from offset 0, unless the whole dataset is in memory and the filters are as it was fetched under: then a new order, or a text containing the one it was fetched under (only narrowing it), is applied locally — the text over `localSearchFields`.
 
 ### Props
 
@@ -70,8 +74,9 @@ A `filters` change re-fetches from offset 0 unless the whole dataset is in memor
 | `rowHeight` | px | 45 |
 | `visibleHeight` | px, or `null` to measure the container | `null` |
 | `filters` | `Filters` | `{}` |
-| `textFilterKey` | the filter key treated as the text search | `'q'` |
-| `localSearchFields` | fields the in-memory text filter matches; `false` sends every text-filter change to the loader | `['title']` |
+| `text` | the search text; empty is none | — |
+| `sort` | `Sort`, the order | — |
+| `localSearchFields` | fields the in-memory text filter matches; `false` sends every text and order change to the loader | `['title']` |
 | `selectable` | pointer/keyboard row selection (wrapper gets `tabindex="0"`) | `false` |
 | `rowDraggable` | rows are `draggable`, drop targets are tracked | `false` |
 | `hideHeader` | | `false` |
@@ -132,19 +137,19 @@ Row surgery (`patchRow`, `addRow`, `removeRows`) is the way to reflect a single-
 ```vue
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { InfiniteScrollTable, useSortState, fmtDate, type LoaderFunction, type Filters, type InfiniteScrollTableExposed } from '@greendrake/ui-data'
+import { InfiniteScrollTable, useSortState, fmtDate, type LoaderFunction, type InfiniteScrollTableExposed } from '@greendrake/ui-data'
 
 type User = { id: string; email: string; created_at: string }
 
 const sort = useSortState('created_at')
 const columns = computed(() => [sort.column<User>('email', 'Email'), sort.column<User>('created_at', 'Created', { formatter: fmtDate })])
-const filters = computed<Filters>(() => sort.sortFilters.value)
+const search = ref('')
 
 // listUsers is the app's own call, resolving to { data, total }
 const loader: LoaderFunction<User> = async (params, loading) => {
     loading.value = true
     try {
-        return await listUsers(params)
+        return await listUsers({ from: params.offset, count: params.limit, email: params.text, order: params.sort })
     } finally {
         loading.value = false
     }
@@ -152,7 +157,8 @@ const loader: LoaderFunction<User> = async (params, loading) => {
 const table = ref<InfiniteScrollTableExposed<User>>()
 </script>
 <template>
-    <InfiniteScrollTable ref="table" :loader="loader" :columns="columns" :filters="filters" row-key="id" selectable />
+    <input v-model="search" />
+    <InfiniteScrollTable ref="table" :loader="loader" :columns="columns" :text="search" :sort="sort.sort.value" row-key="id" selectable />
 </template>
 ```
 
@@ -170,7 +176,8 @@ Master/detail CRUD shell: a controls bar (search field, optional Create button, 
 | `loader` | `LoaderFunction<T>` | required |
 | `rowKey` | `RowKey<T>` | `'id'` |
 | `rowHeight` | px | 28 |
-| `filters` | `Filters`, merged with the search box's `q` | `{}` |
+| `filters` | `Filters`, forwarded to the table, which takes its `text` from the search box | `{}` |
+| `sort` | `Sort`, forwarded to the table | — |
 | `initialWidth`, `minWidth`, `fullWidthUntilTab` | forwarded to `MasterDetail` | 200, 120, `true` |
 | `showRange` | render the `start-end/total` readout | `true` |
 | `localSearchFields` | `string[] \| false \| null`; `null` keeps the table's default | `null` |
@@ -192,7 +199,7 @@ Exposed (`CrudPanelExposed<T>`; type the ref as `ref<CrudPanelExposed<Row>>()`):
 ```vue
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { CrudPanel, listLoader, useSortState, type CrudPanelExposed } from '@greendrake/ui-data'
+import { CrudPanel, useSortState, type CrudPanelExposed, type LoaderParams } from '@greendrake/ui-data'
 import HostEditor from './HostEditor.vue'
 
 type Host = { name: string; address: string; enabled: boolean }
@@ -200,11 +207,11 @@ type Host = { name: string; address: string; enabled: boolean }
 const sort = useSortState('name', 'asc')
 const columns = computed(() => [sort.column<Host>('name', 'Name')])
 // listHosts / deleteHosts are the app's own calls; listHosts resolves to { data, total }
-const loader = listLoader<Host>(args => listHosts(args), sort)
+const loader = (params: LoaderParams) => listHosts(params)
 const crud = ref<CrudPanelExposed<Host>>()
 </script>
 <template>
-    <CrudPanel ref="crud" :columns="columns" :loader="loader" row-key="name" creatable :on-delete="keys => deleteHosts(keys)" delete-confirm-message="Delete the selected hosts?">
+    <CrudPanel ref="crud" :columns="columns" :loader="loader" :sort="sort.sort.value" row-key="name" creatable :on-delete="keys => deleteHosts(keys)" delete-confirm-message="Delete the selected hosts?">
         <template #detail="{ tab, isNew, record, isDupe }">
             <HostEditor :record="record" :is-new="isNew" :is-dupe="isDupe" @saved="(key, host) => crud?.applySaved(key, host, tab.id)" />
         </template>
@@ -275,22 +282,6 @@ const save = async (): Promise<void> => {
 
 ## Admin-CRUD kit
 
-### listLoader
-
-`listLoader<T>(fetch: (args: PageArgs, background: boolean) => Promise<LoaderResponse<T>>, sort?: SortState)` adapts a paged list call to the table's `LoaderFunction<T>`:
-
-```ts
-type PageArgs = {
-    q?: string
-    offset?: number
-    limit?: number
-    sort_by?: string
-    sort_dir?: string
-}
-```
-
-Without `sort` the call receives the bare `offset`/`limit` window; with it, `q` (the text filter) and the current `sort_by`/`sort_dir` as well — for list methods with server-side search and sort. Extra filter fields ride the `fetch` closure, and so does the `background` flag, handed on verbatim: `listLoader((args, background) => listThreads({ ...args, type }, background))`. The returned function ignores the `loading` ref; the table's gap detection drives the spinner.
-
 ### useSortState
 
 `useSortState(initialBy: string, initialDir: SortDir = 'desc', defaultDir: SortDir | ((field: string) => SortDir) = 'asc'): SortState`
@@ -301,7 +292,7 @@ interface SortState {
     sortDir: Ref<SortDir> // 'asc' | 'desc'
     toggleSort: (field: string) => void // same field flips; a new field takes over with defaultDir
     sortIcon: (field: string) => string | undefined // '▲' / '▼' for the active field
-    sortFilters: ComputedRef<{ sort_by: string; sort_dir: SortDir }> // spread into Filters
+    sort: ComputedRef<Sort> // what a table's or panel's `sort` takes
     column: <T>(field: string, label: string, options?: ColumnOptions<T>) => ColumnDefinition<T>
 }
 ```
@@ -320,17 +311,9 @@ interface SortState {
 
 `<DetailPane :loader="detail" v-slot="{ data }">` — a detail pane's record as `detail` (a `useDetailLoader` result) loads: the loading line, the load's error, or the default slot given the loaded record as `data`.
 
-### useAsyncAction
-
-`useAsyncAction<Args extends unknown[]>(fn: (...args: Args) => Promise<string | void>): AsyncAction<Args>` — in-flight/error/notice bookkeeping for an action button. Returns `{ acting, error, notice, run(...args) }`: `run` ignores re-entry while acting, clears `error`/`notice`, captures a rejection's message in `error`, and stores a string result as the success `notice`. Buttons sharing one in-flight state parameterise `fn` and pass the variant to `run`.
-
-### errorMessage
-
-`errorMessage(e: unknown): string` — `e.message` for an `Error`, `String(e)` otherwise.
-
 ### Formatters
 
-Beside `fmtBool` and `fmtYesNo`, which read any value as a boolean, the formatters render `null`, `undefined` and `''` as `''`, and throw on a value of a type they do not format. `Intl` output is in the browser's locale.
+Beside `fmtBool` and `fmtYesNo`, which read any value as a boolean, the formatters render `null`, `undefined` and `''` as `''`, and throw on a value of a type they do not format. `Intl` output is in the browser's locale. They are also `@greendrake/ui-data/formatters`, which imports no component, for code a test runner loads without a Vue compiler.
 
 - `parseInstant(v: unknown): Date` — an instant from an ISO/`'YYYY-MM-DD HH:MM:SS'` string (a zoneless string is taken as UTC), a number or a `Date`.
 - `fmtDate(v: unknown): string` — `'YYYY-MM-DD HH:MM:SSZ'`: the instant (`parseInstant`) in UTC.
@@ -340,7 +323,7 @@ Beside `fmtBool` and `fmtYesNo`, which read any value as a boolean, the formatte
 - `fmtBytes(v: unknown): string` — a byte count in binary units (B, KiB, MiB, GiB, TiB, PiB, EiB): the largest unit the amount reads under 1024 in once rounded to a tenth, at most one fraction digit.
 - `fmtMarkupText(v: unknown): string` — markup as the one line of text it reads: `inlineMarkup`'s text, whitespace collapsed.
 - `fmtBool(v: unknown): string` — `'✓'` or `''`, for table cells.
-- `fmtYesNo(v: unknown): string` — `'yes'` / `'no'`, for detail prose.
+- `fmtYesNo(v: unknown): string` — `uiDataMessages.yes` / `uiDataMessages.no`, for detail prose: "yes" / "no" until `configureUiDataMessages({ yes, no })` says otherwise. `@greendrake/ui`'s `configurableMessages` keeps them (`UiDataMessages`), so an app with i18n calls it at boot and again on a locale change.
 
 ### inlineMarkup, InlineMarkup
 
@@ -348,7 +331,7 @@ Beside `fmtBool` and `fmtYesNo`, which read any value as a boolean, the formatte
 
 ### NoteActions
 
-An operator's decisions on a record, recorded with a note. Props: `actions: NoteAction[]` and `placeholder: string`. `NoteAction` is `{ label, fn(note) => Promise, note?: 'optional' | 'required', confirm? }`: a button per action; the note field shows when any action takes a note, one requiring it stays disabled until there is one, and one with `confirm` asks in a modal first. The actions share one in-flight guard and an error line; `done` is emitted once one succeeded, so the parent re-reads. `suspensionActions(suspended, suspend, unsuspend)` is the pair a suspendable record offers — Suspend on a required reason, or Unsuspend.
+An operator's decisions on a record, recorded with a note. Props: `actions: NoteAction[]` and `placeholder: string`. `NoteAction` is `{ label, fn(note) => Promise, note?: 'optional' | 'required', confirm? }`: a button per action; the note field shows when any action takes a note, one requiring it stays disabled until there is one, and one with `confirm` asks in a modal first. The actions share one in-flight guard and an error line; `done` is emitted once one succeeded, so the parent re-reads.
 
 ### DescriptionList
 

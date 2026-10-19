@@ -43,8 +43,8 @@ export const requireEnv = (env: Record<string, string>, key: string): string => 
 // which it sets per command.
 //
 // process.env still wins over the file, which is what lets the dev-stack
-// launchers and deploy pipelines (mcp/*, up.py, build-artifacts.sh) inject
-// their own ports, hosts and keys into an otherwise unchanged app.
+// launchers and deploy pipelines inject their own ports, hosts and keys into an
+// otherwise unchanged app.
 export const dashApp =
     (options: DashAppOptions): UserConfigFnObject =>
     (configEnv: ConfigEnv): UserConfig => {

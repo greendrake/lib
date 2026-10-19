@@ -8,24 +8,10 @@ export interface NoteAction {
     note?: 'optional' | 'required'
     confirm?: string
 }
-
-// The decisions a suspendable record offers: Suspend, on a required reason,
-// while it is not suspended; Unsuspend while it is.
-export const suspensionActions = (suspended: boolean, suspend: (reason: string) => Promise<unknown>, unsuspend: () => Promise<unknown>): NoteAction[] =>
-    suspended
-        ? [{ label: 'Unsuspend', fn: unsuspend }]
-        : [
-              {
-                  label: 'Suspend',
-                  fn: suspend,
-                  note: 'required'
-              }
-          ]
 </script>
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Modal } from '@greendrake/ui'
-import { useAsyncAction } from './useAsyncAction'
+import { Modal, useAsyncAction } from '@greendrake/ui'
 
 // The operator-decision shell: a note where a decision takes one, and a button
 // per decision that records it. The parent owns the (silent) API calls and

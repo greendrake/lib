@@ -127,6 +127,7 @@ items.sort(composeComparators<Item>(byPreset('kind', ['grid', 'solar']), byProp(
 - `fetchJson<T>(url, init?)` — `safeFetch`, then `HttpError` on non-2xx, else the parsed JSON body as `T`.
 - `NetworkError` — `name` `'NetworkError'`; message taken from the wrapped error, which is kept as `cause`. Transport-level failures elsewhere (an abnormal WebSocket close, say) can extend it so one `instanceof` check classifies all of them.
 - `HttpError` — `status`, `statusText`; message `"<status> <statusText>"`.
+- `OriginPolicy` — which browser origins a server admits: `'*'`, a list of origins as browsers send them (`'https://app.example.com'`), or a predicate. `admitsOrigin(policy, origin)` applies one.
 
 ```ts
 import { fetchJson, HttpError, NetworkError } from '@greendrake/util'

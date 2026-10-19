@@ -12,15 +12,16 @@ TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d
 
 ## The wire
 
-This package is the client end of one format, and this section defines it for both ends. It is deliberately not JSON-RPC. One request envelope, one response envelope, JSON on both transports:
+This package is the client end of one format, and this section defines it for both ends: every server of the format implements it. It is deliberately not JSON-RPC. JSON on both transports, with one request envelope and one response envelope.
+
+### Envelopes
 
 ```ts
 interface RpcRequest {
     method: string
-    nonce?: string // server-side dedup key; omitted on nonce-less calls
+    nonce?: string // dedup key; omitted on nonce-less calls
     locale?: string // the caller's UI language tag, when a provider is configured
     arguments?: unknown[] // omitted when empty
-    [key: string]: unknown // the WebSocket transport adds `id`
 }
 
 interface RpcResponse {
@@ -31,7 +32,13 @@ interface RpcResponse {
 }
 ```
 
-The WebSocket transport puts an `id` on both directions for correlation and additionally receives server-push frames, `{ type: 'event', event, data }` and bare `{ type, data }`.
+Over HTTP one `POST` carries one request, and its body is the response. Over WebSocket many calls share one socket:
+
+- A request carries an `id`, and its response comes back as `{ type: 'response', id, ...RpcResponse }`. A frame that does not parse is answered with no `id`.
+- Calls run concurrently, so responses come back in whatever order they finish.
+- The server pushes frames nobody asked for: `{ type: 'event', event, data }`, and bare `{ type, data }` for any other `type` but `response`.
+
+### State streams
 
 A state stream is a bare frame type whose `data` is one of two shapes:
 
@@ -39,6 +46,47 @@ A state stream is a bare frame type whose `data` is one of two shapes:
 - `{ patch }`, an RFC 7386 merge patch over it. Objects merge, `null` removes a member, and anything else replaces, so collections are objects keyed by id.
 
 A document has no `null` members, since a patch could not tell one from a removal. A patch is only ever over the document its own socket was sent.
+
+### Credentials
+
+A credential is a token, and a token that names nobody leaves its caller anonymous rather than refused: what that costs is decided by each method's own rule.
+
+- **HTTP:** `Authorization: Bearer <token>`.
+- **WebSocket, at the handshake:** the `token` query parameter (`TOKEN_PARAM`). A browser cannot put a header on a WebSocket, and a reconnect carries the URL again, so the socket re-authenticates by itself.
+- **WebSocket, in band:** the reserved methods, which the server answers itself.
+  - `auth.token` (`AUTH_TOKEN_METHOD`), with `arguments: [token]`, binds the socket to the principal the token names. It answers success, `UNAUTHENTICATED` for a token naming nobody, `INVALID_ARGUMENT` for anything but one token, or `AUTH_NOT_CONFIGURED` from a server with no notion of identity.
+  - `auth.logout` (`AUTH_LOGOUT_METHOD`) unbinds it, and succeeds.
+
+  Calls sent after one of these are made by whoever it leaves the socket bound as.
+
+A server admits a browser's socket from its own origin and from the origins it is configured with, and refuses any other at the handshake. HTTP's origin policy is CORS.
+
+### Nonces and aborts
+
+A request carrying a `nonce` runs once: a repeat is refused with `DUPLICATE_REQUEST`. The nonce is checked once the method, the principal and its access are settled, so a request refused before then leaves its nonce unspent.
+
+Over WebSocket a frame may carry `abort: <nonce>`, the nonce of an earlier request on the same socket. That request is cancelled, and its response is never sent. The abort itself is answered with nothing. It may come alone, `{ abort }`, or on a new request: a search typed on a debounce cancels the previous query and starts the next in one frame.
+
+### Error codes
+
+The codes the protocol answers with itself are `PROTOCOL_CODES` (`ProtocolCode`, the type). A method's own codes are its contract's.
+
+| Code | Answers |
+| --- | --- |
+| `INTERNAL_ERROR` | a fault in the method: anything it failed with but a code of its own |
+| `UNKNOWN_METHOD` | a method the server does not serve |
+| `INVALID_JSON` | a body or frame that is no request envelope |
+| `REQUEST_TOO_LARGE` | an HTTP body over the server's limit |
+| `INVALID_ARGUMENT` | arguments that do not parse or validate; `error_details`, where present, has an entry per failed field, each naming its `field` (the dotted path as sent, empty for a positional argument) and saying the rest in its validator's terms |
+| `AUTH_REQUIRED` | a method that needs a principal, called without one |
+| `UNAUTHENTICATED` | an `auth.token` whose token names nobody |
+| `AUTH_NOT_CONFIGURED` | an `auth.token` to a server with no notion of identity |
+| `DUPLICATE_REQUEST` | a nonce already used |
+| `WEBSOCKET_REQUIRED` | a method that needs a socket to push to, called over HTTP |
+
+A code ending in `_NOT_FOUND` says the thing a call names does not exist, and the client maps every one to a `NotFoundError`.
+
+### Building and settling
 
 `packRequest(method, args, nonce, locale?)` builds the request: a fresh random `nonce` when `nonce` is true, `arguments` only when non-empty, `locale` only when supplied. `settleResponse(response, method)` returns `data` on success or throws the mapped error (see Errors); in a Vite dev build a non-success response is also logged with `console.warn`.
 
@@ -91,20 +139,15 @@ A `fetch` rejection (DNS, refused connection, offline, CORS) surfaces as `@green
 Two layers. `WebSocketPipe` owns the connection lifecycle and raw string frames; `WsTransport` speaks the wire format over it: id-correlated request/response, typed push subscription, and an injected auth handshake re-applied on every reconnect.
 
 ```ts
-import { WebSocketPipe, WsTransport, type WsAuthStrategy } from '@greendrake/rpc'
+import { WebSocketPipe, WsTransport, tokenAuth } from '@greendrake/rpc'
 
 interface Pushes {
     'thread.message': { thread_id: string; body: string }
 }
 
-const auth: WsAuthStrategy = {
-    authenticate: (send, token) => send({ method: 'auth.token', arguments: [token] }),
-    deauthenticate: send => send({ method: 'auth.logout' })
-}
-
 const transport = new WsTransport<Pushes>({
     pipe: new WebSocketPipe({ url: 'wss://api.example.com/v1/ws' }),
-    auth
+    auth: tokenAuth
 })
 
 const off = transport.onEvent('thread.message', data => {
@@ -148,7 +191,7 @@ The pipe is an `Emitter<WebSocketPipeEvents>` from `@greendrake/util`: `on('open
 - `onConnectionChange(listener)` — one call per underlying transition, deliberately not deduplicated: consecutive `false` reports are consecutive failed attempts, which is how a consumer tells a blip from an outage. Returns the unsubscribe function.
 - `probe(method, deadlineMs = 5000)` — liveness check for a half-open socket (a backgrounded mobile app, an expired NAT mapping): sends `method` and, if nothing at all arrives on the socket before the deadline, drops it and reconnects at once. Resolves `true` when the socket is alive (any answer counts, a refusal included), `false` when it was dropped or was already down.
 
-`WsAuthStrategy` is `{ authenticate(send, token), deauthenticate(send) }`, with `send: WsSend = (payload: RpcRequest) => Promise<unknown>`. Which methods make up the handshake is application protocol; the transport owns only the lifecycle.
+`WsAuthStrategy` is `{ authenticate(send, token), deauthenticate(send) }`, with `send: WsSend = (payload: RpcRequest) => Promise<unknown>`. The transport owns only the lifecycle; the handshake is the strategy's. `tokenAuth` is the wire's own, over `auth.token` and `auth.logout`; a server answering other methods is given a strategy sending those.
 
 ## Live bindings
 
@@ -213,14 +256,11 @@ A server's half is here too, so that both ends agree on what a document is: `doc
 
 ## Errors
 
-- `ApiError` — a business error from the server: `message` is the error code, `details` mirrors `error_details`.
-- `NotFoundError` — extends `OneOutcomeError`. `message` is `'Not found'`; `code` holds the server code it was made from, absent when the app raises one itself.
-- `OneOutcomeError` — base class for errors whose only sensible UX is a single acknowledgement, no retry. Pure data; presentation belongs to the UI layer.
+- `ApiError` — a failure the server answered with: `code` is the response's `error` (and the `message`), `details` its `error_details`.
+- `NotFoundError` — extends `ApiError`, for every `*_NOT_FOUND` code. `new NotFoundError()`, an app's own not-found (a route that resolved to nothing), is `NOT_FOUND`.
 - `WebSocketClosedError` — extends `@greendrake/util`'s `NetworkError`. Carries `code`, `reason` and `wasClean` from the `CloseEvent`; `inFlight` (whether the failed request was already on the wire — one that never left is safe to re-issue, one in flight may have executed server-side with only its response lost); `isAbnormal` (anything but a clean 1000/1001 close); `asInFlight()`.
 
-Mapping rule, `makeError(code, details?)`, shared by both transports: the code `notfound` and any code ending in `_NOT_FOUND` become a `NotFoundError`; every other code becomes an `ApiError` carrying `details`. Transport failures — a `fetch` rejection, a socket closing under a call — are `NetworkError`s, so one `instanceof NetworkError` check classifies all of them.
-
-`codeOf(e)` returns the server code wherever the class keeps it (`ApiError.message`, `NotFoundError.code`) and the message for anything else. Key on it rather than on `message`, or every `*_NOT_FOUND` is missed.
+Mapping rule, `makeError(code, details?)`, shared by both transports: any code ending in `_NOT_FOUND` becomes a `NotFoundError`, every other code an `ApiError`, each carrying `details`. Transport failures — a `fetch` rejection, a socket closing under a call — are `NetworkError`s, so one `instanceof NetworkError` check classifies all of them.
 
 ## Response cache
 

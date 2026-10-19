@@ -105,6 +105,6 @@ export default [
         // of them is generated code no rule here has an opinion about. A
         // tracked source directory whose name starts with "dist" is not a
         // thing, so the wildcard costs nothing.
-        ignores: ['**/dist*/**', '**/node_modules/**', '**/playwright-report/**', '**/test-results/**', '**/.playwright-mcp/**']
+        ignores: ['**/dist*/**', '**/node_modules/**', '**/playwright-report/**', '**/test-results/**']
     }
 ]

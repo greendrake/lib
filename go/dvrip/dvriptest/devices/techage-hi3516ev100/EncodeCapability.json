@@ -1,0 +1,131 @@
+{
+  "ChannelMaxSetSync": 0,
+  "CombEncodeInfo": [
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": true,
+      "HaveAudio": true,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "MainStream"
+    },
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": false,
+      "HaveAudio": false,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "ExtraStream2"
+    },
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": false,
+      "HaveAudio": false,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "ExtraStream3"
+    },
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": false,
+      "HaveAudio": false,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "ExtraStream4"
+    },
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": false,
+      "HaveAudio": false,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "JPEGStream"
+    }
+  ],
+  "Compression": "0x00000000",
+  "EncodeInfo": [
+    {
+      "CompressionMask": "0x00000180",
+      "Enable": true,
+      "HaveAudio": true,
+      "ResolutionMask": "0x00004800",
+      "StreamType": "MainStream"
+    },
+    {
+      "CompressionMask": "0x00000180",
+      "Enable": true,
+      "HaveAudio": true,
+      "ResolutionMask": "0x00000009",
+      "StreamType": "ExtraStream2"
+    },
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": false,
+      "HaveAudio": false,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "ExtraStream3"
+    },
+    {
+      "CompressionMask": "0x00000000",
+      "Enable": false,
+      "HaveAudio": false,
+      "ResolutionMask": "0x00000000",
+      "StreamType": "ExtraStream4"
+    },
+    {
+      "CompressionMask": "0x00000180",
+      "Enable": true,
+      "HaveAudio": true,
+      "ResolutionMask": "0x00000009",
+      "StreamType": "JPEGStream"
+    }
+  ],
+  "ExImageSizePerChannel": [
+    "0x00000009"
+  ],
+  "ExImageSizePerChannelEx": [
+    [
+      "0x00000018",
+      "0x00000000",
+      "0x00000000",
+      "0x00000018",
+      "0x00000010",
+      "0x00000078",
+      "0x00000040",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000009",
+      "0x00000009",
+      "0x00000000",
+      "0x00000009",
+      "0x00000000",
+      "0x00000009",
+      "0x00000009",
+      "0x00000009",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000",
+      "0x00000000"
+    ]
+  ],
+  "FourthStreamImageSize": [
+    "0x00000000"
+  ],
+  "ImageSizePerChannel": [
+    "0x00004800"
+  ],
+  "MaxBitrate": 49152,
+  "MaxEncodePower": 49766400,
+  "MaxEncodePowerPerChannel": [
+    "0x02F76000"
+  ],
+  "ThirdStreamImageSize": [
+    "0x00000000"
+  ]
+}

@@ -41,6 +41,7 @@ app.run()
 | `ready` | `() => Promise[]` — init work the boot splash must outlast (config fetch, locale load). |
 | `onRouter(router)` | Runs once the router exists, before mount — for a layer that navigates on its own account, such as an error UX's "go home". |
 | `onBootError(error)` | Where a failed boot is reported (see Boot sequence). Without it the failure is rethrown as an unhandled rejection. |
+| `onRouteFetchError(error, to)` | What a route's failed `meta.fetch` makes of its navigation, as `beforeRoute`'s return would: `false` aborts it quietly, for an error UX that has already shown the failure. Without it the error is rethrown and the navigation fails with it (`router.onError`). |
 
 An unknown option is an error. A layer that navigates through `onRouter` holds the router from the moment it exists, so the stores and other non-component modules it serves can navigate without importing the app module.
 
@@ -79,7 +80,7 @@ import { preload } from '@greendrake/vue-app'
 const item = computed(() => preload.item as Item)
 ```
 
-`preload` is reactive: a param change (`/items/1` → `/items/2`) re-runs the fetch and refreshes the mounted component. A failed fetch aborts the navigation silently — the API client's error toast owns the failure's UX.
+`preload` is reactive: a param change (`/items/1` → `/items/2`) re-runs the fetch and refreshes the mounted component. A failed fetch is `onRouteFetchError`'s to settle; without it, the navigation fails with the error.
 
 `meta.getTitle(data)` derives the document title from the preloaded data, live: it re-runs whenever the slot changes, so a push that replaces the data retitles the tab as it re-renders the page. Titles render as `<route title> | <defaultTitle>`; a route without a title shows the default.
 

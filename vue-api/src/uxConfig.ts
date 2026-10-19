@@ -19,7 +19,7 @@ export interface ConnectionSource {
 
 interface ApiUXConfig {
     // Receives genuine unexpected failures (and abnormal WebSocket drops) for
-    // reporting — e.g. the visit subsystem's error channel.
+    // reporting, wherever the app reports errors to.
     errorSink?: ErrorSink
     // Drives the not-found toast's "To the home page" action; typically
     // router.push('/'). apiUXHooks.onRouter wires it to the app's router.

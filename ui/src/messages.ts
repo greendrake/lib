@@ -20,11 +20,8 @@ const defaults = {
     cancel: 'Cancel',
     close: 'Close',
     clear: 'Clear',
-    tryAgain: 'Try again',
-    trying: 'Trying...',
     // {seconds} is replaced with the countdown value at render time.
     retryCountdown: 'Error. Retrying in {seconds}',
-    toHomePage: 'To the home page',
     nothingFound: 'Nothing found',
     searchResults: 'Search results',
     search: 'Search',
@@ -38,10 +35,7 @@ const defaults = {
     invalidEmail: 'Not a valid email address',
     selectOption: 'Select an option',
     // The accessible name of InfoTip's mark; what it explains is the tooltip.
-    aboutThis: 'About this',
-    errorOther: 'Oops.. Sorry, something went wrong',
-    errorNetwork: 'Looks like a network connectivity issue',
-    errorNotFound: 'The requested page not found'
+    aboutThis: 'About this'
 }
 
 export type UiMessages = typeof defaults

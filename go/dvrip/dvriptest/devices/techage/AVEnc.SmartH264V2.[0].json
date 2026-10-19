@@ -1,0 +1,36 @@
+{
+  "Smart264PlusV2": [
+    {
+      "SmartH264Plus": 0
+    },
+    {
+      "SmartH264Plus": 0
+    },
+    {
+      "SmartH264Plus": 0
+    },
+    {
+      "SmartH264Plus": 0
+    },
+    {
+      "SmartH264Plus": 0
+    }
+  ],
+  "Smart264V2": [
+    {
+      "SmartH264": false
+    },
+    {
+      "SmartH264": false
+    },
+    {
+      "SmartH264": false
+    },
+    {
+      "SmartH264": false
+    },
+    {
+      "SmartH264": false
+    }
+  ]
+}

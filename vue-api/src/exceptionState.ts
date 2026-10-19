@@ -1,17 +1,18 @@
 import { h } from 'vue'
 import { defineStore } from 'pinia'
 import { NetworkError } from '@greendrake/util'
-import { NotFoundError, OneOutcomeError, WebSocketClosedError } from '@greendrake/rpc'
+import { NotFoundError, WebSocketClosedError } from '@greendrake/rpc'
 import { showToast } from '@greendrake/ui'
 import { useAppState } from '@greendrake/vue-kit'
 import ExceptionToast from './ExceptionToast.vue'
 import { getErrorSink } from './uxConfig'
 
-export type ExceptionKind = 'network' | 'notfound' | 'oneoutcome' | 'other' | false
+// What the toast makes of a failure: a not-found is only acknowledged, the rest
+// may be tried again.
+export type ExceptionKind = 'network' | 'notfound' | 'other' | false
 
 export const classifyException = (e: Error): Exclude<ExceptionKind, false> => {
     if (e instanceof NotFoundError) return 'notfound'
-    if (e instanceof OneOutcomeError) return 'oneoutcome'
     if (e instanceof NetworkError) return 'network'
     return 'other'
 }
@@ -23,9 +24,7 @@ interface ExceptionState {
 export interface FailOptions {
     retry?: () => Promise<void>
     cancel?: () => void
-    // Runs when the user acknowledges an acknowledge-only (notfound/
-    // oneoutcome) toast — the UI-side successor of the dismiss callback the
-    // old transport error type carried.
+    // Runs when the user acknowledges a not-found's toast.
     onDismiss?: () => void
     // Attached to the error report (e.g. the failed RPC's method name).
     reportContext?: Record<string, unknown>
@@ -58,8 +57,8 @@ export const useExceptionState = defineStore('exceptionstate', {
                 return
             }
             const kind = classifyException(e)
-            // Report genuine unexpected failures. notfound/oneoutcome and
-            // ordinary network blips are expected operational conditions and
+            // Report genuine unexpected failures. A not-found and ordinary
+            // network blips are expected operational conditions and
             // would only be noise — but an *abnormal* WebSocket close is
             // reported so server-side or idle-timeout drops stay diagnosable.
             // Done before the same-kind dedup below so every distinct report
@@ -93,7 +92,6 @@ export const useExceptionState = defineStore('exceptionstate', {
             this.exception = kind
             const { destroy } = showToast({
                 content: h(ExceptionToast, {
-                    error: e,
                     kind,
                     // Whether there is a page to stay on. A committed
                     // navigation is exactly that: something usable is already
@@ -104,7 +102,6 @@ export const useExceptionState = defineStore('exceptionstate', {
                     // toast blocks the app anyway.
                     canStayPut: useAppState().hasNavigated,
                     retry: () => handlers.retry?.(),
-                    hide: () => destroy(),
                     cancel: () => {
                         destroy()
                         this.exception = false
@@ -112,7 +109,7 @@ export const useExceptionState = defineStore('exceptionstate', {
                         handlers.onDismiss?.()
                     }
                 }),
-                hideOnClick: false,
+                blocking: true,
                 variant: 'warning'
             })
             handlers.hideToast = destroy

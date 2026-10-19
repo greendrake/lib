@@ -4,7 +4,7 @@ import type { Plugin } from 'vite'
 // <script type="application/json" id="<id>">JSON</script> — that the app
 // reads at runtime instead of a compile-time define. A null value leaves the
 // element empty, for the Go binary that serves the build to fill
-// (greendrake/spa's Data, which matches the element in exactly this form).
+// (greendrake.nz/go/spa's Data, which matches the element in exactly this form).
 // `<` is escaped so no value can end the script element.
 export const htmlData = (map: Record<string, unknown>): Plugin => ({
     name: 'greendrake-html-data',

@@ -1,4 +1,8 @@
 node_modules
-dist
+# Builds, wherever they land. Contents rather than the directories: a Go
+# binary's embed directory keeps its placeholder, which git could not take back
+# from an ignored directory.
+**/dist/*
+!apps/*/server/cmd/*/dist/.gitkeep
 test-results
 playwright-report

@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/rpc-server",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "RPC server over JSON for bun: method dispatch with auth, nonce and Standard Schema argument validation, HTTP and WebSocket transports, connection registry and server push",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -35,6 +35,7 @@
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
         "@greendrake/rpc": "workspace:^",
+        "@greendrake/util": "workspace:^",
         "@standard-schema/spec": "^1.1.0"
     },
     "devDependencies": {

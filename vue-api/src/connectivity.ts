@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef } from 'vue'
 import { defineStore } from 'pinia'
 import { createDeferred } from '@greendrake/util'
+import { apiMessages } from './messages'
 import { getConnectionSource } from './uxConfig'
 
 // Connectivity as the app's UX layer sees it, driven by the transport that
@@ -77,13 +78,12 @@ export const useConnectivity = defineStore('connectivity', () => {
     }
 })
 
-// The catalogue key of the offline message to show (this package's
-// `connection` namespace). The device's own claim picks between them: "your
-// connection is gone" and "the site cannot be reached" are materially
+// The offline message to show. The device's own claim picks between the two:
+// "your connection is gone" and "the site cannot be reached" are materially
 // different things to tell someone, and the device signal — useless as a
 // verdict on whether calls can succeed — is the only thing that distinguishes
 // them.
-export const useConnectionMessageKey = (): ComputedRef<string> => {
+export const useConnectionMessage = (): ComputedRef<string> => {
     const connectivity = useConnectivity()
-    return computed(() => (connectivity.deviceOffline ? 'connection.device_offline' : 'connection.unreachable'))
+    return computed(() => (connectivity.deviceOffline ? apiMessages.deviceOffline : apiMessages.unreachable))
 }

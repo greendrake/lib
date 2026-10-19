@@ -69,19 +69,19 @@ describe('HttpTransport', () => {
         expect(result.sawHeader).toBe('yes')
     })
 
-    test('*_NOT_FOUND maps to NotFoundError', async () => {
-        await expect(client.call('thing.get', 'T1')).rejects.toBeInstanceOf(NotFoundError)
+    test('*_NOT_FOUND maps to NotFoundError, keeping its code', async () => {
+        await expect(client.call('thing.get', 'T1')).rejects.toThrow(new NotFoundError('THING_NOT_FOUND'))
+        await expect(client.call('thing.get', 'T1')).rejects.toMatchObject({ code: 'THING_NOT_FOUND' })
     })
 
     test('other codes map to ApiError with details', async () => {
-        try {
-            await client.call('forbidden')
-            expect.unreachable()
-        } catch (e) {
-            expect(e).toBeInstanceOf(ApiError)
-            expect((e as ApiError).message).toBe('FORBIDDEN')
-            expect((e as ApiError).details).toEqual({ reason: 'test' })
-        }
+        const failure = client.call('forbidden')
+        await expect(failure).rejects.toBeInstanceOf(ApiError)
+        await expect(failure).rejects.toMatchObject({
+            code: 'FORBIDDEN',
+            message: 'FORBIDDEN',
+            details: { reason: 'test' }
+        })
     })
 
     test('transport failure surfaces as NetworkError', async () => {

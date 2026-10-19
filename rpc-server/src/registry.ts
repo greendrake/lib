@@ -1,12 +1,12 @@
 import type { ServerWebSocket } from 'bun'
 import { documentOf, identityCodec, mergePatchBetween, type JsonObject } from '@greendrake/rpc'
-import type { AuthInfo, Codec, EventFrame, ServerFrame } from './types'
+import type { Codec, EventFrame, ServerFrame } from './types'
 
 // Per-socket state, carried as Bun's websocket `data`.
-export interface ConnectionData {
+export interface ConnectionData<P = never> {
     // Who the socket is bound as: the query-parameter credential it opened
     // with, or whatever an in-band auth frame has since made it.
-    auth: AuthInfo
+    principal: P | null
     // Aborted when the socket closes, so every handler still running on it
     // learns its caller is gone.
     controller: AbortController
@@ -14,17 +14,32 @@ export interface ConnectionData {
     // Serialises the frames that change who the connection is against the
     // calls that depend on the answer. See the WebSocket handler.
     gate: Promise<unknown>
+    // The calls running on the socket that an abort can name, by nonce.
+    abortable: Map<string, AbortController>
 }
 
-export type Connection = ServerWebSocket<ConnectionData>
+export type Connection<P = never> = ServerWebSocket<ConnectionData<P>>
 
 // What a subsystem needs in order to tell clients something happened, without
 // knowing what a connection is. Push-producing code takes this, not the
-// registry.
+// registry. A user is named by the key the registry files principals under.
 export interface EventSink {
-    emitToUser(userId: unknown, event: string, data: unknown): void
+    emitToUser(userKey: unknown, event: string, data: unknown): void
     broadcastEvent(event: string, data: unknown): void
 }
+
+// What the sockets of one principal are filed under, for emitToUser to reach
+// them all. A primitive principal (a user id) is its own key. An object one is
+// a fresh object for each socket its credential is resolved on, so it names the
+// key its sockets share, and the type insists.
+type UserKeyOption<P> = [P] extends [string | number | bigint | boolean | symbol] ? { userKey?: (principal: P) => unknown } : { userKey: (principal: P) => unknown }
+
+export type ConnRegistryOptions<P> = UserKeyOption<P> & {
+    // Governs every frame on the socket, in both directions.
+    codec?: Codec
+}
+
+type ConnRegistryArgs<P> = object extends ConnRegistryOptions<P> ? [options?: ConnRegistryOptions<P>] : [options: ConnRegistryOptions<P>]
 
 // What a producer holds of its document: publishing it is the producer's whole part.
 export interface Document {
@@ -91,32 +106,34 @@ interface Published {
 // socket.
 //
 // And the documents every socket keeps (see document()).
-export class ConnRegistry implements EventSink, Audience {
-    readonly #connections = new Set<Connection>()
+export class ConnRegistry<P = never> implements EventSink, Audience {
+    readonly #connections = new Set<Connection<P>>()
     readonly #documents: Published[] = []
     readonly #presence = new Set<(present: boolean) => void>()
-    readonly #byUser = new Map<unknown, Set<Connection>>()
+    readonly #byUser = new Map<unknown, Set<Connection<P>>>()
     // Where each connection is currently filed, so a principal that changes
     // mid-connection can be re-indexed without the caller tracking what it
     // used to be.
-    readonly #filedUnder = new Map<Connection, unknown>()
+    readonly #filedUnder = new Map<Connection<P>, unknown>()
     // A topic's sockets, and a socket's topics: the second so a closing socket
     // leaves every topic it is in without a search through all of them.
-    readonly #topicMembers = new Map<string, Set<Connection>>()
-    readonly #joined = new Map<Connection, Set<string>>()
+    readonly #topicMembers = new Map<string, Set<Connection<P>>>()
+    readonly #joined = new Map<Connection<P>, Set<string>>()
+    readonly #userKey: (principal: P) => unknown
     // Public because the WebSocket handler decodes inbound frames with it:
     // one codec governs the socket in both directions, and it is configured
     // here, once.
     readonly codec: Codec
 
-    constructor(codec: Codec = identityCodec) {
-        this.codec = codec
+    constructor(...[options]: ConnRegistryArgs<P>) {
+        this.codec = options?.codec ?? identityCodec
+        this.#userKey = options?.userKey ?? (principal => principal)
     }
 
     // Idempotent, and the one way a connection's principal reaches the index:
     // called when a socket opens and again whenever an auth frame changes who
     // it is.
-    register(conn: Connection): void {
+    register(conn: Connection<P>): void {
         const arriving = !this.#connections.has(conn)
         this.#connections.add(conn)
         if (arriving) {
@@ -125,19 +142,20 @@ export class ConnRegistry implements EventSink, Audience {
         if (arriving && this.#connections.size === 1) {
             this.#presence.forEach(listener => listener(true))
         }
-        const userId = conn.data.auth.userId
-        if (this.#filedUnder.get(conn) === userId) {
+        const { principal } = conn.data
+        const key = principal === null ? null : this.#userKey(principal)
+        if (this.#filedUnder.get(conn) === key) {
             return
         }
         this.#unfile(conn)
-        if (userId === null) {
+        if (key === null) {
             return
         }
-        addTo(this.#byUser, userId, conn)
-        this.#filedUnder.set(conn, userId)
+        addTo(this.#byUser, key, conn)
+        this.#filedUnder.set(conn, key)
     }
 
-    unregister(conn: Connection): void {
+    unregister(conn: Connection<P>): void {
         const leaving = this.#connections.delete(conn)
         this.#unfile(conn)
         // A copy: leaving a topic takes it out of the set being walked.
@@ -153,7 +171,7 @@ export class ConnRegistry implements EventSink, Audience {
     // already closed joins nothing: a handler can outlive its caller, and a
     // membership taken after the close would be a dead socket published to for
     // as long as the process runs.
-    join(conn: Connection, topic: string): void {
+    join(conn: Connection<P>, topic: string): void {
         if (!this.#connections.has(conn)) {
             return
         }
@@ -161,7 +179,7 @@ export class ConnRegistry implements EventSink, Audience {
         addTo(this.#joined, conn, topic)
     }
 
-    leave(conn: Connection, topic: string): void {
+    leave(conn: Connection<P>, topic: string): void {
         removeFrom(this.#topicMembers, topic, conn)
         removeFrom(this.#joined, conn, topic)
     }
@@ -184,27 +202,27 @@ export class ConnRegistry implements EventSink, Audience {
         }
     }
 
-    #unfile(conn: Connection): void {
+    #unfile(conn: Connection<P>): void {
         if (!this.#filedUnder.has(conn)) {
             return
         }
-        const userId = this.#filedUnder.get(conn)
+        const key = this.#filedUnder.get(conn)
         this.#filedUnder.delete(conn)
-        removeFrom(this.#byUser, userId, conn)
+        removeFrom(this.#byUser, key, conn)
     }
 
     // The one place a frame becomes bytes: responses and pushes leave a socket
     // the same way, so a codec is configured once rather than per call site.
-    send(conn: Connection, frame: ServerFrame): void {
+    send(conn: Connection<P>, frame: ServerFrame): void {
         conn.send(this.codec.encode(JSON.stringify(frame)))
     }
 
-    sendToUser(userId: unknown, frame: ServerFrame): void {
-        this.#byUser.get(userId)?.forEach(conn => this.send(conn, frame))
+    sendToUser(userKey: unknown, frame: ServerFrame): void {
+        this.#byUser.get(userKey)?.forEach(conn => this.send(conn, frame))
     }
 
-    emitToUser(userId: unknown, event: string, data: unknown): void {
-        this.sendToUser(userId, eventFrame(event, data))
+    emitToUser(userKey: unknown, event: string, data: unknown): void {
+        this.sendToUser(userKey, eventFrame(event, data))
     }
 
     // To every open socket, whoever it is bound as — for state the whole
@@ -247,7 +265,7 @@ export class ConnRegistry implements EventSink, Audience {
         }
     }
 
-    #greet(conn: Connection, published: Published): void {
+    #greet(conn: Connection<P>, published: Published): void {
         this.send(conn, { type: published.type, data: { doc: published.doc } })
     }
 

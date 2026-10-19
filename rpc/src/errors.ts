@@ -1,42 +1,28 @@
 import { NetworkError } from '@greendrake/util'
 
-// An error whose only sensible UX is a single acknowledgement (no retry).
-// Pure data — presentation (toasts, dismiss handlers) belongs to the UI layer.
-export class OneOutcomeError extends Error {}
-
-export class NotFoundError extends OneOutcomeError {
-    // The backend code this was made from, when there was one. makeError folds
-    // every `*_NOT_FOUND` code into this class, and the message is display
-    // text rather than the code, so without carrying it here the code would be
-    // gone — leaving anything that matches on codes (session teardown, the
-    // bubbled-error list) unable to see a `*_NOT_FOUND` at all. Absent when the
-    // app raises a not-found of its own, from a route that resolved to nothing.
-    readonly code: string | undefined
-
-    constructor(code?: string) {
-        super('Not found')
-        this.name = 'NotFoundError'
-        this.code = code
-    }
-}
-
-// The backend error code behind an error, wherever its class keeps it: an
-// ApiError's message IS its code, a NotFoundError holds it apart because its
-// message is display text. Anything else answers with its message, which simply
-// matches no code. The one way to key on a code — matching `message` directly
-// silently misses every `*_NOT_FOUND`.
-export const codeOf = (e: Error): string => (e instanceof NotFoundError ? (e.code ?? '') : e.message)
-
-// A backend business error: `message` is the error code, `details` mirrors the
-// response's `error_details` payload (the structured data a handler attaches
-// alongside a code, e.g. the conflicting user's id on OAUTH_ALREADY_LINKED).
+// A failure the server answered with: `code` is the response's `error` (and
+// the message), `details` its `error_details` payload (the structured data a
+// handler attaches alongside a code, e.g. the conflicting user's id on
+// OAUTH_ALREADY_LINKED).
 export class ApiError extends Error {
+    readonly code: string
     readonly details?: unknown
 
     constructor(code: string, details?: unknown) {
         super(code)
         this.name = 'ApiError'
+        this.code = code
         this.details = details
+    }
+}
+
+// Every `*_NOT_FOUND` code the server answers with. An app raising a not-found
+// of its own — a route that resolved to nothing — gives none, and is
+// NOT_FOUND.
+export class NotFoundError extends ApiError {
+    constructor(code = 'NOT_FOUND', details?: unknown) {
+        super(code, details)
+        this.name = 'NotFoundError'
     }
 }
 

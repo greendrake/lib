@@ -28,9 +28,9 @@ export interface ServeOptions<T> {
     checks?: DependencyCheck[]
     probeTimeoutMs: number
     shutdown: ShutdownOptions
-    // false disables CORS entirely — for a service reached only by other
-    // services, where no browser is involved.
-    cors?: CorsOptions | false
+    // Which browser pages may call the service; false for one no browser
+    // reaches, which answers none of them.
+    cors: CorsOptions | false
     // Application teardown, run once the listener has stopped accepting:
     // finish in-flight work, close pools, flush.
     drain?: () => Promise<void> | void
@@ -41,10 +41,54 @@ export interface RunningService<T> {
     // Set from the moment shutdown begins: the probes report it, and an
     // application can read it to stop taking on new work of its own.
     readonly draining: boolean
-    // The shutdown sequence, as the signal handlers run it. 'forced' means the
-    // deadline elapsed first — the caller decides what that is worth, which is
-    // what lets a test drive this without the process exiting.
+    // The shutdown sequence, as the signal handlers run it; calling it again
+    // joins the one under way. 'forced' means the deadline elapsed first — the
+    // caller decides what that is worth, which is what lets a test drive this
+    // without the process exiting.
     stop(): Promise<'clean' | 'forced'>
+}
+
+interface Stoppable {
+    name: string
+    deadlineMs: number
+    stop(): Promise<'clean' | 'forced'>
+}
+
+// The services this process runs that have not finished stopping.
+const live = new Set<Stoppable>()
+
+// SIGINT/SIGTERM stop every live service at once, then exit: non-zero when any
+// was cut off at its deadline. One pair of handlers for the process, there
+// while any service is: a process running several, or a test suite starting
+// one per test, does not pile them up.
+const shutDown = (): void => {
+    void Promise.all(
+        [...live].map(async service => {
+            const outcome = await service.stop()
+            if (outcome === 'forced') {
+                console.error(`${service.name}: shutdown deadline (${service.deadlineMs}ms) exceeded, forcing exit`)
+            } else {
+                console.log(`${service.name} stopped`)
+            }
+            return outcome
+        })
+    ).then(outcomes => process.exit(outcomes.includes('forced') ? 1 : 0))
+}
+
+const SIGNALS = ['SIGINT', 'SIGTERM'] as const
+
+const track = (service: Stoppable): void => {
+    if (live.size === 0) {
+        SIGNALS.forEach(signal => process.on(signal, shutDown))
+    }
+    live.add(service)
+}
+
+const untrack = (service: Stoppable): void => {
+    live.delete(service)
+    if (live.size === 0) {
+        SIGNALS.forEach(signal => process.off(signal, shutDown))
+    }
 }
 
 // Runs a service binary: bind the port, answer the probes, and shut down on
@@ -85,44 +129,39 @@ export const serve = <T>(options: ServeOptions<T>): RunningService<T> => {
           })
     console.log(`${options.name} listening on ${server.url.href}`)
 
-    const stop = async (): Promise<'clean' | 'forced'> => {
+    const { deadlineMs, lameDuckMs } = options.shutdown
+    let stopping: Promise<'clean' | 'forced'> | undefined
+    const sequence = async (): Promise<'clean' | 'forced'> => {
         draining = true
-        const { deadlineMs, lameDuckMs } = options.shutdown
         let timer: ReturnType<typeof setTimeout> | undefined
         const expiry = new Promise<'forced'>(resolve => {
             timer = setTimeout(() => resolve('forced'), deadlineMs)
         })
-        const sequence = async (): Promise<'clean'> => {
+        const steps = async (): Promise<'clean'> => {
             await Bun.sleep(lameDuckMs)
             await server.stop()
             await options.drain?.()
             return 'clean'
         }
         try {
-            return await Promise.race([sequence(), expiry])
+            return await Promise.race([steps(), expiry])
         } finally {
             clearTimeout(timer)
+            untrack(stoppable)
         }
     }
-
-    const onSignal = (): void => {
-        void stop().then(outcome => {
-            if (outcome === 'forced') {
-                console.error(`${options.name}: shutdown deadline (${options.shutdown.deadlineMs}ms) exceeded, forcing exit`)
-                process.exit(1)
-            }
-            console.log(`${options.name} stopped`)
-            process.exit(0)
-        })
+    const stoppable: Stoppable = {
+        name: options.name,
+        deadlineMs,
+        stop: () => (stopping ??= sequence())
     }
-    process.on('SIGINT', onSignal)
-    process.on('SIGTERM', onSignal)
+    track(stoppable)
 
     return {
         server,
         get draining() {
             return draining
         },
-        stop
+        stop: stoppable.stop
     }
 }

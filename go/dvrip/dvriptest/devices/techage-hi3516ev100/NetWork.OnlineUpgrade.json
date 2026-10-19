@@ -1,0 +1,11 @@
+{
+  "AutoCheck": false,
+  "AutoUpgradeImp": false,
+  "Enable": false,
+  "IgnoreAllVersion": true,
+  "IgnoreCurTime": null,
+  "IgnoreCurVersion": false,
+  "JustImpVersion": false,
+  "ServerAddr": "upgrade.secu100.net",
+  "ServerPort": 8083
+}

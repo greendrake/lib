@@ -1,0 +1,83 @@
+{
+  "AlarmFunction": {
+    "AlarmConfig": true,
+    "BlindDetect": true,
+    "CarShapeDetection": true,
+    "HumanDection": true,
+    "HumanPedDetection": true,
+    "LossDetect": true,
+    "MotionDetect": true,
+    "NetAbort": true,
+    "NetAlarm": true,
+    "NetIpConflict": true,
+    "PEAInHumanPed": true,
+    "StorageFailure": true,
+    "StorageLowSpace": true,
+    "StorageNotExist": true
+  },
+  "CommFunction": {
+    "CommRS232": true,
+    "CommRS485": true
+  },
+  "EncodeFunction": {
+    "DoubleStream": true,
+    "SmartH264V2": true,
+    "SnapStream": true
+  },
+  "NetServerFunction": {
+    "IPAdaptive": true,
+    "NetAlarmCenter": true,
+    "NetDDNS": true,
+    "NetDHCP": true,
+    "NetDNS": true,
+    "NetEmail": true,
+    "NetFTP": true,
+    "NetIPFilter": true,
+    "NetMutlicast": false,
+    "NetNTP": true,
+    "NetNat": true,
+    "NetPMS": true,
+    "NetPMSV2": true,
+    "NetRTSP": true,
+    "NetUPNP": true,
+    "OnvifPwdCheckout": true,
+    "WifiRouteSignalLevel": true
+  },
+  "OtherFunction": {
+    "SupportAdminContactInfo": true,
+    "SupportAlarmVoiceTipInterval": true,
+    "SupportAlarmVoiceTips": true,
+    "SupportAlarmVoiceTipsType": true,
+    "SupportAppBindFlag": true,
+    "SupportBT": true,
+    "SupportCamareStyle": true,
+    "SupportCfgCloudupgrade": true,
+    "SupportChangeLanguageNoReboot": true,
+    "SupportCloseVoiceTip": true,
+    "SupportCloudUpgrade": true,
+    "SupportCommDataUpload": true,
+    "SupportDeviceInfoNew": true,
+    "SupportDimenCode": true,
+    "SupportFTPTest": true,
+    "SupportFaceDetectV2": true,
+    "SupportMailTest": true,
+    "SupportPCSetDoubleLight": true,
+    "SupportPWDSafety": true,
+    "SupportPirAlarm": false,
+    "SupportRPSVideo": false,
+    "SupportSetVolume": true,
+    "SupportShowH265X": true,
+    "SupportSnapV2Stream": true,
+    "SupportSoftPhotosensitive": true,
+    "SupportTextPassword": true,
+    "SupportTimeZone": true,
+    "SupportWriteLog": true,
+    "SuppportChangeOnvifPort": true
+  },
+  "PreviewFunction": {
+    "Talk": true
+  },
+  "TipShow": {
+    "NoBeepTipShow": true
+  }
+}

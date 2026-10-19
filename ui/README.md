@@ -5,10 +5,10 @@ Vue 3 component library: form controls with blur-time validation, a focus-confin
 ## Install
 
 ```sh
-bun add @greendrake/ui vue vue-router
+bun add @greendrake/ui vue
 ```
 
-`vue` and `vue-router` are peer dependencies (`vue-router` is used by `BottomNav` only). `@greendrake/util`, `@greendrake/domains`, `@greendrake/scss-kit` and `vue-tippy` come in as dependencies.
+`vue` is the peer dependency. `@greendrake/util`, `@greendrake/domains`, `@greendrake/scss-kit` and `vue-tippy` come in as dependencies.
 
 There is no build step and no `.d.ts`: `exports` points at `src/main.ts`, so the consumer's Vite + `vue-tsc` toolchain compiles and type-checks the SFCs directly. They are written against the `vueCompilerOptions` of `@greendrake/dev-config/tsconfig/vue.json` (`strictTemplates`, `data-*` attributes allowed); a consumer's tsconfig extends it:
 
@@ -73,9 +73,9 @@ import { configureUiMessages } from '@greendrake/ui'
 configureUiMessages({ cancel: 'Abbrechen', nothingFound: 'Nichts gefunden' })
 ```
 
-Keys and defaults: `loading` "Loading", `ok`, `cancel`, `close`, `clear`, `tryAgain`, `trying` "Trying...", `retryCountdown` "Error. Retrying in {seconds}" (`{seconds}` is substituted at render time), `toHomePage`, `nothingFound`, `searchResults`, `search`, `create`, `refresh`, `delete`, `deleting`, `newTab`, `copied`, `clickToCopy`, `invalidEmail` "Not a valid email address", `selectOption` "Select an option", `errorOther`, `errorNetwork`, `errorNotFound`.
+Keys and defaults: `loading` "Loading", `ok`, `cancel`, `close`, `clear`, `retryCountdown` "Error. Retrying in {seconds}" (`{seconds}` is substituted at render time), `nothingFound`, `searchResults`, `search`, `create`, `refresh`, `delete`, `deleting`, `newTab`, `copied`, `clickToCopy`, `invalidEmail` "Not a valid email address", `selectOption` "Select an option", `aboutThis` "About this".
 
-`configurableMessages(defaults)` is the same arrangement for a package of its own: `{ messages, configure }`, `messages` reactive and starting as `defaults` (`@greendrake/ui-rich`'s toolbar strings are kept this way).
+`configurableMessages(defaults)` is the same arrangement for a package of its own: `{ messages, configure }`, `messages` reactive and starting as `defaults`. The `@greendrake/ui/messages` entry carries this module alone, for a module that has to load without the components — one under `bun test`, which compiles no SFC.
 
 ## Form controls
 
@@ -114,7 +114,7 @@ const slugRule = (v: string): true | string => /^[a-z0-9-]+$/.test(v) || 'Lowerc
 
 ### Checkbox
 
-`v-model: boolean`. Props: `label`, `switch` (iOS-style sliding switch instead of a tick box), `disabled`. Sizing via `--checkbox-size` / `--switch-*` (see Styling contract).
+`v-model: boolean`. Props: `label`, `switch` (iOS-style sliding switch instead of a tick box), `disabled`, `indeterminate` (a tick box shown neither ticked nor not, a dash, whatever the value — a folder's tick over some of its files). Sizing via `--checkbox-size` / `--switch-*` (see Styling contract).
 
 ### CurrencyInput
 
@@ -145,6 +145,28 @@ Props: `action?: () => Promise<unknown> | unknown`, `askToConfirm` (first submit
 ### AsyncAction
 
 Button (or `tag="a"`) for a one-shot async action: label switches between `labelDirty` / `labelDone` / `labelInProgress`, the element disables itself while the promise is pending, with a `spinner` class meanwhile. Props: `promiseMaker: () => Promise<void>` (required), `labelDirty` (required), `labelDone`, `labelInProgress`, `isDirty`, `isValid`, `showSpinner` (default `true`), `type` (default `'button'`), `tag` (default `'button'`). Exposes `run()`.
+
+### useAsyncAction, errorMessage
+
+`useAsyncAction(fn)` is the bookkeeping around an action button of the page's own markup: `{ acting, error, notice, run }` (`AsyncActionState<Args>`). `run(...args)` is ignored while `acting`; it clears `error` and `notice`, awaits `fn(...args)`, takes a string it resolves to as the `notice`, and catches a rejection into `error` as its message — the failure is shown where the action was taken, so `fn` makes a silent call. Buttons sharing one in-flight state parameterise `fn` and pass the variant to `run`.
+
+```vue
+<script setup lang="ts">
+import { useAsyncAction } from '@greendrake/ui'
+
+const save = useAsyncAction(async () => {
+    await saveThing(draft.value) // reports its failure to nobody else
+    return 'Saved'
+})
+</script>
+<template>
+    <button :disabled="save.acting.value" @click="save.run()">Save</button>
+    <span v-if="save.notice.value">{{ save.notice.value }}</span>
+    <span v-if="save.error.value" class="error">{{ save.error.value }}</span>
+</template>
+```
+
+`errorMessage(e)` is a caught value as text: an `Error`'s message, anything else stringified.
 
 ### OptionSwitch
 
@@ -218,7 +240,7 @@ Full-screen image viewer in an expanded `Modal`. Props: `items: GalleryItem[]` (
 
 ### MenuButton
 
-Hover/click dropdown built on `vue-tippy`'s `Tippy` (theme `HMenu`, placement `bottom-end`), appended to `body`, or to the element filling the screen while one does; any click inside the menu closes it. Slots: `main` (trigger), `menuitems` (menu content, wrapped in `.Menubutton-Menu`). Props: `menuClass` (on the wrapper), `boxClass` (on the tippy box, applied once on create), `offset` (default `[0, -1]`), `matchTriggerWidth` (pins the popper width to the trigger's).
+Hover/click dropdown built on `vue-tippy`'s `Tippy` (theme `HMenu`, placement `bottom-end`), appended to `body`, or to the element filling the screen while one does; any click inside the menu closes it. Slots: `main` (trigger; slot prop `open`, whether the menu shows, for the trigger's `aria-expanded`), `menuitems` (menu content, wrapped in `.Menubutton-Menu`). Props: `menuClass` (on the wrapper), `boxClass` (on the tippy box, applied once on create), `offset` (default `[0, -1]`), `matchTriggerWidth` (pins the popper width to the trigger's).
 
 ### ContextMenu
 
@@ -264,6 +286,7 @@ interface ToastOptions {
     content: string | VNode // text, or a VNode with its handlers already bound
     variant?: 'accent' | 'warning' // default 'accent'
     hideOnClick?: boolean // default true: dismissed by the next key press / pointer down outside the toast layer
+    blocking?: boolean // must be answered: an overlay holds the page until the toast goes, and no interaction elsewhere dismisses it
     onHidden?: () => void
 }
 ```
@@ -284,13 +307,13 @@ Page shell: `top` slot and default (routed content) stretch, the `bottom` slot i
 
 ### BottomNav
 
-Fixed bottom tab bar for narrow viewports; the app hides it on wide ones. Prop `tabs: BottomNavTab[]`; emits `select(id)`. Default slot is a trailing cell for page actions.
+Fixed bottom tab bar for narrow viewports; the app hides it on wide ones. Props `tabs: BottomNavTab[]` and `link: Component`, what a navigating tab renders as, handed the tab's `to` — the app's router link (`RouterLink` from `vue-router`, or any component taking a `to`). Emits `select(id)`. Default slot is a trailing cell for page actions.
 
 ```ts
 interface BottomNavTab {
     id: string
     label: string
-    to?: string // route; omit for a tab that toggles a shell overlay (rendered as a button, reports via `select` + aria-expanded)
+    to?: string // the link's destination; omit for a tab that toggles a shell overlay (rendered as a button, reports via `select` + aria-expanded)
     active: boolean // the app owns the route → tab mapping
     badge?: number
 }
@@ -345,7 +368,7 @@ Independently collapsible sections, all open initially. Prop `sections: Accordio
 
 ### ThumbnailGrid
 
-Paged multi-select grid of thumbnails. Props: `loader: ThumbnailGridLoader` (required), `filters` (reloads from the first page when it changes), `thumbnailField` (default `'thumbnail'`), `titleField` (default `'title'`), `idField` (default `'node_id'`), `pageSize` (default 24). `v-model:selected: Array<string | number>`; clicking a tile toggles it. Exposes `refresh()`.
+Paged multi-select grid of thumbnails. Props: `loader: ThumbnailGridLoader` (required), `filters` (reloads from the first page when it changes), `thumbnailField` (default `'thumbnail'`), `titleField` (default `'title'`), `idField` (default `'id'`), `pageSize` (default 24). `v-model:selected: Array<string | number>`; clicking a tile toggles it. Exposes `refresh()`.
 
 ```ts
 interface ThumbnailGridLoaderParams {
