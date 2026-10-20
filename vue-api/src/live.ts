@@ -1,7 +1,7 @@
-import { onUnmounted } from 'vue'
+import { onUnmounted, reactive } from 'vue'
 import { NetworkError } from '@greendrake/util'
-import { NotFoundError, liveBinding } from '@greendrake/rpc'
-import type { LiveOptions, PushMapConstraint, WsTransport } from '@greendrake/rpc'
+import { NotFoundError, liveBinding, liveDocument } from '@greendrake/rpc'
+import type { LiveOptions, PushMapConstraint, StateFrame, WsTransport } from '@greendrake/rpc'
 import type { CallOptions } from './ApiClient'
 import { getErrorSink } from './uxConfig'
 
@@ -47,4 +47,19 @@ export const bindLive = <PEvents extends PushMapConstraint<PEvents>, PData exten
 // here rather than a silent no-op.
 export const useLive = <PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData>>(transport: WsTransport<PEvents, PData>, options: LiveOptions<PEvents, PData>): void => {
     onUnmounted(bindLive(transport, options))
+}
+
+// A state stream kept for the page's life: `initial` made reactive, and every
+// frame of the document `type` applied to it (@greendrake/rpc's liveDocument).
+// A socket is sent the whole document only as it opens, so this is called
+// before the transport connects — where the transport is made, not in a
+// component that may mount after. The document's type is the one its result is
+// taken as, `initial` only checked against it: a literal of not-yet values
+// would otherwise narrow it to themselves.
+export const keepDocument = <K extends string, D extends object, PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData> & Record<K, StateFrame<D>>>(transport: WsTransport<PEvents, PData>, type: K, initial: NoInfer<D>): D => {
+    // A document is JSON, which holds no refs for reactive() to unwrap, so the
+    // proxy is of D's own shape.
+    const doc = reactive(initial) as D
+    liveDocument(transport, type, doc)
+    return doc
 }

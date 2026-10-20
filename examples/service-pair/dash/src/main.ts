@@ -1,20 +1,21 @@
 import { TabDashboard, createDash, type DashTab } from '@greendrake/dash'
 import { ServiceStateControl } from '@greendrake/dash/service-state'
-import { api, transport } from './api'
+import { api, states } from './api'
 
-const tabs: DashTab[] = [
-    {
-        id: 'service',
-        label: 'Service',
-        component: ServiceStateControl,
-        props: {
-            // The name the API registers its mocked service under.
-            service: 'mock',
-            api,
-            transport
-        }
+// The services the API registers its mocked machines under, by their tabs'
+// labels: a tab, and a control, each.
+const SERVICES = { web: 'Web', worker: 'Worker' }
+
+const tabs: DashTab[] = Object.entries(SERVICES).map(([service, label]) => ({
+    id: service,
+    label,
+    component: ServiceStateControl,
+    props: {
+        service,
+        api,
+        states
     }
-]
+}))
 
 createDash({
     splash: ['SERVICE'],

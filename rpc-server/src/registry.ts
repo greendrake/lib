@@ -50,6 +50,13 @@ export interface Document {
     refresh(): void
 }
 
+// What a subsystem needs in order to keep a document on every socket, without
+// knowing what a connection is. Document-producing code takes this, not the
+// registry. See ConnRegistry's document().
+export interface DocumentPublisher {
+    document(type: string, produce: () => object): Document
+}
+
 // Whether anybody is connected to hear a broadcast, for a producer whose
 // pushes cost something to produce — a reading taken from somewhere slow —
 // and are worth producing only while somebody is there to be told.
@@ -106,7 +113,7 @@ interface Published {
 // socket.
 //
 // And the documents every socket keeps (see document()).
-export class ConnRegistry<P = never> implements EventSink, Audience {
+export class ConnRegistry<P = never> implements EventSink, Audience, DocumentPublisher {
     readonly #connections = new Set<Connection<P>>()
     readonly #documents: Published[] = []
     readonly #presence = new Set<(present: boolean) => void>()

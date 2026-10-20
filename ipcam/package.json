@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/ipcam",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "The browser end of the camera engine (greendrake.nz/go/ipcam): its API bound to a camera, the cameras' states, and the camera's tile and settings components",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -38,13 +38,16 @@
         "@greendrake/scss-kit": "workspace:^",
         "@greendrake/theme": "workspace:^",
         "@greendrake/ui": "workspace:^",
-        "@greendrake/util": "workspace:^"
+        "@greendrake/util": "workspace:^",
+        "@greendrake/vue-api": "workspace:^"
     },
     "peerDependencies": {
+        "pinia": "^3.0.4",
         "vue": "^3.5.34"
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
+        "pinia": "^3.0.4",
         "typescript": "6.0.3",
         "vue": "^3.5.34",
         "vue-tsc": "^2.2.0"

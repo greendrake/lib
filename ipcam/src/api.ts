@@ -1,5 +1,6 @@
-import { inject, provide, reactive, toValue, type InjectionKey, type MaybeRefOrGetter } from 'vue'
-import { liveDocument, type Caller, type PushMapConstraint, type StateFrame, type WsTransport } from '@greendrake/rpc'
+import { inject, provide, toValue, type InjectionKey, type MaybeRefOrGetter } from 'vue'
+import type { Caller, PushMapConstraint, StateFrame, WsTransport } from '@greendrake/rpc'
+import { keepDocument } from '@greendrake/vue-api'
 import type { Cameras, Clock, Group, SetResult, Setting } from './types'
 
 /** The methods on one camera, as the components call them. */
@@ -55,9 +56,5 @@ export const useCameraApi = (): CameraApi => {
     return api
 }
 
-/** Every camera's state, by name, as the engine publishes it on transport: kept for the page's life. */
-export const useCameras = <PEvents extends PushMapConstraint<PEvents>, PData extends Pushes & PushMapConstraint<PData>>(transport: WsTransport<PEvents, PData>): Cameras => {
-    const cameras = reactive<Cameras>({})
-    liveDocument(transport, 'cameras', cameras)
-    return cameras
-}
+/** Every camera's state, by name, as the engine publishes it on transport: kept for the page's life, so called before the transport connects. */
+export const useCameras = <PEvents extends PushMapConstraint<PEvents>, PData extends Pushes & PushMapConstraint<PData>>(transport: WsTransport<PEvents, PData>): Cameras => keepDocument(transport, 'cameras', {})

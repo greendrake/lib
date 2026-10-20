@@ -1,7 +1,8 @@
 // The contract a service-state pair shares: the states, the status both ends
-// pass around, the method and push names, and the transition table. Pure types
-// and data — no runtime dependency at all, so a frontend importing it pulls in
-// nothing. The machine behind it is the `./server` entry.
+// pass around, the method and document names, and the transition table. Pure
+// types and data — no runtime dependency at all, so a frontend importing it
+// pulls in nothing. The machine behind it is the `./server` entry.
+import type { StateFrame } from '@greendrake/rpc'
 
 export const SERVICE_STATES = ['OFF', 'STARTING', 'ON', 'STOPPING', 'ERROR'] as const
 
@@ -13,18 +14,22 @@ export interface ServiceRef {
     service: string
 }
 
+// Where a service stands: in ERROR, with what went wrong; in any other state,
+// without — a stale message outliving the failure it describes is worse than
+// none.
+export type ServiceCondition = { state: 'ERROR'; error: string } | { state: Exclude<ServiceState, 'ERROR'> }
+
 // Wire shape: snake_case, as the envelope's own fields are.
-export interface ServiceStatus {
-    // The service this is the status of — what a push is told apart by, since
-    // every service's pushes arrive on the same socket.
-    service: string
-    state: ServiceState
-    // What went wrong, in ERROR. Null in every other state — a stale message
-    // outliving the failure it describes is worse than none.
-    error: string | null
+export type ServiceStatus = ServiceCondition & {
     // When the service entered this state, epoch milliseconds.
     changed_at: number
 }
+
+// Every service's status, by the name its machine was registered under: the
+// document a backend publishes. A service has no entry until it has been read
+// with somebody watching (see the machine), and a socket that reconnects is
+// greeted afresh, so every lookup may find none.
+export type ServiceStates = Partial<Record<string, ServiceStatus>>
 
 // Each command: the state it is accepted from, the state the service passes
 // through while it runs, and where it lands. The machine refuses anything this
@@ -62,18 +67,21 @@ export const CONTROLS = {
 export const SERVICE_BUSY = 'SERVICE_BUSY'
 export const SERVICE_NOT_FOUND = 'SERVICE_NOT_FOUND'
 
-export const SERVICE_STATE_EVENT = 'service.state'
+export const SERVICE_STATE_DOCUMENT = 'service.state'
 
 // The methods a service-state backend serves. A dashboard hands this to its
-// typed client; the server derives its definitions from it.
+// typed client; the server derives its definitions from it. They answer
+// nothing: where the service went is the document's to say, on the one ordered
+// stream every socket keeps, so no answer can arrive out of turn with it.
 export interface ServiceStateMethods {
-    'service.status': (ref: ServiceRef) => ServiceStatus
-    'service.start': (ref: ServiceRef) => ServiceStatus
-    'service.stop': (ref: ServiceRef) => ServiceStatus
-    'service.refresh': (ref: ServiceRef) => ServiceStatus
+    'service.start': (ref: ServiceRef) => void
+    'service.stop': (ref: ServiceRef) => void
+    'service.refresh': (ref: ServiceRef) => void
 }
 
-// Every state change reaches every connected socket: a service has one state,
-// and everyone watching it is watching the same thing. The status names its
-// service, so a socket watching several follows each by its name.
-export type ServiceStatePushes = { [SERVICE_STATE_EVENT]: ServiceStatus }
+// Every service's status reaches every connected socket as one document, sent
+// whole as the socket opens and patched on every change after: a service has
+// one state, and everyone watching it is watching the same thing. A data push,
+// so a client's transport carries it in its data slot:
+// `WsTransport<Record<never, never>, ServiceStatePushes>`.
+export type ServiceStatePushes = { [SERVICE_STATE_DOCUMENT]: StateFrame<ServiceStates> }

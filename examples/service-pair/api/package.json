@@ -2,7 +2,7 @@
     "name": "@greendrake/example-service-api",
     "version": "0.1.0",
     "private": true,
-    "description": "Example service-state backend: the mocked service, its dispatch table and the bun server that exposes it over HTTP and WebSocket",
+    "description": "Example service-state backend: the mocked services, their dispatch table and the bun server that exposes them over HTTP and WebSocket",
     "type": "module",
     "scripts": {
         "dev": "bun --watch src/main.ts",

@@ -1,27 +1,46 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test'
+import { documentOf, mergePatchBetween, type JsonObject } from '@greendrake/rpc'
 import { ApiError, createDispatcher, keyAuthResolver } from '@greendrake/rpc-server'
-import type { Audience, EventSink, HandlerContext, MethodAccess } from '@greendrake/rpc-server'
-import { CONTROLS, SERVICE_STATES, SERVICE_STATE_EVENT, ServiceBusyError, TRANSITIONS, createServiceStateMachine, serviceStateMethods } from '../src/server'
-import type { ServiceImplementation, ServiceState, ServiceStateMachine, ServiceStatus } from '../src/server'
+import type { Audience, Document, DocumentPublisher, HandlerContext, MethodAccess } from '@greendrake/rpc-server'
+import { CONTROLS, SERVICE_STATES, SERVICE_STATE_DOCUMENT, ServiceBusyError, TRANSITIONS, createServiceStateMachine, serviceStateBoard, serviceStateMethods } from '../src/server'
+import type { ServiceImplementation, ServiceState, ServiceStateBoard, ServiceStateMachine, ServiceStates } from '../src/server'
 
-type Sink = EventSink & Audience & { states: () => ServiceState[]; pushes: ServiceStatus[]; watch: () => void; leave: () => void }
+type Publisher = DocumentPublisher &
+    Audience & {
+        // The document as last published: what an opening socket is greeted with.
+        doc: () => ServiceStates
+        // Every document published since the board was made, so a test asserts
+        // the sequence an operator's screen would go through rather than only
+        // where it ended up.
+        published: ServiceStates[]
+        watch: () => void
+        leave: () => void
+    }
 
-// Every push the machine sends, so a test asserts the sequence an operator's
-// screen would go through rather than only where it ended up — and an
-// audience a test opens and closes, as sockets come and go on a registry.
-const sink = (): Sink => {
-    const pushes: ServiceStatus[] = []
+// A publisher as a registry is one: the document it keeps, published only where
+// something changed, and an audience a test opens and closes, as sockets come
+// and go.
+const publisher = (): Publisher => {
+    let doc: JsonObject = {}
+    const published: ServiceStates[] = []
     const listeners = new Set<(present: boolean) => void>()
     let watchers = 0
     return {
-        pushes,
-        states: () => pushes.map(status => status.state),
-        emitToUser: () => {
-            throw new Error('the machine addresses nobody: a service has one state, and everyone watching shares it')
-        },
-        broadcastEvent: (event, data) => {
-            expect(event).toBe(SERVICE_STATE_EVENT)
-            pushes.push(data as ServiceStatus)
+        // The board's document is its ServiceStates, as it produced them.
+        doc: () => doc as ServiceStates,
+        published,
+        document: (type, produce): Document => {
+            expect(type).toBe(SERVICE_STATE_DOCUMENT)
+            doc = documentOf(type, produce())
+            return {
+                refresh: () => {
+                    const next = documentOf(type, produce())
+                    if (mergePatchBetween(doc, next)) {
+                        doc = next
+                        published.push(next as ServiceStates)
+                    }
+                }
+            }
         },
         get size() {
             return watchers
@@ -43,13 +62,17 @@ const sink = (): Sink => {
     }
 }
 
+// What a socket watching all along would have shown for a service, document by
+// document: its state, or null while it has no entry.
+const seen = (p: Publisher, name: string): (ServiceState | null)[] => p.published.map(doc => doc[name]?.state ?? null).filter((state, i, all) => i === 0 || state !== all[i - 1])
+
 // A service whose transitions are resolved by hand, so a test can hold one
 // open and look at the machine while it is mid-flight. `reads` counts the
 // times it was checked.
-const controllable = (): ServiceImplementation & { settle: (outcome?: Error) => void; observed: ServiceState; reads: number } => {
+const controllable = (): ServiceImplementation & { settle: (outcome?: Error) => void; observed: Exclude<ServiceState, 'ERROR'>; reads: number } => {
     let release: (() => void) | undefined
     let fail: ((e: Error) => void) | undefined
-    const transition = (to: ServiceState): Promise<void> =>
+    const transition = (to: Exclude<ServiceState, 'ERROR'>): Promise<void> =>
         new Promise((resolve, reject) => {
             release = () => {
                 service.observed = to
@@ -58,11 +81,11 @@ const controllable = (): ServiceImplementation & { settle: (outcome?: Error) => 
             fail = reject
         })
     const service = {
-        observed: 'OFF' as ServiceState,
+        observed: 'OFF' as Exclude<ServiceState, 'ERROR'>,
         reads: 0,
         start: () => transition('ON'),
         stop: () => transition('OFF'),
-        check: () => {
+        check: (): Promise<Exclude<ServiceState, 'ERROR'>> => {
             service.reads += 1
             return Promise.resolve(service.observed)
         },
@@ -71,12 +94,21 @@ const controllable = (): ServiceImplementation & { settle: (outcome?: Error) => 
     return service
 }
 
+// A check that fails, as one does on a service it cannot read.
+const unreadable = (service: ReturnType<typeof controllable>): void => {
+    service.check = () => {
+        service.reads += 1
+        return Promise.reject(new Error('no such unit'))
+    }
+}
+
 // Lets the machine's promise chains run to their end. Each is a few microtasks
-// deep — a check or transition settling, its handler, its `finally` — and the
-// microtask queue drains in order whatever the clock, so this needs no timer:
-// under bun's fake timers, a timer-based wait (even setImmediate) can hang.
+// deep — a check or transition settling, its handler, its `finally`, the
+// command waiting on it — and the microtask queue drains in order whatever the
+// clock, so this needs no timer: under bun's fake timers, a timer-based wait
+// (even setImmediate) can hang.
 const settled = async (): Promise<void> => {
-    for (let tick = 0; tick < 10; tick++) {
+    for (let tick = 0; tick < 20; tick++) {
         await Promise.resolve()
     }
 }
@@ -95,9 +127,24 @@ const AGE_MS = 60_000
 // Every machine a test makes, closed after it so no re-read outlives the test
 // — and the real clock back, for the tests that swapped in the fake one.
 const made: ServiceStateMachine[] = []
-const make = async (name: string, service: ServiceImplementation, events: EventSink & Audience): Promise<ServiceStateMachine> => {
-    const machine = await createServiceStateMachine(name, service, events, AGE_MS)
+const make = (name: string, service: ServiceImplementation, board: ServiceStateBoard): ServiceStateMachine => {
+    const machine = createServiceStateMachine(name, service, board, AGE_MS)
     made.push(machine)
+    return machine
+}
+
+// A board over a publisher somebody is already watching.
+const watchedBoard = (): { p: Publisher; board: ServiceStateBoard } => {
+    const p = publisher()
+    p.watch()
+    return { p, board: serviceStateBoard(p) }
+}
+
+// The web service's machine made on a board somebody watches, its first
+// reading landed.
+const ready = async (service: ServiceImplementation, board: ServiceStateBoard): Promise<ServiceStateMachine> => {
+    const machine = make('web', service, board)
+    await settled()
     return machine
 }
 
@@ -135,70 +182,88 @@ describe('the contract', () => {
     })
 })
 
-describe('the machine', () => {
+describe('the board', () => {
+    test('every machine is published in one document, under its name', async () => {
+        const { p, board } = watchedBoard()
+        const [web, worker] = [controllable(), controllable()]
+        web.observed = 'ON'
+        make('web', web, board)
+        make('worker', worker, board)
+        await settled()
+        expect(p.doc()).toEqual({ web: { state: 'ON', changed_at: expect.any(Number) }, worker: { state: 'OFF', changed_at: expect.any(Number) } })
+        expect(board.machine('worker')?.name).toBe('worker')
+        expect(board.machine('db')).toBeUndefined()
+    })
+
+    test('a second machine of a name is refused', () => {
+        const board = serviceStateBoard(publisher())
+        make('web', controllable(), board)
+        expect(() => make('web', controllable(), board)).toThrow('two machines are named web')
+    })
+})
+
+describe('the machine, watched', () => {
     let service: ReturnType<typeof controllable>
-    let events: ReturnType<typeof sink>
+    let p: Publisher
+    let board: ServiceStateBoard
 
     beforeEach(() => {
         service = controllable()
-        events = sink()
+        ;({ p, board } = watchedBoard())
     })
 
-    test('it reads the service before reporting anything', async () => {
+    test('it reads the service at once, and is published only once it has', async () => {
         service.observed = 'ON'
-        const machine = await make('web', service, events)
-        expect((await machine.status()).state).toBe('ON')
-        expect(events.states()).toEqual(['ON'])
-    })
-
-    test('a boot that finds the service where it assumed pushes nothing', async () => {
-        const machine = await make('web', service, events)
-        expect((await machine.status()).state).toBe('OFF')
-        expect(events.states()).toEqual([])
-    })
-
-    test('every status names its service, the pushes included', async () => {
-        const machine = await make('web', service, events)
-        expect((await machine.status()).service).toBe('web')
-        machine.start()
-        service.settle()
+        make('web', service, board)
+        expect(service.reads).toBe(1)
+        expect(p.doc()).toEqual({})
         await settled()
-        expect(events.pushes.map(status => status.service)).toEqual(['web', 'web'])
+        expect(p.doc().web?.state).toBe('ON')
     })
 
     test('starting goes through STARTING and lands ON', async () => {
-        const machine = await make('web', service, events)
-        expect(machine.start().state).toBe('STARTING')
-        expect((await machine.status()).state).toBe('STARTING')
+        const machine = await ready(service, board)
+        await machine.start()
+        expect(p.doc().web?.state).toBe('STARTING')
         service.settle()
         await settled()
-        expect((await machine.status()).state).toBe('ON')
-        expect(events.states()).toEqual(['STARTING', 'ON'])
+        expect(seen(p, 'web')).toEqual(['OFF', 'STARTING', 'ON'])
     })
 
     test('stopping goes through STOPPING and lands OFF', async () => {
         service.observed = 'ON'
-        const machine = await make('web', service, events)
-        expect(machine.stop().state).toBe('STOPPING')
+        const machine = await ready(service, board)
+        await machine.stop()
         service.settle()
         await settled()
-        expect((await machine.status()).state).toBe('OFF')
-        expect(events.states()).toEqual(['ON', 'STOPPING', 'OFF'])
+        expect(seen(p, 'web')).toEqual(['ON', 'STOPPING', 'OFF'])
     })
 
     test('a transition that fails lands in ERROR carrying why', async () => {
-        const machine = await make('web', service, events)
-        machine.start()
+        const machine = await ready(service, board)
+        await machine.start()
         service.settle(new Error('port already bound'))
         await settled()
-        expect(await machine.status()).toMatchObject({ state: 'ERROR', error: 'port already bound' })
+        expect(p.doc().web).toEqual({
+            state: 'ERROR',
+            error: 'port already bound',
+            changed_at: expect.any(Number)
+        })
+    })
+
+    test('a start that fails at once lands in ERROR, after STARTING', async () => {
+        service.start = () => Promise.reject(new Error('port already bound'))
+        const machine = await ready(service, board)
+        await machine.start()
+        await settled()
+        expect(seen(p, 'web')).toEqual(['OFF', 'STARTING', 'ERROR'])
     })
 
     test('nothing is accepted while a transition is in flight', async () => {
-        const machine = await make('web', service, events)
-        machine.start()
-        expect(() => machine.stop()).toThrow(new ServiceBusyError('stop', 'STARTING'))
-        expect(() => machine.start()).toThrow(new ServiceBusyError('start', 'STARTING'))
+        const machine = await ready(service, board)
+        await machine.start()
+        await expect(machine.stop()).rejects.toThrow(new ServiceBusyError('stop', 'STARTING'))
+        await expect(machine.start()).rejects.toThrow(new ServiceBusyError('start', 'STARTING'))
         await expect(machine.refresh()).rejects.toThrow(new ServiceBusyError('refresh', 'STARTING'))
         service.settle()
         await settled()
@@ -206,50 +271,57 @@ describe('the machine', () => {
 
     test('a command the state has nowhere to go with is refused', async () => {
         service.observed = 'ON'
-        const machine = await make('web', service, events)
-        expect(() => machine.start()).toThrow(new ServiceBusyError('start', 'ON'))
+        const machine = await ready(service, board)
+        await expect(machine.start()).rejects.toThrow(new ServiceBusyError('start', 'ON'))
     })
 
-    test('a refresh adopts what the service reports, and only pushes a change', async () => {
-        const machine = await make('web', service, events)
-        expect((await machine.refresh()).state).toBe('OFF')
-        expect(events.states()).toEqual([])
-
+    test('a refresh adopts what the service reports, and publishes only a change', async () => {
+        const machine = await ready(service, board)
+        const published = p.published.length
+        await machine.refresh()
+        expect(p.published.length).toBe(published)
         service.observed = 'ON'
-        expect((await machine.refresh()).state).toBe('ON')
-        expect(events.states()).toEqual(['ON'])
+        await machine.refresh()
+        expect(p.doc().web?.state).toBe('ON')
     })
 
     test('a refresh that cannot read the service is itself an ERROR', async () => {
-        const machine = await make('web', service, events)
-        service.check = () => Promise.reject(new Error('no such unit'))
-        expect(await machine.refresh()).toMatchObject({ state: 'ERROR', error: 'no such unit' })
+        const machine = await ready(service, board)
+        unreadable(service)
+        await machine.refresh()
+        expect(p.doc().web).toEqual({
+            state: 'ERROR',
+            error: 'no such unit',
+            changed_at: expect.any(Number)
+        })
     })
 
-    test('a refresh out of ERROR clears the message', async () => {
-        const machine = await make('web', service, events)
-        machine.start()
+    test("a refresh out of a failed transition's ERROR takes the reading, and the why goes with it", async () => {
+        const machine = await ready(service, board)
+        await machine.start()
         service.settle(new Error('port already bound'))
         await settled()
-        expect(await machine.refresh()).toMatchObject({ state: 'OFF', error: null })
+        await machine.refresh()
+        expect(p.doc().web).toEqual({ state: 'OFF', changed_at: expect.any(Number) })
     })
 
     test('a transition begun while a read is out goes ahead, and the read is not adopted over it', async () => {
-        const machine = await make('web', service, events)
-        const held = Promise.withResolvers<ServiceState>()
+        const machine = await ready(service, board)
+        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
         service.check = () => held.promise
         const refreshed = machine.refresh()
-        expect(machine.start().state).toBe('STARTING')
+        await machine.start()
         held.resolve('OFF')
-        expect((await refreshed).state).toBe('STARTING')
+        await refreshed
+        expect(p.doc().web?.state).toBe('STARTING')
         service.settle()
         await settled()
-        expect(events.states()).toEqual(['STARTING', 'ON'])
+        expect(seen(p, 'web')).toEqual(['OFF', 'STARTING', 'ON'])
     })
 
     test('a refresh asked while a read is out joins it', async () => {
-        const machine = await make('web', service, events)
-        const held = Promise.withResolvers<ServiceState>()
+        const machine = await ready(service, board)
+        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
         let reads = 0
         service.check = () => {
             reads += 1
@@ -257,51 +329,203 @@ describe('the machine', () => {
         }
         const asked = [machine.refresh(), machine.refresh()]
         held.resolve('ON')
-        expect((await Promise.all(asked)).map(status => status.state)).toEqual(['ON', 'ON'])
+        await Promise.all(asked)
         expect(reads).toBe(1)
+        expect(p.doc().web?.state).toBe('ON')
+    })
+})
+
+describe('commands act on a verified state', () => {
+    let service: ReturnType<typeof controllable>
+    let board: ServiceStateBoard
+
+    beforeEach(() => {
+        jest.useFakeTimers()
+        service = controllable()
+        board = serviceStateBoard(publisher())
+    })
+
+    test('a command on a machine never read reads first, and is refused or taken as the reading says', async () => {
+        service.observed = 'ON'
+        const machine = make('web', service, board)
+        expect(service.reads).toBe(0)
+        await expect(machine.start()).rejects.toThrow(new ServiceBusyError('start', 'ON'))
+        expect(service.reads).toBe(1)
+        // The reading is fresh, so the next command acts on it.
+        await machine.stop()
+        expect(service.reads).toBe(1)
+        service.settle()
+        await settled()
+    })
+
+    test('a reading the age old is taken again before a command', async () => {
+        const machine = make('web', service, board)
+        await machine.refresh()
+        service.observed = 'ON'
+        await elapse(AGE_MS)
+        await expect(machine.start()).rejects.toThrow(new ServiceBusyError('start', 'ON'))
+        expect(service.reads).toBe(2)
+    })
+
+    test("a command mid-transition, or in a failed transition's ERROR, is refused without a read, however old the reading", async () => {
+        const machine = make('web', service, board)
+        await machine.refresh()
+        await machine.start()
+        await elapse(3 * AGE_MS)
+        await expect(machine.stop()).rejects.toThrow(new ServiceBusyError('stop', 'STARTING'))
+        service.settle(new Error('port already bound'))
+        await settled()
+        await elapse(3 * AGE_MS)
+        await expect(machine.start()).rejects.toThrow(new ServiceBusyError('start', 'ERROR'))
+        expect(service.reads).toBe(1)
+    })
+})
+
+describe('publishing only what somebody watched being taken', () => {
+    let p: Publisher
+    let board: ServiceStateBoard
+
+    beforeEach(() => {
+        jest.useFakeTimers()
+        p = publisher()
+        board = serviceStateBoard(p)
+    })
+
+    test('with nobody watching and nobody commanding, the service is left alone, and nothing is published', async () => {
+        const service = controllable()
+        make('web', service, board)
+        await elapse(3 * AGE_MS)
+        expect(service.reads).toBe(0)
+        expect(p.published).toEqual([])
+    })
+
+    test('a reading taken with nobody watching is not published: a refresh, a landing, a failed check', async () => {
+        const service = controllable()
+        const machine = make('web', service, board)
+        await machine.refresh()
+        expect(p.doc()).toEqual({})
+        // The transition under way is the machine's own word, and is published.
+        await machine.start()
+        expect(p.doc().web?.state).toBe('STARTING')
+        service.settle()
+        await settled()
+        expect(p.doc()).toEqual({})
+        unreadable(service)
+        await machine.refresh()
+        expect(p.doc()).toEqual({})
+    })
+
+    test('the first to arrive is greeted with no reading, and has every machine without an entry read at once', async () => {
+        const [web, worker] = [controllable(), controllable()]
+        worker.observed = 'ON'
+        await make('web', web, board).refresh()
+        await make('worker', worker, board).refresh()
+        p.watch()
+        expect(p.doc()).toEqual({})
+        expect([web.reads, worker.reads]).toEqual([2, 2])
+        await settled()
+        expect(p.doc()).toEqual({ web: { state: 'OFF', changed_at: expect.any(Number) }, worker: { state: 'ON', changed_at: expect.any(Number) } })
+    })
+
+    test("the last to leave takes every reading out, a failed check's ERROR among them, and keeps the machine's own word", async () => {
+        p.watch()
+        const [idle, broken, failing, busy] = [controllable(), controllable(), controllable(), controllable()]
+        unreadable(broken)
+        make('idle', idle, board)
+        make('broken', broken, board)
+        const failingMachine = make('failing', failing, board)
+        const busyMachine = make('busy', busy, board)
+        await settled()
+        await failingMachine.start()
+        failing.settle(new Error('port already bound'))
+        await busyMachine.start()
+        await settled()
+        expect(Object.keys(p.doc()).sort()).toEqual(['broken', 'busy', 'failing', 'idle'])
+        p.leave()
+        expect(p.doc()).toEqual({
+            failing: {
+                state: 'ERROR',
+                error: 'port already bound',
+                changed_at: expect.any(Number)
+            },
+            busy: { state: 'STARTING', changed_at: expect.any(Number) }
+        })
+        // Begun with somebody watching, landed with nobody: a reading like any
+        // other, which nobody saw taken.
+        busy.settle()
+        await settled()
+        expect(p.doc().busy).toBeUndefined()
+    })
+
+    test("a machine in its own word is not read when the first watcher arrives, and a transition's landing then counts as its reading", async () => {
+        const [failing, busy] = [controllable(), controllable()]
+        const failingMachine = make('failing', failing, board)
+        const busyMachine = make('busy', busy, board)
+        await failingMachine.start()
+        failing.settle(new Error('port already bound'))
+        await busyMachine.start()
+        await settled()
+        p.watch()
+        await elapse(3 * AGE_MS)
+        expect([failing.reads, busy.reads]).toEqual([1, 1])
+        busy.settle()
+        await settled()
+        expect(p.doc().busy?.state).toBe('ON')
+        await elapse(AGE_MS - 1)
+        expect(busy.reads).toBe(1)
+        await elapse(1)
+        expect(busy.reads).toBe(2)
+    })
+
+    test('close stops listening for watchers', async () => {
+        const service = controllable()
+        make('web', service, board).close()
+        p.watch()
+        await elapse(3 * AGE_MS)
+        expect(service.reads).toBe(0)
     })
 })
 
 describe('keeping the state current while somebody watches', () => {
     let service: ReturnType<typeof controllable>
-    let events: ReturnType<typeof sink>
+    let p: Publisher
+    let board: ServiceStateBoard
 
     beforeEach(() => {
         jest.useFakeTimers()
         service = controllable()
-        events = sink()
-        events.watch()
+        ;({ p, board } = watchedBoard())
     })
 
-    test('a reading the age old is taken again, and what changed is pushed to everyone watching', async () => {
-        const machine = await make('web', service, events)
+    test('a reading the age old is taken again, and what changed is published', async () => {
+        await ready(service, board)
         service.observed = 'ON'
         await elapse(AGE_MS - 1)
         expect(service.reads).toBe(1)
         await elapse(1)
         expect(service.reads).toBe(2)
-        expect((await machine.status()).state).toBe('ON')
-        expect(events.states()).toEqual(['ON'])
+        expect(seen(p, 'web')).toEqual(['OFF', 'ON'])
     })
 
-    test('every reading schedules the next, and a steady service pushes nothing', async () => {
-        await make('web', service, events)
+    test('every reading schedules the next, and a steady service publishes nothing new', async () => {
+        await ready(service, board)
+        const published = p.published.length
         await elapse(AGE_MS)
         await elapse(AGE_MS)
         expect(service.reads).toBe(3)
-        expect(events.states()).toEqual([])
+        expect(p.published.length).toBe(published)
     })
 
     test('a state the service was read in is read again like any other, STARTING included', async () => {
         service.observed = 'STARTING'
-        await make('web', service, events)
+        await ready(service, board)
         service.observed = 'ON'
         await elapse(AGE_MS)
-        expect(events.states()).toEqual(['STARTING', 'ON'])
+        expect(seen(p, 'web')).toEqual(['STARTING', 'ON'])
     })
 
     test('a refresh is a reading: the next re-read is timed from it', async () => {
-        const machine = await make('web', service, events)
+        const machine = await ready(service, board)
         await elapse(AGE_MS - 1)
         await machine.refresh()
         await elapse(1)
@@ -311,9 +535,9 @@ describe('keeping the state current while somebody watches', () => {
     })
 
     test('nothing is read while a transition is under way, and one that lands counts as a reading', async () => {
-        const machine = await make('web', service, events)
+        const machine = await ready(service, board)
         await elapse(AGE_MS - 1)
-        machine.start()
+        await machine.start()
         await elapse(3 * AGE_MS)
         expect(service.reads).toBe(1)
         service.settle()
@@ -324,70 +548,82 @@ describe('keeping the state current while somebody watches', () => {
         expect(service.reads).toBe(2)
     })
 
-    test('ERROR is not read past: the re-reads stop until somebody refreshes', async () => {
-        const machine = await make('web', service, events)
-        machine.start()
+    test("a failed transition's ERROR is not read past: the re-reads stop until somebody refreshes", async () => {
+        const machine = await ready(service, board)
+        await machine.start()
         service.settle(new Error('port already bound'))
         await settled()
         await elapse(3 * AGE_MS)
         expect(service.reads).toBe(1)
-        expect(await machine.status()).toMatchObject({ state: 'ERROR', error: 'port already bound' })
+        expect(p.doc().web).toEqual({
+            state: 'ERROR',
+            error: 'port already bound',
+            changed_at: expect.any(Number)
+        })
         await machine.refresh()
         await elapse(AGE_MS)
         expect(service.reads).toBe(3)
     })
 
-    test('a re-read that cannot read the service lands in ERROR, and stops there', async () => {
-        const machine = await make('web', service, events)
+    test("a failed check's ERROR is a reading like any other: the re-reads carry on past it", async () => {
+        await ready(service, board)
+        unreadable(service)
+        await elapse(AGE_MS)
+        expect(p.doc().web).toEqual({
+            state: 'ERROR',
+            error: 'no such unit',
+            changed_at: expect.any(Number)
+        })
         service.check = () => {
             service.reads += 1
-            return Promise.reject(new Error('no such unit'))
+            return Promise.resolve('ON')
         }
         await elapse(AGE_MS)
-        expect(await machine.status()).toMatchObject({ state: 'ERROR', error: 'no such unit' })
-        await elapse(3 * AGE_MS)
-        expect(service.reads).toBe(2)
+        expect(service.reads).toBe(3)
+        expect(seen(p, 'web')).toEqual(['OFF', 'ERROR', 'ON'])
     })
 
-    test('a transition begun while a re-read is out goes ahead, and the re-read is not adopted over it', async () => {
-        const machine = await make('web', service, events)
-        const held = Promise.withResolvers<ServiceState>()
-        service.check = () => held.promise
+    test('a command asked while a re-read is out joins it, and acts on what it finds', async () => {
+        const machine = await ready(service, board)
+        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
+        let reads = 0
+        service.check = () => {
+            reads += 1
+            return held.promise
+        }
         jest.advanceTimersByTime(AGE_MS)
-        expect(machine.start().state).toBe('STARTING')
-        held.resolve('OFF')
-        await settled()
-        expect((await machine.status()).state).toBe('STARTING')
-        service.settle()
-        await settled()
-        expect(events.states()).toEqual(['STARTING', 'ON'])
+        const started = machine.start()
+        held.resolve('ON')
+        await expect(started).rejects.toThrow(new ServiceBusyError('start', 'ON'))
+        expect(reads).toBe(1)
     })
 
     test('a read left over from before a transition is not joined, so the re-reads carry on past it', async () => {
-        const machine = await make('web', service, events)
-        const leftover = Promise.withResolvers<ServiceState>()
+        const machine = await ready(service, board)
+        const leftover = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
         let reads = 0
         service.check = () => {
             reads += 1
             return reads === 1 ? leftover.promise : Promise.resolve(service.observed)
         }
         const refreshed = machine.refresh()
-        machine.start()
+        await machine.start()
         service.settle()
         await settled()
         service.observed = 'OFF'
         await elapse(AGE_MS)
         expect(reads).toBe(2)
-        expect((await machine.status()).state).toBe('OFF')
+        expect(p.doc().web?.state).toBe('OFF')
         leftover.resolve('ON')
-        expect((await refreshed).state).toBe('OFF')
+        await refreshed
+        expect(p.doc().web?.state).toBe('OFF')
         await elapse(AGE_MS)
         expect(reads).toBe(3)
     })
 
     test('close stops the re-reads, a read already out included', async () => {
-        const machine = await make('web', service, events)
-        const held = Promise.withResolvers<ServiceState>()
+        const machine = await ready(service, board)
+        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
         let reads = 0
         service.check = () => {
             reads += 1
@@ -399,162 +635,84 @@ describe('keeping the state current while somebody watches', () => {
         await elapse(3 * AGE_MS)
         expect(reads).toBe(1)
     })
-})
 
-describe('reading the service only when somebody needs it', () => {
-    let service: ReturnType<typeof controllable>
-    let events: ReturnType<typeof sink>
-
-    beforeEach(() => {
-        jest.useFakeTimers()
-        service = controllable()
-        events = sink()
-    })
-
-    test('with nobody asking and nobody watching, the service is left alone', async () => {
-        await make('web', service, events)
-        await elapse(3 * AGE_MS)
-        expect(service.reads).toBe(1)
-    })
-
-    test('a status asked of a reading the age old reads first, and answers what it found', async () => {
-        const machine = await make('web', service, events)
-        service.observed = 'ON'
-        await elapse(AGE_MS)
-        expect(service.reads).toBe(1)
-        expect((await machine.status()).state).toBe('ON')
-        expect(service.reads).toBe(2)
-        expect(events.states()).toEqual(['ON'])
-    })
-
-    test('a status asked of a younger reading answers from it', async () => {
-        const machine = await make('web', service, events)
-        service.observed = 'ON'
-        await elapse(AGE_MS - 1)
-        expect((await machine.status()).state).toBe('OFF')
-        expect(service.reads).toBe(1)
-    })
-
-    test('the first to watch a stale reading has it taken again at once, and the last to leave stops the re-reads', async () => {
-        await make('web', service, events)
-        await elapse(2 * AGE_MS)
-        events.watch()
-        await elapse(0)
-        expect(service.reads).toBe(2)
-        events.watch()
-        await elapse(AGE_MS)
-        expect(service.reads).toBe(3)
-        events.leave()
-        await elapse(AGE_MS)
-        expect(service.reads).toBe(4)
-        events.leave()
-        await elapse(3 * AGE_MS)
-        expect(service.reads).toBe(4)
-    })
-
-    test('watching again takes the cadence up from the last reading', async () => {
-        await make('web', service, events)
-        events.watch()
-        await elapse(AGE_MS / 2)
-        events.leave()
-        await elapse(AGE_MS / 4)
-        events.watch()
-        await elapse(AGE_MS / 4 - 1)
-        expect(service.reads).toBe(1)
-        await elapse(1)
-        expect(service.reads).toBe(2)
-    })
-
-    test('a watcher arriving mid-transition waits for it to land before anything is read', async () => {
-        const machine = await make('web', service, events)
-        await elapse(2 * AGE_MS)
-        machine.start()
-        events.watch()
-        await elapse(3 * AGE_MS)
-        expect(service.reads).toBe(1)
-        service.settle()
-        await settled()
-        await elapse(AGE_MS - 1)
-        expect(service.reads).toBe(1)
-        await elapse(1)
-        expect(service.reads).toBe(2)
-    })
-
-    test('close stops listening for watchers', async () => {
-        const machine = await make('web', service, events)
-        await elapse(2 * AGE_MS)
-        machine.close()
-        events.watch()
+    test('the last to leave stops the re-reads', async () => {
+        await ready(service, board)
+        p.leave()
         await elapse(3 * AGE_MS)
         expect(service.reads).toBe(1)
     })
 })
 
 describe('the methods', () => {
-    test("all four, under the application's policy, each answering the status of the service it names", async () => {
+    let p: Publisher
+    let board: ServiceStateBoard
+
+    beforeEach(() => {
+        ;({ p, board } = watchedBoard())
+    })
+
+    test("all three, under the application's policy, each acting on the service it names", async () => {
         const service = controllable()
-        const methods = serviceStateMethods([await make('web', service, sink())], ROOT_ONLY)
-        expect(Object.keys(methods)).toEqual(['service.status', 'service.start', 'service.stop', 'service.refresh'])
+        await ready(service, board)
+        const methods = serviceStateMethods(board, ROOT_ONLY)
+        expect(Object.keys(methods)).toEqual(['service.start', 'service.stop', 'service.refresh'])
         for (const def of Object.values(methods)) {
             expect(def.auth).toBe('required')
             expect(def.access?.('someone')).toBe('ADMIN_REQUIRED')
         }
 
         const web = { service: 'web' }
-        expect(await methods['service.status'].handler(ctx, web)).toMatchObject({ service: 'web', state: 'OFF' })
-        expect(await methods['service.start'].handler(ctx, web)).toMatchObject({ state: 'STARTING' })
+        expect(await methods['service.start'].handler(ctx, web)).toBeUndefined()
+        expect(p.doc().web?.state).toBe('STARTING')
         service.settle()
         await settled()
-        expect(await methods['service.stop'].handler(ctx, web)).toMatchObject({ state: 'STOPPING' })
+        await methods['service.stop'].handler(ctx, web)
         service.settle()
         await settled()
-        expect(await methods['service.refresh'].handler(ctx, web)).toMatchObject({ state: 'OFF' })
+        expect(await methods['service.refresh'].handler(ctx, web)).toBeUndefined()
+        expect(seen(p, 'web')).toEqual(['OFF', 'STARTING', 'ON', 'STOPPING', 'OFF'])
     })
 
-    test('one table over several services, each call reaching only the one it names', async () => {
-        const events = sink()
+    test('one board over several services, each call reaching only the one it names', async () => {
         const [web, worker] = [controllable(), controllable()]
-        const methods = serviceStateMethods([await make('web', web, events), await make('worker', worker, events)], ROOT_ONLY)
-
-        expect(await methods['service.start'].handler(ctx, { service: 'worker' })).toMatchObject({ service: 'worker', state: 'STARTING' })
-        expect(await methods['service.status'].handler(ctx, { service: 'web' })).toMatchObject({ service: 'web', state: 'OFF' })
-        expect(events.pushes.map(status => [status.service, status.state])).toEqual([['worker', 'STARTING']])
+        make('web', web, board)
+        make('worker', worker, board)
+        await settled()
+        await serviceStateMethods(board, ROOT_ONLY)['service.start'].handler(ctx, { service: 'worker' })
+        expect([p.doc().web?.state, p.doc().worker?.state]).toEqual(['OFF', 'STARTING'])
         worker.settle()
         await settled()
     })
 
     test('a command the state cannot take is SERVICE_BUSY on the wire', async () => {
         const service = controllable()
-        const methods = serviceStateMethods([await make('web', service, sink())], ROOT_ONLY)
+        await ready(service, board)
+        const methods = serviceStateMethods(board, ROOT_ONLY)
         await methods['service.start'].handler(ctx, { service: 'web' })
         await expect(methods['service.start'].handler(ctx, { service: 'web' })).rejects.toThrow(new ApiError('SERVICE_BUSY'))
         service.settle()
         await settled()
     })
 
-    test('a service the table does not serve is not found', async () => {
-        const methods = serviceStateMethods([await make('web', controllable(), sink())], ROOT_ONLY)
-        await expect(methods['service.status'].handler(ctx, { service: 'db' })).rejects.toThrow(new ApiError('SERVICE_NOT_FOUND'))
-    })
-
-    test('two machines under one name are refused as the table is built', async () => {
-        const [first, second] = [await make('web', controllable(), sink()), await make('web', controllable(), sink())]
-        expect(() => serviceStateMethods([first, second], ROOT_ONLY)).toThrow('two machines share a name')
+    test('a service the board does not have is not found', async () => {
+        make('web', controllable(), board)
+        await expect(serviceStateMethods(board, ROOT_ONLY)['service.refresh'].handler(ctx, { service: 'db' })).rejects.toThrow(new ApiError('SERVICE_NOT_FOUND'))
     })
 
     test('a call that names no service is refused before any machine is reached', async () => {
-        const dispatcher = createDispatcher(serviceStateMethods([await make('web', controllable(), sink())], ROOT_ONLY), { auth: keyAuthResolver('key', 'root') })
-        expect(await dispatcher.dispatch({ method: 'service.status', arguments: [{}] }, ctx)).toMatchObject({
+        make('web', controllable(), board)
+        const dispatcher = createDispatcher(serviceStateMethods(board, ROOT_ONLY), { auth: keyAuthResolver('key', 'root') })
+        expect(await dispatcher.dispatch({ method: 'service.refresh', arguments: [{}] }, ctx)).toMatchObject({
             success: false,
             error: 'INVALID_ARGUMENT',
             error_details: [{ field: 'service' }]
         })
     })
 
-    test('a read-only console may leave them open', async () => {
-        const machine = await make('web', controllable(), sink())
-        const methods = serviceStateMethods([machine], { auth: 'none' })
-        expect(methods['service.status'].auth).toBe('none')
-        expect(methods['service.status'].access).toBeUndefined()
+    test('a read-only console may leave them open', () => {
+        const methods = serviceStateMethods(board, { auth: 'none' })
+        expect(methods['service.refresh'].auth).toBe('none')
+        expect(methods['service.refresh'].access).toBeUndefined()
     })
 })

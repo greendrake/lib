@@ -2,7 +2,7 @@
     "name": "@greendrake/example-service-dash",
     "version": "0.1.0",
     "private": true,
-    "description": "Example service-state dashboard: one control, live over a WebSocket",
+    "description": "Example service-state dashboard: a control per service, live over a WebSocket",
     "type": "module",
     "scripts": {
         "dev": "bun --bun vite --mode dev --host",

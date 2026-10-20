@@ -153,6 +153,8 @@ fleet.onChange(() => cameras.refresh())
 - **Shape.** The state must be a JSON object, or `document` throws. A member produced as `null` is dropped, the same as one left out, since a patch could not tell the two apart.
 - **Ordering.** Sends are synchronous, so no patch can precede or overtake a socket's document.
 
+Document-producing code takes the `DocumentPublisher` interface (`document`) rather than the class, as push-producing code takes `EventSink`.
+
 On the client, `@greendrake/rpc`'s `liveDocument` keeps the document. A reconnect is greeted with it afresh, so no re-read is needed.
 
 ### Topics

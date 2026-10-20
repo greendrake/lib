@@ -14,8 +14,8 @@ const adminKey = 'example-admin-key'
 export default spaPlaywright({
     defaultPort: vitePort,
     overrides: {
-        // One service, one state: parallel workers would each turn it on and
-        // off under the others.
+        // One API, each service one state: parallel workers would each turn
+        // the services on and off under the others.
         fullyParallel: false,
         workers: 1,
         reporter: 'list',

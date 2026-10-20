@@ -1,12 +1,12 @@
 # service-pair
 
-A dashboard and the backend it talks to, both TypeScript, both built entirely from the published packages. It shows one thing: a control for a service that is `OFF`, `STARTING`, `ON`, `STOPPING` or `ERROR`. Pressing *Turn ON* starts it; three seconds later it is on — and so it says on every dashboard open at the time, because the state arrives as a server push rather than an answer to whoever asked.
+A dashboard and the backend it talks to, both TypeScript, both built entirely from the published packages. It shows one thing: a control for a service that is `OFF`, `STARTING`, `ON`, `STOPPING` or `ERROR`, for each of two services, `web` and `worker`, a tab each. Pressing *Turn ON* starts one; three seconds later it is on — and so it says on every dashboard open at the time, because the state arrives as the server's document of every service's state rather than as an answer to whoever asked.
 
-The service itself is mocked: a flag, a delay, and a switch that makes the next transition fail so `ERROR` is reachable. A real one would wrap a systemd unit, a container or a device, and the rest of this would be unchanged.
+The services themselves are mocked: a flag, a delay, and a switch that makes the next transition fail, after the delay or at once, so `ERROR` is reachable. A real one would wrap a systemd unit, a container or a device, and the rest of this would be unchanged.
 
 ```
-api/   @greendrake/{rpc-server,server,service-state} — dispatch table, WebSocket, the machine
-dash/  @greendrake/{dash,rpc,vue-api,service-state}  — one tab, one ServiceStateControl
+api/   @greendrake/{rpc-server,server,service-state} — dispatch table, WebSocket, the board and its machines
+dash/  @greendrake/{dash,rpc,vue-api,service-state}  — a tab and a ServiceStateControl per service
 ```
 
 ## Running it
@@ -32,5 +32,5 @@ The API's own test drives the real server with `@greendrake/rpc`'s client — th
 
 - `api/src/methods.ts` — the dispatch table, and `ClientMethods<…>` deriving the client's method map from it so the two sides cannot drift.
 - `api/src/service.ts` — `serve()` with probes and a shutdown deadline around an HTTP endpoint and a WebSocket one.
-- `dash/src/api.ts` — one `WsTransport` carrying both the calls and the pushes, authenticated at the handshake.
+- `dash/src/api.ts` — one `WsTransport` carrying both the calls and the document, authenticated at the handshake, the document kept from before the socket opens.
 - `dash/vite.config.ts` — `dashApp` and the `.env.dev` / `.env.prod` convention.

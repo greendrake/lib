@@ -2,17 +2,17 @@ import { serve } from '@greendrake/server'
 import type { RunningService } from '@greendrake/server'
 import { ConnRegistry, createDispatcher, httpHandler, keyAuthResolver, memoryNonceStore, websocketHandler } from '@greendrake/rpc-server'
 import type { ConnectionData } from '@greendrake/rpc-server'
-import { createServiceStateMachine } from '@greendrake/service-state/server'
+import { createServiceStateMachine, serviceStateBoard } from '@greendrake/service-state/server'
 import { OPERATOR, apiMethods, type Operator } from './methods'
-import { MOCK_SERVICE, createMockService } from './mock'
+import { MOCK_SERVICES, createMockService } from './mock'
 
 // How long a nonce is remembered, which is how long a retry of the same call
 // is recognised as a repeat rather than a second request.
 const NONCE_TTL_MS = 5 * 60 * 1000
 
-// How old a reading of the service may get before the machine takes another.
-// The mock changes only through the machine, but a real service is changed by
-// other hands too, and this is how long the machine may go without noticing.
+// How old a reading of a service may get before its machine takes another.
+// The mocks change only through their machines, but a real service is changed
+// by other hands too, and this is how long a machine may go without noticing.
 const MAX_AGE_MS = 5000
 
 export interface ApiOptions {
@@ -23,20 +23,21 @@ export interface ApiOptions {
     // The dashboard's origin: the page that may call the API and open its
     // socket, besides the API's own.
     dashOrigin: string
-    // Left at the mock's own three seconds by anything but a test, which has
+    // Left at the mocks' own three seconds by anything but a test, which has
     // no patience and nothing to watch.
     transitionMs?: number
 }
 
 export const startApi = async (options: ApiOptions): Promise<RunningService<ConnectionData<Operator>>> => {
-    const mock = createMockService(options.transitionMs)
-    // The registry is the machine's event sink as well as the socket index: a
-    // state change reaches every dashboard watching, which is the whole point
-    // of the pair.
+    const mocks = new Map(MOCK_SERVICES.map(name => [name, createMockService(options.transitionMs)]))
+    // The registry is where the board publishes every service's state as well
+    // as the socket index: a state change reaches every dashboard watching,
+    // which is the whole point of the pair.
     const registry = new ConnRegistry<Operator>()
-    const machine = await createServiceStateMachine(MOCK_SERVICE, mock, registry, MAX_AGE_MS)
+    const board = serviceStateBoard(registry)
+    const machines = [...mocks].map(([name, mock]) => createServiceStateMachine(name, mock, board, MAX_AGE_MS))
 
-    const dispatcher = createDispatcher(apiMethods(machine, mock), {
+    const dispatcher = createDispatcher(apiMethods(board, mocks), {
         auth: keyAuthResolver<Operator>(options.adminKey, OPERATOR),
         nonces: memoryNonceStore(NONCE_TTL_MS)
     })
@@ -47,13 +48,13 @@ export const startApi = async (options: ApiOptions): Promise<RunningService<Conn
     return serve({
         name: 'example-service-api',
         port: options.port,
-        // Readiness follows the service being readable at all, not its being
+        // Readiness follows the services being readable at all, not their being
         // on: a service deliberately OFF is a fine thing for this API to serve.
-        checks: [{ name: 'service', check: () => mock.check().then(() => undefined) }],
+        checks: [{ name: 'services', check: () => Promise.all([...mocks.values()].map(mock => mock.check())).then(() => undefined) }],
         probeTimeoutMs: 2000,
         shutdown: { deadlineMs: 10_000, lameDuckMs: 0 },
         cors: { origin: origins },
-        drain: () => machine.close(),
+        drain: () => machines.forEach(machine => machine.close()),
         websocket: ws.handlers,
         fetch: (request, server) => {
             const { pathname } = new URL(request.url)

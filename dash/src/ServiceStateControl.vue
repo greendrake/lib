@@ -1,54 +1,55 @@
 <script setup lang="ts">
 // One backend service, live: its state, why it failed if it did, and the one
-// command that state accepts (CONTROLS). The state comes from the server's
-// pushes, so every operator watching sees the same thing at the same time —
-// including transitions somebody else started. Several controls can share one
-// api and transport, each following the service it names.
-import { computed, onMounted, ref } from 'vue'
+// command that state accepts (CONTROLS). The state is the backend's document,
+// kept where the host made its socket (keepServiceStates), so every operator
+// watching sees the same thing at the same time — including transitions
+// somebody else started — and a control mounted at any point finds it there.
+// Several controls share one api and one states, each showing the service it
+// names.
+import { computed, ref, watch } from 'vue'
 import { Loading } from '@greendrake/ui'
-import { CONTROLS, SERVICE_STATE_EVENT, type ServiceStateMethods, type ServiceStatePushes, type ServiceStatus } from '@greendrake/service-state'
-import type { WsTransport } from '@greendrake/rpc'
-import { backgroundCall, useLive, type ApiCaller, type CallOptions } from '@greendrake/vue-api'
+import { CONTROLS, TRANSITIONS, type ServiceCommand, type ServiceState, type ServiceStateMethods, type ServiceStates } from '@greendrake/service-state'
+import type { ApiCaller } from '@greendrake/vue-api'
 import { serviceStateMessages } from './serviceStateMessages'
 
 const props = defineProps<{
     // Which of the backend's services this is: every call names it, and it is
-    // what this control's pushes are told apart by on a socket shared with
-    // others.
+    // what its entry in the states is keyed by.
     service: string
     api: ApiCaller<ServiceStateMethods>
-    transport: WsTransport<ServiceStatePushes>
+    states: ServiceStates
 }>()
 
-const status = ref<ServiceStatus>()
-const busy = ref(false)
+// Absent until the backend has read the service with somebody watching: the
+// control shows its own Loading meanwhile, never a state nobody verified.
+const status = computed(() => props.states[props.service])
 
 const command = computed(() => (status.value ? CONTROLS[status.value.state] : null))
 
-const read = async (call: CallOptions = {}): Promise<void> => {
-    status.value = await props.api.with(call).call('service.status', { service: props.service })
-}
-
-// The control's own Loading stands in until the first reading lands, so the
-// page's spinner would only say the same thing twice. A failure still reaches
-// the error toast: there is nothing else to show here without a status.
-onMounted(() => read({ pending: false }))
-
-useLive(props.transport, {
-    events: {
-        [SERVICE_STATE_EVENT]: {
-            when: (data: ServiceStatus) => data.service === props.service,
-            apply: (data: ServiceStatus) => (status.value = data)
+// The command's call, while it is out.
+const calling = ref(false)
+// A start or stop acknowledged while the document still shows the state it was
+// offered from: the acknowledgement can arrive ahead of the patch that moves
+// the service — a call over HTTP beside the socket — and the button must not
+// come back over a state the service is already leaving. Cleared as the state
+// moves. A call that fails sets none, and nor does a refresh, whose reading has
+// landed by the time it answers and may change nothing.
+const awaiting = ref<ServiceState>()
+watch(
+    () => status.value?.state,
+    state => {
+        if (state !== awaiting.value) {
+            awaiting.value = undefined
         }
-    },
-    // A socket that dropped missed whatever changed while it was gone, and the
-    // state it comes back to may be nothing like the one it left. In the
-    // background: nobody asked for this read.
-    resync: () => read(backgroundCall(true))
-})
+    }
+)
 
-const run = async (offered: NonNullable<typeof command.value>): Promise<void> => {
-    status.value = await props.api.with({ pending: busy }).call(`service.${offered}`, { service: props.service })
+// Answers nothing: where the service went is the document's to say.
+const run = async (offered: ServiceCommand | 'refresh'): Promise<void> => {
+    await props.api.with({ pending: calling }).call(`service.${offered}`, { service: props.service })
+    if (offered !== 'refresh' && status.value?.state === TRANSITIONS[offered].from) {
+        awaiting.value = TRANSITIONS[offered].from
+    }
 }
 </script>
 <template>
@@ -56,8 +57,8 @@ const run = async (offered: NonNullable<typeof command.value>): Promise<void> =>
         <Loading v-if="!status" />
         <template v-else>
             <span class="ServiceStateControl-state">{{ status.state }}</span>
-            <p v-if="status.error" class="ServiceStateControl-error">{{ status.error }}</p>
-            <button v-if="command" type="button" :disabled="busy" @click="run(command)">{{ serviceStateMessages[command] }}</button>
+            <p v-if="status.state === 'ERROR'" class="ServiceStateControl-error">{{ status.error }}</p>
+            <button v-if="command" type="button" :disabled="calling || awaiting !== undefined" @click="run(command)">{{ serviceStateMessages[command] }}</button>
         </template>
     </div>
 </template>

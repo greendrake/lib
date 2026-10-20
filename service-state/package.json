@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/service-state",
-    "version": "0.10.0",
+    "version": "0.11.0",
     "description": "A backend service as a state machine (OFF/STARTING/ON/STOPPING/ERROR): the wire contract both halves share, and the server-side machine behind it",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -37,6 +37,9 @@
         "check": "tsc --noEmit"
     },
     "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/rpc": "workspace:^"
+    },
     "peerDependencies": {
         "@greendrake/rpc-server": "workspace:^"
     },

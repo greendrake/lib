@@ -6,7 +6,7 @@ components that show a camera, its state and its settings. `ipcam-app` is a host
 camera.
 
 ```sh
-bun add @greendrake/ipcam vue
+bun add @greendrake/ipcam vue pinia
 ```
 
 ## API
@@ -24,7 +24,8 @@ bun add @greendrake/ipcam vue
   `@greendrake/vue-api`, say, as its `with({ silent: true })`.
 - `useCameras(transport)` is every camera's state, by name, as a reactive map. It holds
   the document the engine greets each socket with, and each patch is merged in
-  (`liveDocument`). A camera's `Streams` is absent before its first login.
+  (`@greendrake/vue-api`'s `keepDocument`), for the page's life: call it before the
+  transport connects. A camera's `Streams` is absent before its first login.
 - The wire types are exported as the Go types are keyed: `CameraState`, `Cameras`,
   `StreamKey`, `StreamState`, `Codec`, `Setting` (a `Kind` described), `Option`, `Group`,
   `SetResult`, `Clock`, and `Problem`, the details of a failure the engine words itself —

@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { serviceStateMethods } from '@greendrake/service-state/server'
-import type { ServiceStateMachine } from '@greendrake/service-state/server'
-import { method } from '@greendrake/rpc-server'
+import { SERVICE_NOT_FOUND, serviceStateMethods } from '@greendrake/service-state/server'
+import type { ServiceStateBoard } from '@greendrake/service-state/server'
+import { ApiError, method } from '@greendrake/rpc-server'
 import type { ClientMethods, MethodAccess } from '@greendrake/rpc-server'
 import type { MockService } from './mock'
 
@@ -14,17 +14,28 @@ export type Operator = typeof OPERATOR
 const OPERATOR_ONLY: MethodAccess<Operator> = { auth: 'required' }
 
 // The one method beyond the shared service-state contract: a hook for reaching
-// ERROR without breaking anything. It takes an argument, so it is also where
-// argument validation is shown — zod here, though any Standard Schema
+// ERROR without breaking anything, on the service it names, once its
+// transition's delay is up or at once. It takes an argument, so it is also
+// where argument validation is shown — zod here, though any Standard Schema
 // validator plugs into the same field.
-const failNext = z.object({ command: z.enum(['start', 'stop']) })
+const failNext = z.object({
+    service: z.string(),
+    command: z.enum(['start', 'stop']),
+    at_once: z.boolean().default(false)
+})
 
-export const apiMethods = (machine: ServiceStateMachine, mock: MockService) => ({
-    ...serviceStateMethods([machine], OPERATOR_ONLY),
+export const apiMethods = (board: ServiceStateBoard, mocks: ReadonlyMap<string, MockService>) => ({
+    ...serviceStateMethods(board, OPERATOR_ONLY),
     'mock.fail_next': method({
         ...OPERATOR_ONLY,
         args: failNext,
-        handler: (_ctx, args) => mock.failNext(args.command)
+        handler: (_ctx, args) => {
+            const mock = mocks.get(args.service)
+            if (!mock) {
+                throw new ApiError(SERVICE_NOT_FOUND)
+            }
+            mock.failNext(args.command, args.at_once)
+        }
     })
 })
 
