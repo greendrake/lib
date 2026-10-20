@@ -49,17 +49,25 @@ export const useLive = <PEvents extends PushMapConstraint<PEvents>, PData extend
     onUnmounted(bindLive(transport, options))
 }
 
-// A state stream kept for the page's life: `initial` made reactive, and every
-// frame of the document `type` applied to it (@greendrake/rpc's liveDocument).
-// A socket is sent the whole document only as it opens, so this is called
-// before the transport connects — where the transport is made, not in a
-// component that may mount after. The document's type is the one its result is
-// taken as, `initial` only checked against it: a literal of not-yet values
+// A document kept in a reactive target, and how to stop keeping it.
+export interface ReactiveDocument<D> {
+    doc: D
+    release(): void
+}
+
+// `initial` made reactive, and every frame of the document `type` applied to it
+// (@greendrake/rpc's liveDocument). The document's type is the one its result
+// is taken as, `initial` only checked against it: a literal of not-yet values
 // would otherwise narrow it to themselves.
-export const keepDocument = <K extends string, D extends object, PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData> & Record<K, StateFrame<D>>>(transport: WsTransport<PEvents, PData>, type: K, initial: NoInfer<D>): D => {
+export const reactiveDocument = <K extends string, D extends object, PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData> & Record<K, StateFrame<D>>>(transport: WsTransport<PEvents, PData>, type: K, initial: NoInfer<D>): ReactiveDocument<D> => {
     // A document is JSON, which holds no refs for reactive() to unwrap, so the
     // proxy is of D's own shape.
     const doc = reactive(initial) as D
-    liveDocument(transport, type, doc)
-    return doc
+    return { doc, release: liveDocument(transport, type, doc) }
 }
+
+// A document every socket keeps, kept for the page's life. Such a socket is
+// sent the whole document only as it opens, so this is called before the
+// transport connects — where the transport is made, not in a component that may
+// mount after. A document a topic keeps is keepTopicDocuments'.
+export const keepDocument = <K extends string, D extends object, PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData> & Record<K, StateFrame<D>>>(transport: WsTransport<PEvents, PData>, type: K, initial: NoInfer<D>): D => reactiveDocument<K, D, PEvents, PData>(transport, type, initial).doc

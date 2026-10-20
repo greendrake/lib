@@ -153,9 +153,19 @@ fleet.onChange(() => cameras.refresh())
 - **Shape.** The state must be a JSON object, or `document` throws. A member produced as `null` is dropped, the same as one left out, since a patch could not tell the two apart.
 - **Ordering.** Sends are synchronous, so no patch can precede or overtake a socket's document.
 
+State only the sockets that asked for it want is a document kept by a [topic](#topics)'s members alone:
+
+```ts
+const unit = registry.document('unit/web', () => ({ status }), { topic: 'unit/web' })
+```
+
+- **Greeting.** A socket is sent the whole document as it joins the topic, synchronously inside `join`, so the greeting goes ahead of the joining call's response. A socket already in the topic is not greeted again.
+- **Patches** go to the topic's members alone, and a socket that leaves or closes is sent nothing further. A reconnected socket is in no topic, so its client joins again.
+- **Audience.** The handle is also the topic's `Audience`: `size`, its members, and `onPresence` on the first to join and the last to leave or close — for a producer whose state costs something to produce and is worth producing only while a member is there to be told.
+
 Document-producing code takes the `DocumentPublisher` interface (`document`) rather than the class, as push-producing code takes `EventSink`.
 
-On the client, `@greendrake/rpc`'s `liveDocument` keeps the document. A reconnect is greeted with it afresh, so no re-read is needed.
+On the client, `@greendrake/rpc`'s `liveDocument` keeps the document. A reconnect is greeted afresh with every document every socket keeps, so no re-read is needed; a document a topic keeps comes again once the reconnected socket joins the topic again, which `@greendrake/vue-api`'s `keepTopicDocuments` does.
 
 ### Topics
 

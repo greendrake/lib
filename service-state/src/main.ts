@@ -25,11 +25,17 @@ export type ServiceStatus = ServiceCondition & {
     changed_at: number
 }
 
-// Every service's status, by the name its machine was registered under: the
-// document a backend publishes. A service has no entry until it has been read
-// with somebody watching (see the machine), and a socket that reconnects is
-// greeted afresh, so every lookup may find none.
-export type ServiceStates = Partial<Record<string, ServiceStatus>>
+// A service's own document: its status, absent until the service has been read
+// with somebody watching it (see the machine).
+export interface ServiceDocument {
+    status?: ServiceStatus
+}
+
+// What a service's document is called on the wire, and the topic whose members
+// — the sockets watching the service — keep it.
+export type ServiceStateDocumentType = `service.state/${string}`
+
+export const serviceStateDocument = (service: string): ServiceStateDocumentType => `service.state/${service}`
 
 // Each command: the state it is accepted from, the state the service passes
 // through while it runs, and where it lands. The machine refuses anything this
@@ -67,21 +73,26 @@ export const CONTROLS = {
 export const SERVICE_BUSY = 'SERVICE_BUSY'
 export const SERVICE_NOT_FOUND = 'SERVICE_NOT_FOUND'
 
-export const SERVICE_STATE_DOCUMENT = 'service.state'
-
 // The methods a service-state backend serves. A dashboard hands this to its
-// typed client; the server derives its definitions from it. They answer
-// nothing: where the service went is the document's to say, on the one ordered
-// stream every socket keeps, so no answer can arrive out of turn with it.
+// typed client; the server derives its definitions from it.
+//
+// - Watching. `service.watch` has the caller's socket join the service's
+//   topic, and keep its document: sent whole as it joins, and patched on every
+//   change after. A service is read only while some socket watches it.
+//   `service.unwatch` leaves. Both need a WebSocket.
+// - Commanding. `service.start`, `service.stop` and `service.refresh` answer
+//   nothing: where the service went is the document's to say, on the ordered
+//   stream its watchers keep, so no answer can arrive out of turn with it.
 export interface ServiceStateMethods {
+    'service.watch': (ref: ServiceRef) => void
+    'service.unwatch': (ref: ServiceRef) => void
     'service.start': (ref: ServiceRef) => void
     'service.stop': (ref: ServiceRef) => void
     'service.refresh': (ref: ServiceRef) => void
 }
 
-// Every service's status reaches every connected socket as one document, sent
-// whole as the socket opens and patched on every change after: a service has
-// one state, and everyone watching it is watching the same thing. A data push,
-// so a client's transport carries it in its data slot:
+// Each service's document reaches the sockets watching it: a service has one
+// state, and everyone watching it is watching the same thing. A data push, so a
+// client's transport carries it in its data slot:
 // `WsTransport<Record<never, never>, ServiceStatePushes>`.
-export type ServiceStatePushes = { [SERVICE_STATE_DOCUMENT]: StateFrame<ServiceStates> }
+export type ServiceStatePushes = Record<ServiceStateDocumentType, StateFrame<ServiceDocument>>

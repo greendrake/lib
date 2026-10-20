@@ -9,35 +9,45 @@ import type { MockService } from './mock'
 export const OPERATOR = 'operator'
 export type Operator = typeof OPERATOR
 
-// Every method is the operator's: the key is the only credential there is, so
-// holding it is all there is to ask.
+// Every method is the operator's, watching and commanding alike: the key is the
+// only credential there is, so holding it is all there is to ask.
 const OPERATOR_ONLY: MethodAccess<Operator> = { auth: 'required' }
 
-// The one method beyond the shared service-state contract: a hook for reaching
-// ERROR without breaking anything, on the service it names, once its
-// transition's delay is up or at once. It takes an argument, so it is also
-// where argument validation is shown — zod here, though any Standard Schema
-// validator plugs into the same field.
+// The methods beyond the shared service-state contract, each on the mocked
+// service it names. `mock.fail_next` is a hook for reaching ERROR without
+// breaking anything, once the transition's delay is up or at once; it takes
+// arguments, so it is also where argument validation is shown — zod here,
+// though any Standard Schema validator plugs into the same field.
+// `mock.reads` answers how many times the service has been checked.
 const failNext = z.object({
     service: z.string(),
     command: z.enum(['start', 'stop']),
     at_once: z.boolean().default(false)
 })
+const named = z.object({ service: z.string() })
 
-export const apiMethods = (board: ServiceStateBoard, mocks: ReadonlyMap<string, MockService>) => ({
-    ...serviceStateMethods(board, OPERATOR_ONLY),
-    'mock.fail_next': method({
-        ...OPERATOR_ONLY,
-        args: failNext,
-        handler: (_ctx, args) => {
-            const mock = mocks.get(args.service)
-            if (!mock) {
-                throw new ApiError(SERVICE_NOT_FOUND)
-            }
-            mock.failNext(args.command, args.at_once)
+export const apiMethods = (board: ServiceStateBoard, mocks: ReadonlyMap<string, MockService>) => {
+    const mockOf = (service: string): MockService => {
+        const mock = mocks.get(service)
+        if (!mock) {
+            throw new ApiError(SERVICE_NOT_FOUND)
         }
-    })
-})
+        return mock
+    }
+    return {
+        ...serviceStateMethods(board, { watch: OPERATOR_ONLY, command: OPERATOR_ONLY }),
+        'mock.fail_next': method({
+            ...OPERATOR_ONLY,
+            args: failNext,
+            handler: (_ctx, args) => mockOf(args.service).failNext(args.command, args.at_once)
+        }),
+        'mock.reads': method({
+            ...OPERATOR_ONLY,
+            args: named,
+            handler: (_ctx, args) => mockOf(args.service).reads()
+        })
+    }
+}
 
 // What a client hands its ApiClient: the whole surface, derived from the
 // definitions rather than restated. A method whose argument shape or result

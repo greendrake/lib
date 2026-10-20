@@ -2,15 +2,17 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { ApiError, HttpTransport, RpcClient, TOKEN_PARAM, WebSocketPipe, WsTransport, liveDocument } from '@greendrake/rpc'
 import type { RunningService } from '@greendrake/server'
 import type { ConnectionData } from '@greendrake/rpc-server'
-import { SERVICE_STATE_DOCUMENT } from '@greendrake/service-state'
-import type { ServiceState, ServiceStatePushes, ServiceStates } from '@greendrake/service-state'
+import { serviceStateDocument } from '@greendrake/service-state'
+import type { ServiceDocument, ServiceState, ServiceStatePushes, ServiceStatus } from '@greendrake/service-state'
 import { startApi } from '../src/service'
+import { MOCK_SERVICES } from '../src/mock'
 import type { ApiMethods, Operator } from '../src/methods'
 
 const KEY = 'test-admin-key'
 const DASH_ORIGIN = 'http://localhost:5180'
 // The service most calls name, and the one beside it that they leave alone.
 const WEB = { service: 'web' }
+const WORKER = { service: 'worker' }
 // The mocks' three seconds are for a person watching a dashboard; a test only
 // needs the transition to be observable.
 const TRANSITION_MS = 20
@@ -34,38 +36,51 @@ afterAll(async () => expect(await service.stop()).toBe('clean'))
 
 const httpClient = (token?: string): RpcClient<ApiMethods> => new RpcClient<ApiMethods>(new HttpTransport({ url: `http://${host}/v1/api`, headers: (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}) }))
 
+// How many times each service has been checked so far.
+const reads = (): Promise<number[]> => Promise.all([httpClient(KEY).call('mock.reads', WEB), httpClient(KEY).call('mock.reads', WORKER)])
+
 interface Dashboard {
     client: RpcClient<ApiMethods>
-    // The document, as the socket keeps it.
-    states: ServiceStates
+    // The service's status, as the socket keeps its document.
+    status: (name: string) => ServiceStatus | undefined
     // What the dashboard would have shown for a service, frame by frame: its
-    // state, or null while it has no entry.
-    seen: (service: string) => (ServiceState | null)[]
-    // Called after each frame has been applied to the document; returns the
-    // release.
+    // state, or null while it has no status.
+    seen: (name: string) => (ServiceState | null)[]
+    // Called after each frame of any service's document has been applied;
+    // returns the release.
     onFrame: (listener: () => void) => () => void
     close: () => void
 }
 
-// A dashboard's socket: calls and the document over one connection,
-// authenticated at the handshake.
+// A dashboard's socket: calls and the documents over one connection,
+// authenticated at the handshake. It watches nothing until it calls
+// service.watch.
 const dashboard = async (): Promise<Dashboard> => {
     const pipe = new WebSocketPipe({ url: `ws://${host}/v1/ws`, queryAuth: { param: TOKEN_PARAM, token: KEY } })
     const transport = new WsTransport<Record<never, never>, ServiceStatePushes>({ pipe })
-    const states: ServiceStates = {}
-    liveDocument(transport, SERVICE_STATE_DOCUMENT, states)
-    // Every listener after liveDocument's runs once it has applied the frame.
-    const onFrame = (listener: () => void): (() => void) => transport.onData(SERVICE_STATE_DOCUMENT, listener)
-    const frames: ServiceStates[] = []
-    onFrame(() => frames.push(structuredClone(states)))
+    const kept = new Map<string, { doc: ServiceDocument; frames: (ServiceState | null)[] }>()
+    const listeners = new Set<() => void>()
+    for (const name of MOCK_SERVICES) {
+        const entry: { doc: ServiceDocument; frames: (ServiceState | null)[] } = { doc: {}, frames: [] }
+        kept.set(name, entry)
+        liveDocument(transport, serviceStateDocument(name), entry.doc)
+        // After liveDocument's, so the frame has been applied.
+        transport.onData(serviceStateDocument(name), () => {
+            entry.frames.push(entry.doc.status?.state ?? null)
+            listeners.forEach(listener => listener())
+        })
+    }
     // A dashboard that only watches never sends anything, and the pipe
     // connects on demand — so the socket has to be asked for.
     await transport.connect()
     return {
         client: new RpcClient<ApiMethods>(transport),
-        states,
-        seen: name => frames.map(doc => doc[name]?.state ?? null).filter((state, i, all) => i === 0 || state !== all[i - 1]),
-        onFrame,
+        status: name => kept.get(name)?.doc.status,
+        seen: name => (kept.get(name)?.frames ?? []).filter((state, i, all) => i === 0 || state !== all[i - 1]),
+        onFrame: listener => {
+            listeners.add(listener)
+            return () => listeners.delete(listener)
+        },
         close: () => pipe.dispose()
     }
 }
@@ -75,7 +90,7 @@ const dashboard = async (): Promise<Dashboard> => {
 // timeout.
 const until = (at: Dashboard, name: string, state: ServiceState): Promise<void> =>
     new Promise(resolve => {
-        const reached = (): boolean => at.states[name]?.state === state
+        const reached = (): boolean => at.status(name)?.state === state
         if (reached()) {
             resolve()
             return
@@ -94,18 +109,35 @@ describe('the example API', () => {
         expect(await httpClient(KEY).call('service.refresh', WEB)).toBeUndefined()
     })
 
-    // First of the socket tests: no socket has been open, so no reading has
-    // been published — the refresh above was taken with nobody watching.
-    test('the first socket is greeted with no reading, and shown each service once it has been read', async () => {
-        const first = await dashboard()
-        await until(first, 'web', 'OFF')
-        await until(first, 'worker', 'OFF')
-        expect(first.seen('web')).toEqual([null, 'OFF'])
-        first.close()
+    test('a connected socket that has not watched has nothing read', async () => {
+        const before = await reads()
+        const idle = await dashboard()
+        // Answered, the socket is the server's.
+        await idle.client.call('mock.reads', WEB)
+        expect(await reads()).toEqual(before)
+        idle.close()
     })
 
-    test('a full round trip, with every state change published to every socket', async () => {
+    // The first socket to watch: no reading of the service has been published —
+    // the refresh above was taken with nobody watching.
+    test('watching a service is greeted with no reading, has it read, and leaves the service beside it alone', async () => {
+        const [, workerBefore] = await reads()
+        const watcher = await dashboard()
+        await watcher.client.call('service.watch', WEB)
+        // Greeted ahead of the answer; the reading the watch set off may land
+        // on either side of it.
+        expect(watcher.seen('web')[0]).toBeNull()
+        await until(watcher, 'web', 'OFF')
+        const [webAfter, workerAfter] = await reads()
+        expect(webAfter).toBeGreaterThan(0)
+        expect(workerAfter).toBe(workerBefore)
+        expect(watcher.seen('worker')).toEqual([])
+        watcher.close()
+    })
+
+    test('a full round trip, with every state change sent to every socket watching', async () => {
         const [operator, onlooker] = await Promise.all([dashboard(), dashboard()])
+        await Promise.all([operator.client.call('service.watch', WEB), onlooker.client.call('service.watch', WEB)])
         await until(operator, 'web', 'OFF')
         await until(onlooker, 'web', 'OFF')
 
@@ -116,17 +148,16 @@ describe('the example API', () => {
         await until(onlooker, 'web', 'OFF')
 
         expect(operator.seen('web').slice(-5)).toEqual(['OFF', 'STARTING', 'ON', 'STOPPING', 'OFF'])
-        // The onlooker asked for nothing and saw the same thing: a service has
-        // one state, and it is everybody's.
+        // The onlooker asked for nothing but to watch, and saw the same thing:
+        // a service has one state, and it is everybody's.
         expect(onlooker.seen('web').slice(-5)).toEqual(['OFF', 'STARTING', 'ON', 'STOPPING', 'OFF'])
-        // The service beside it was never touched.
-        expect(operator.seen('worker').at(-1)).toBe('OFF')
         operator.close()
         onlooker.close()
     })
 
     test('a transition that fails leaves ERROR carrying why, and a refresh reads past it', async () => {
         const operator = await dashboard()
+        await operator.client.call('service.watch', WEB)
         await until(operator, 'web', 'OFF')
         await operator.client.call('mock.fail_next', {
             ...WEB,
@@ -136,13 +167,13 @@ describe('the example API', () => {
         await operator.client.call('service.start', WEB)
         await until(operator, 'web', 'ERROR')
 
-        expect(operator.states.web).toEqual({
+        expect(operator.status('web')).toEqual({
             state: 'ERROR',
             error: 'mock service failed to start',
             changed_at: expect.any(Number)
         })
         await operator.client.call('service.refresh', WEB)
-        expect(operator.states.web).toEqual({ state: 'OFF', changed_at: expect.any(Number) })
+        expect(operator.status('web')).toEqual({ state: 'OFF', changed_at: expect.any(Number) })
         operator.close()
     })
 
@@ -150,6 +181,7 @@ describe('the example API', () => {
     // document before the answer to the start that led to it.
     test('a start that fails at once is in ERROR by the time its answer arrives', async () => {
         const operator = await dashboard()
+        await operator.client.call('service.watch', WEB)
         await until(operator, 'web', 'OFF')
         await operator.client.call('mock.fail_next', {
             ...WEB,
@@ -157,10 +189,26 @@ describe('the example API', () => {
             at_once: true
         })
         await operator.client.call('service.start', WEB)
-        expect(operator.states.web?.state).toBe('ERROR')
+        expect(operator.status('web')?.state).toBe('ERROR')
         expect(operator.seen('web').slice(-3)).toEqual(['OFF', 'STARTING', 'ERROR'])
         await operator.client.call('service.refresh', WEB)
         operator.close()
+    })
+
+    test('a socket that watched and dropped, replaced by one that watches again, is greeted with the document afresh', async () => {
+        const dropped = await dashboard()
+        await dropped.client.call('service.watch', WEB)
+        await until(dropped, 'web', 'OFF')
+        dropped.close()
+
+        const replacement = await dashboard()
+        await replacement.client.call('service.watch', WEB)
+        await until(replacement, 'web', 'OFF')
+        replacement.close()
+    })
+
+    test('watching needs a WebSocket', async () => {
+        await expect(httpClient(KEY).call('service.watch', WEB)).rejects.toThrow(new ApiError('WEBSOCKET_REQUIRED'))
     })
 
     test("the dashboard's page may open a socket, and no other page may", async () => {
@@ -184,7 +232,7 @@ describe('the example API', () => {
         })
     })
 
-    test('arming a service the API does not serve is not found', async () => {
+    test('a mocked service the API does not serve is not found', async () => {
         await expect(
             httpClient(KEY).call('mock.fail_next', {
                 service: 'db',
@@ -192,5 +240,6 @@ describe('the example API', () => {
                 at_once: false
             })
         ).rejects.toThrow(new ApiError('SERVICE_NOT_FOUND'))
+        await expect(httpClient(KEY).call('mock.reads', { service: 'db' })).rejects.toThrow(new ApiError('SERVICE_NOT_FOUND'))
     })
 })

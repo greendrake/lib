@@ -14,6 +14,9 @@ export interface MockService extends ServiceImplementation {
     // breaking anything: once the transition's delay is up, or at once. The
     // `mock.fail_next` method exposes it.
     failNext(command: ServiceCommand, atOnce: boolean): void
+    // How many times the service has been checked, which is how a test sees
+    // that it is read only while watched. The `mock.reads` method exposes it.
+    reads(): number
 }
 
 // What a real implementation would wrap — a systemd unit, a container, a
@@ -22,6 +25,7 @@ export interface MockService extends ServiceImplementation {
 export const createMockService = (transitionMs = TRANSITION_MS): MockService => {
     let running = false
     let failing: { command: ServiceCommand; atOnce: boolean } | null = null
+    let checks = 0
 
     const transition = async (command: ServiceCommand, target: boolean): Promise<void> => {
         const armed = failing?.command === command ? failing : null
@@ -40,9 +44,13 @@ export const createMockService = (transitionMs = TRANSITION_MS): MockService => 
     return {
         start: () => transition('start', true),
         stop: () => transition('stop', false),
-        check: (): Promise<Exclude<ServiceState, 'ERROR'>> => Promise.resolve(running ? 'ON' : 'OFF'),
+        check: (): Promise<Exclude<ServiceState, 'ERROR'>> => {
+            checks += 1
+            return Promise.resolve(running ? 'ON' : 'OFF')
+        },
         failNext: (command, atOnce) => {
             failing = { command, atOnce }
-        }
+        },
+        reads: () => checks
     }
 }

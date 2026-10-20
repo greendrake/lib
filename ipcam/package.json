@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/ipcam",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "description": "The browser end of the camera engine (greendrake.nz/go/ipcam): its API bound to a camera, the cameras' states, and the camera's tile and settings components",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

@@ -44,27 +44,37 @@ type ConnRegistryArgs<P> = object extends ConnRegistryOptions<P> ? [options?: Co
 // What a producer holds of its document: publishing it is the producer's whole part.
 export interface Document {
     // Publishes the state as `produce` now has it: what changed since it was last
-    // published goes to every socket as one patch, and nothing goes when nothing
-    // changed. So a producer calls it on any change it knows of; a call too many
-    // costs a diff.
+    // published goes to every socket keeping the document as one patch, and
+    // nothing goes when nothing changed. So a producer calls it on any change it
+    // knows of; a call too many costs a diff.
     refresh(): void
 }
 
-// What a subsystem needs in order to keep a document on every socket, without
-// knowing what a connection is. Document-producing code takes this, not the
-// registry. See ConnRegistry's document().
-export interface DocumentPublisher {
-    document(type: string, produce: () => object): Document
+// Where a document is kept: by the members of the topic, rather than by every
+// socket.
+export interface DocumentOptions {
+    topic: string
 }
 
-// Whether anybody is connected to hear a broadcast, for a producer whose
-// pushes cost something to produce — a reading taken from somewhere slow —
-// and are worth producing only while somebody is there to be told.
+// What a subsystem needs in order to keep a document on sockets, without
+// knowing what a connection is: on every socket, or on the members of a topic,
+// whose audience the handle is then too. Document-producing code takes this,
+// not the registry. See ConnRegistry's document().
+export interface DocumentPublisher {
+    document(type: string, produce: () => object): Document
+    document(type: string, produce: () => object, options: DocumentOptions): Document & Audience
+}
+
+// Whether anybody is there to hear a broadcast, for a producer whose pushes
+// cost something to produce — a reading taken from somewhere slow — and are
+// worth producing only while somebody is there to be told: the open sockets,
+// for the registry; a topic's members, for a document kept by a topic.
 export interface Audience {
-    // How many sockets are open.
+    // How many there are.
     readonly size: number
-    // Called with true as the first socket opens and false as the last one
-    // closes. The function returned stops the calls.
+    // Called with true as the first arrives — a socket opening, or joining the
+    // topic — and false as the last goes — closing, or leaving. The function
+    // returned stops the calls.
     onPresence(listener: (present: boolean) => void): () => void
 }
 
@@ -96,11 +106,13 @@ const eventFrame = (event: string, data: unknown): EventFrame => ({
     data
 })
 
-// A document the registry publishes: what it is called on the wire, and the state as
-// last published, which is what an opening socket is sent.
+// A document the registry publishes: what it is called on the wire, the state as
+// last published, which is what a socket starting to keep it is sent, and the
+// topic whose members keep it — every socket, where null.
 interface Published {
     type: string
     doc: JsonObject
+    topic: string | null
 }
 
 // Every open socket, and the index from principal to the sockets bound as it —
@@ -112,11 +124,13 @@ interface Published {
 // caller (see Topics), published to by the application and dropped with the
 // socket.
 //
-// And the documents every socket keeps (see document()).
+// And the documents sockets keep, every socket or a topic's members (see
+// document()), and who is listening for a topic's first member and last.
 export class ConnRegistry<P = never> implements EventSink, Audience, DocumentPublisher {
     readonly #connections = new Set<Connection<P>>()
     readonly #documents: Published[] = []
     readonly #presence = new Set<(present: boolean) => void>()
+    readonly #topicPresence = new Map<string, Set<(present: boolean) => void>>()
     readonly #byUser = new Map<unknown, Set<Connection<P>>>()
     // Where each connection is currently filed, so a principal that changes
     // mid-connection can be re-indexed without the caller tracking what it
@@ -144,7 +158,7 @@ export class ConnRegistry<P = never> implements EventSink, Audience, DocumentPub
         const arriving = !this.#connections.has(conn)
         this.#connections.add(conn)
         if (arriving) {
-            this.#documents.forEach(published => this.#greet(conn, published))
+            this.#greetWithKept(conn, null)
         }
         if (arriving && this.#connections.size === 1) {
             this.#presence.forEach(listener => listener(true))
@@ -174,21 +188,33 @@ export class ConnRegistry<P = never> implements EventSink, Audience, DocumentPub
         }
     }
 
-    // Puts the socket in the topic, for publish to reach. A socket that has
-    // already closed joins nothing: a handler can outlive its caller, and a
-    // membership taken after the close would be a dead socket published to for
-    // as long as the process runs.
+    // Puts the socket in the topic, for publish to reach, and greets it with
+    // every document the topic's members keep — ahead of the joining call's
+    // response, sends being synchronous. A socket already in the topic is not
+    // greeted again. A socket that has already closed joins nothing: a handler
+    // can outlive its caller, and a membership taken after the close would be a
+    // dead socket published to for as long as the process runs.
     join(conn: Connection<P>, topic: string): void {
-        if (!this.#connections.has(conn)) {
+        if (!this.#connections.has(conn) || this.#topicMembers.get(topic)?.has(conn)) {
             return
         }
         addTo(this.#topicMembers, topic, conn)
         addTo(this.#joined, conn, topic)
+        this.#greetWithKept(conn, topic)
+        if (this.#topicMembers.get(topic)?.size === 1) {
+            this.#topicPresence.get(topic)?.forEach(listener => listener(true))
+        }
     }
 
     leave(conn: Connection<P>, topic: string): void {
+        if (!this.#topicMembers.get(topic)?.has(conn)) {
+            return
+        }
         removeFrom(this.#topicMembers, topic, conn)
         removeFrom(this.#joined, conn, topic)
+        if (!this.#topicMembers.has(topic)) {
+            this.#topicPresence.get(topic)?.forEach(listener => listener(false))
+        }
     }
 
     // To every socket in the topic, whoever it is bound as — for state only the
@@ -245,35 +271,68 @@ export class ConnRegistry<P = never> implements EventSink, Audience, DocumentPub
     }
 
     // A state stream: the whole of some state as one JSON object, kept by every
-    // socket. A socket is sent the document as last published when it opens,
-    // `{type, data: {doc}}`, and each change after that as an RFC 7386 merge
-    // patch over it, `{type, data: {patch}}` — objects merge, null removes a
-    // member, anything else replaces — so what it holds is always the document.
-    // A member produced as null is dropped, the same as one left out, a patch
-    // being unable to tell the two apart (`@greendrake/rpc`'s documentOf, which
-    // the client end shares). `produce` runs now, so every greeting has a
+    // socket, or with `topic` by the topic's members alone. A socket is sent the
+    // document as last published when it starts keeping it — as it opens, or as
+    // it joins the topic — `{type, data: {doc}}`, and each change after that as
+    // an RFC 7386 merge patch over it, `{type, data: {patch}}` — objects merge,
+    // null removes a member, anything else replaces — so what it holds is always
+    // the document. A socket that leaves the topic, or closes, is sent nothing
+    // further. A member produced as null is dropped, the same as one left out, a
+    // patch being unable to tell the two apart (`@greendrake/rpc`'s documentOf,
+    // which the client end shares). `produce` runs now, so every greeting has a
     // document, and again on each refresh. A state that is no JSON object
     // throws. Sends are synchronous, so no patch can precede or overtake a
-    // socket's document.
-    document(type: string, produce: () => object): Document {
-        const published: Published = { type, doc: documentOf(type, produce()) }
+    // socket's document. A topic's document is also that topic's Audience: its
+    // members, and the first to join and the last to leave or close.
+    document(type: string, produce: () => object): Document
+    document(type: string, produce: () => object, options: DocumentOptions): Document & Audience
+    document(type: string, produce: () => object, options?: DocumentOptions): Document | (Document & Audience) {
+        const topic = options?.topic ?? null
+        const published: Published = {
+            type,
+            doc: documentOf(type, produce()),
+            topic
+        }
         this.#documents.push(published)
-        this.#connections.forEach(conn => this.#greet(conn, published))
+        // The sockets keeping it, as they are now.
+        const keepers = (): ReadonlySet<Connection<P>> => (topic === null ? this.#connections : (this.#topicMembers.get(topic) ?? new Set()))
+        for (const conn of keepers()) {
+            this.#greet(conn, published)
+        }
+        const refresh = (): void => {
+            const next = documentOf(type, produce())
+            const patch = mergePatchBetween(published.doc, next)
+            if (!patch) {
+                return
+            }
+            published.doc = next
+            for (const conn of keepers()) {
+                this.send(conn, { type, data: { patch } })
+            }
+        }
+        if (topic === null) {
+            return { refresh }
+        }
         return {
-            refresh: () => {
-                const next = documentOf(type, produce())
-                const patch = mergePatchBetween(published.doc, next)
-                if (!patch) {
-                    return
-                }
-                published.doc = next
-                this.#connections.forEach(conn => this.send(conn, { type, data: { patch } }))
+            refresh,
+            get size() {
+                return keepers().size
+            },
+            onPresence: listener => {
+                addTo(this.#topicPresence, topic, listener)
+                return () => removeFrom(this.#topicPresence, topic, listener)
             }
         }
     }
 
     #greet(conn: Connection<P>, published: Published): void {
         this.send(conn, { type: published.type, data: { doc: published.doc } })
+    }
+
+    // Greets a socket starting to keep the documents of a topic — or, with
+    // null, those every socket keeps — with each of them.
+    #greetWithKept(conn: Connection<P>, topic: string | null): void {
+        this.#documents.filter(published => published.topic === topic).forEach(published => this.#greet(conn, published))
     }
 
     get size(): number {

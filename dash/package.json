@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/dash",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "description": "Dashboard SPA shell: app bootstrap, splash root layout, tab-registry dashboard, a live service-state control and the Vite/env conventions a dashboard needs",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -66,6 +66,7 @@
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
+        "@greendrake/rpc-server": "workspace:*",
         "@greendrake/service-state": "workspace:*",
         "pinia": "^3.0.4",
         "typescript": "6.0.3",

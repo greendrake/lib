@@ -3,9 +3,11 @@ import type { PushMapConstraint, WsTransport } from './WsTransport'
 
 /**
  * Keeps target the document the state stream `type` carries: replaced whole by each `doc`
- * frame — which a server sends when a socket starts keeping it, on every (re)connect —
- * and patched in place by each `patch` frame after it. A patch over no document is a
- * protocol violation, and throws. Returns the release.
+ * frame, and patched in place by each `patch` frame after it. A server sends the `doc`
+ * when a socket starts keeping the document: on every (re)connect, for a document every
+ * socket keeps; as the socket joins the topic, for one a topic's members keep — which a
+ * reconnected socket has to join again. A patch over no document is a protocol violation,
+ * and throws. Returns the release.
  */
 export const liveDocument = <K extends string, D extends object, PEvents extends PushMapConstraint<PEvents>, PData extends PushMapConstraint<PData> & Record<K, StateFrame<D>>>(transport: WsTransport<PEvents, PData>, type: K, target: D): (() => void) => {
     const doc = target as JsonObject

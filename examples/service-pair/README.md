@@ -1,6 +1,6 @@
 # service-pair
 
-A dashboard and the backend it talks to, both TypeScript, both built entirely from the published packages. It shows one thing: a control for a service that is `OFF`, `STARTING`, `ON`, `STOPPING` or `ERROR`, for each of two services, `web` and `worker`, a tab each. Pressing *Turn ON* starts one; three seconds later it is on — and so it says on every dashboard open at the time, because the state arrives as the server's document of every service's state rather than as an answer to whoever asked.
+A dashboard and the backend it talks to, both TypeScript, both built entirely from the published packages. It shows one thing: a control for a service that is `OFF`, `STARTING`, `ON`, `STOPPING` or `ERROR`, for each of two services, `web` and `worker`, a tab each. Pressing *Turn ON* starts one; three seconds later it is on — and so it says on every dashboard showing it at the time, because the state arrives as the service's own document, sent to every socket watching it, rather than as an answer to whoever asked. A service is read only while some dashboard shows it.
 
 The services themselves are mocked: a flag, a delay, and a switch that makes the next transition fail, after the delay or at once, so `ERROR` is reachable. A real one would wrap a systemd unit, a container or a device, and the rest of this would be unchanged.
 
@@ -32,5 +32,5 @@ The API's own test drives the real server with `@greendrake/rpc`'s client — th
 
 - `api/src/methods.ts` — the dispatch table, and `ClientMethods<…>` deriving the client's method map from it so the two sides cannot drift.
 - `api/src/service.ts` — `serve()` with probes and a shutdown deadline around an HTTP endpoint and a WebSocket one.
-- `dash/src/api.ts` — one `WsTransport` carrying both the calls and the document, authenticated at the handshake, the document kept from before the socket opens.
+- `dash/src/api.ts` — one `WsTransport` carrying both the calls and the documents of the services watched, authenticated at the handshake, and the keeper the controls watch through.
 - `dash/vite.config.ts` — `dashApp` and the `.env.dev` / `.env.prod` convention.

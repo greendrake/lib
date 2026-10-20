@@ -1,7 +1,7 @@
-import { ApiError } from '@greendrake/rpc-server'
-import type { Audience, DocumentPublisher, MethodAccess, MethodDef } from '@greendrake/rpc-server'
-import { SERVICE_BUSY, SERVICE_NOT_FOUND, SERVICE_STATE_DOCUMENT, TRANSITIONS } from './main'
-import type { ServiceCommand, ServiceCondition, ServiceRef, ServiceState, ServiceStateMethods, ServiceStates, ServiceStatus } from './main'
+import { ApiError, topicsOf } from '@greendrake/rpc-server'
+import type { Audience, Document, DocumentPublisher, HandlerContext, MethodAccess, MethodDef } from '@greendrake/rpc-server'
+import { SERVICE_BUSY, SERVICE_NOT_FOUND, TRANSITIONS, serviceStateDocument } from './main'
+import type { ServiceCommand, ServiceCondition, ServiceDocument, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatus } from './main'
 
 // What the machine throws for a command its state is in no position to take:
 // a transition already under way, or one that would take the service where it
@@ -29,7 +29,7 @@ export interface ServiceImplementation {
 
 export interface ServiceStateMachine {
     // What the service is called on the wire: what a call names to reach it,
-    // and what its entry in the document is keyed by.
+    // and what its document and topic are named for (serviceStateDocument).
     readonly name: string
     // Resolve as soon as the transition has begun, or reject a ServiceBusyError.
     // Where it ends up is the document's to say, to everyone — not this caller's
@@ -46,70 +46,52 @@ export interface ServiceStateMachine {
     close(): void
 }
 
-// The machines of a backend, published as one document, and the one index of
-// them by name. Presence passes through from the publisher: whether anybody is
-// there to watch is what every machine's reading turns on.
-export interface ServiceStateBoard extends Audience {
+// The machines of a backend, the one index of them by name, and each one's
+// document on a publisher.
+export interface ServiceStateBoard {
     // The machine registered under a name.
     machine(name: string): ServiceStateMachine | undefined
     // For createServiceStateMachine: registers a machine, refusing a second of
-    // its name. Its entry in the document is whatever `entry` gives as each
-    // publish runs, none where it gives undefined.
-    add(machine: ServiceStateMachine, entry: () => ServiceStatus | undefined): void
-    // For createServiceStateMachine: publishes every machine's entry as it now
-    // stands. What changed goes to every socket; nothing goes when nothing did.
-    publish(): void
+    // its name, and keeps its document — what `produce` gives on each refresh —
+    // on the sockets in its own topic, both named serviceStateDocument(name).
+    // The handle is the machine's audience too: the sockets watching it.
+    register(machine: ServiceStateMachine, produce: () => ServiceDocument): Document & Audience
 }
 
-// The board over a publisher — @greendrake/rpc-server's ConnRegistry is one —
-// which keeps its document on every socket as SERVICE_STATE_DOCUMENT.
-export const serviceStateBoard = (publisher: DocumentPublisher & Audience): ServiceStateBoard => {
-    const registered = new Map<string, { machine: ServiceStateMachine; entry: () => ServiceStatus | undefined }>()
-    const document = publisher.document(SERVICE_STATE_DOCUMENT, (): ServiceStates => {
-        const states: ServiceStates = {}
-        for (const [name, { entry }] of registered) {
-            const status = entry()
-            if (status) {
-                states[name] = status
-            }
-        }
-        return states
-    })
+// The board over a publisher — @greendrake/rpc-server's ConnRegistry is one.
+export const serviceStateBoard = (publisher: DocumentPublisher): ServiceStateBoard => {
+    const machines = new Map<string, ServiceStateMachine>()
     return {
-        get size() {
-            return publisher.size
-        },
-        onPresence: listener => publisher.onPresence(listener),
-        machine: name => registered.get(name)?.machine,
-        add: (machine, entry) => {
-            if (registered.has(machine.name)) {
+        machine: name => machines.get(name),
+        register: (machine, produce) => {
+            if (machines.has(machine.name)) {
                 throw new Error(`serviceStateBoard: two machines are named ${machine.name}`)
             }
-            registered.set(machine.name, { machine, entry })
-            document.refresh()
-        },
-        publish: () => document.refresh()
+            machines.set(machine.name, machine)
+            const type = serviceStateDocument(machine.name)
+            return publisher.document(type, produce, { topic: type })
+        }
     }
 }
 
-// The service-state machine over a concrete implementation, published on the
-// board as `name`. Nothing tells the machine when a service is changed by
-// other hands — a unit stopped from a shell, a schedule that turns it off
-// overnight — so it reads the service when somebody needs to know, and only
-// then:
+// The service-state machine over a concrete implementation, registered on the
+// board as `name`, its document kept by the sockets watching it. Nothing tells
+// the machine when a service is changed by other hands — a unit stopped from a
+// shell, a schedule that turns it off overnight — so it reads the service when
+// somebody needs to know, and only then:
 //
-// - Watched. While the board's audience has anybody in it — a socket open to
-//   be told — the machine re-reads whenever its latest reading turns
-//   `maxAgeMs` old, so a dashboard left open follows the service. The first to
-//   arrive has the service read at once, and so does a machine created while
-//   somebody watches.
+// - Watched. While anybody watches the service — a socket in its topic — the
+//   machine re-reads whenever its latest reading turns `maxAgeMs` old, so a
+//   dashboard left open follows the service. The first to watch has the
+//   service read at once, and so does a machine created while somebody
+//   watches. Watching another service on the board reads nothing of this one.
 // - Commanded. A start or stop on a machine whose latest reading is missing or
 //   `maxAgeMs` old reads first, and is refused or taken as that reading says.
 //
 // A reading is published only when somebody watched it being taken, and the
-// last to leave takes every reading out of the document: so an opening
-// dashboard is shown the service as it is, once it has been read, and never as
-// it was. A transition under way, and the ERROR a failed one lands in, are the
+// last to stop watching takes the reading out of the document: so a dashboard
+// starting to watch is shown the service as it is, once it has been read, and
+// never as it was. A transition under way, and the ERROR a failed one lands in, are the
 // machine's own word rather than a reading: published whatever the audience,
 // and not read past — the failed transition's ERROR until somebody refreshes,
 // because reading past it would take the why away before anyone saw it. The
@@ -159,7 +141,7 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
     // refreshes.
     const schedule = (): void => {
         clearTimeout(nextRead)
-        if (!closed && board.size > 0 && !transitioning && !failed) {
+        if (!closed && topic.size > 0 && !transitioning && !failed) {
             nextRead = setTimeout(() => void read(), Math.max(0, readAt + maxAgeMs - Date.now()))
         }
     }
@@ -168,9 +150,9 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
     // which is a reading.
     const reached = (next: ServiceCondition): void => {
         readAt = Date.now()
-        witnessed = board.size > 0
+        witnessed = topic.size > 0
         become(next)
-        board.publish()
+        topic.refresh()
         schedule()
     }
 
@@ -219,7 +201,7 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
         transitions += 1
         clearTimeout(nextRead)
         become({ state: during })
-        board.publish()
+        topic.refresh()
         // Over the moment it lands, because its landing is a reading and a
         // reading schedules the next only with no transition under way.
         const landed = (next: ServiceCondition, failure: boolean): void => {
@@ -250,12 +232,13 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
         }
     }
 
-    board.add(machine, () => (transitioning || failed || witnessed ? current : undefined))
+    // The machine's topic: its document, and the sockets watching it.
+    const topic = board.register(machine, () => (transitioning || failed || witnessed ? { status: current } : {}))
 
-    // The first watcher has the service read at once: every reading went out
-    // of the document with the last one to leave. The machine's own word stays,
-    // and is not read past. The last to leave stops the re-reads.
-    const stopListening = board.onPresence(present => {
+    // The first watcher has the service read at once: the reading went out of
+    // the document with the last one to stop watching. The machine's own word
+    // stays, and is not read past. The last to stop stops the re-reads.
+    const stopListening = topic.onPresence(present => {
         if (present) {
             if (!transitioning && !failed) {
                 void read()
@@ -264,10 +247,10 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
         }
         clearTimeout(nextRead)
         witnessed = false
-        board.publish()
+        topic.refresh()
     })
 
-    if (board.size > 0) {
+    if (topic.size > 0) {
         void read()
     }
     return machine
@@ -288,35 +271,45 @@ const SERVICE_REF: NonNullable<MethodDef<ServiceRef>['args']> = {
     }
 }
 
-// The three methods over every machine on the board, ready to merge into a
+// Who may call the methods, in the application's own principals. Seeing a
+// service is a read and commanding it is not, so each has its own: `watch`
+// covers watching and unwatching, `command` starting, stopping and refreshing.
+// A host that lets every socket see the state, whoever it is bound as, opens
+// `watch` and gates `command`.
+export interface ServiceStateAccess<P> {
+    watch: MethodAccess<P>
+    command: MethodAccess<P>
+}
+
+// The five methods over every machine on the board, ready to merge into a
 // dispatch table: one socket serves them all, each call naming its service.
-// Who may call them is the application's to say — turning a service off is
-// not a read, and only the application knows its principals.
-export const serviceStateMethods = <P>(board: ServiceStateBoard, access: MethodAccess<P>): ServiceStateMethodDefs<P> => {
+export const serviceStateMethods = <P>(board: ServiceStateBoard, access: ServiceStateAccess<P>): ServiceStateMethodDefs<P> => {
     // Each method is the same three steps — the argument checked, the service
     // it names found, one thing asked of that service's machine — and differs
-    // only in what is asked.
-    const asking = (ask: (machine: ServiceStateMachine) => Promise<void>): MethodDef<ServiceRef, void, P> => ({
-        ...access,
+    // only in what is asked, and under which access.
+    const asking = (allowed: MethodAccess<P>, ask: (machine: ServiceStateMachine, ctx: HandlerContext<P>) => Promise<void> | void): MethodDef<ServiceRef, void, P> => ({
+        ...allowed,
         args: SERVICE_REF,
-        handler: async (_ctx, { service }) => {
+        handler: async (ctx, { service }) => {
             const machine = board.machine(service)
             if (!machine) {
                 throw new ApiError(SERVICE_NOT_FOUND)
             }
             try {
-                await ask(machine)
+                await ask(machine, ctx)
             } catch (e) {
                 throw e instanceof ServiceBusyError ? new ApiError(SERVICE_BUSY) : e
             }
         }
     })
     return {
-        'service.start': asking(machine => machine.start()),
-        'service.stop': asking(machine => machine.stop()),
-        'service.refresh': asking(machine => machine.refresh())
+        'service.watch': asking(access.watch, (machine, ctx) => topicsOf(ctx).join(serviceStateDocument(machine.name))),
+        'service.unwatch': asking(access.watch, (machine, ctx) => topicsOf(ctx).leave(serviceStateDocument(machine.name))),
+        'service.start': asking(access.command, machine => machine.start()),
+        'service.stop': asking(access.command, machine => machine.stop()),
+        'service.refresh': asking(access.command, machine => machine.refresh())
     }
 }
 
-export { CONTROLS, SERVICE_BUSY, SERVICE_NOT_FOUND, SERVICE_STATE_DOCUMENT, SERVICE_STATES, TRANSITIONS } from './main'
-export type { ServiceCommand, ServiceCondition, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatePushes, ServiceStates, ServiceStatus } from './main'
+export { CONTROLS, SERVICE_BUSY, SERVICE_NOT_FOUND, SERVICE_STATES, TRANSITIONS, serviceStateDocument } from './main'
+export type { ServiceCommand, ServiceCondition, ServiceDocument, ServiceRef, ServiceState, ServiceStateDocumentType, ServiceStateMethods, ServiceStatePushes, ServiceStatus } from './main'

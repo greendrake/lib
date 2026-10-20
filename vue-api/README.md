@@ -187,12 +187,36 @@ The mechanism — relevance, `apply` versus `resync`, the reconnect re-read, coa
 - Its failure neither interrupts nor vanishes. A `NotFoundError` is dropped (the entity went away while the socket was down; the next navigation says so), a `NetworkError` is dropped (the socket went again mid-read, and the binding's own reconnect rule re-reads when it returns), and anything else goes to the `errorSink` configured through `configureApiUX` — reported, never toasted.
 - It must read past a response cache the missed pushes would have invalidated: invalidate the entries the read would hit, then read, so the stale entry is repaired rather than stepped around.
 
-A state stream needs none of this: the server greets a reconnect with the document afresh, so there is no re-read to run and no failure of one to classify. `keepDocument(transport, type, initial)` keeps one for the page's life — `initial` made reactive, every frame of `type` applied to it by `@greendrake/rpc`'s `liveDocument` — and returns it. A socket is sent the whole document only as it opens, so call it where the transport is made, before it connects, rather than in a component that may mount after:
+A state stream needs none of this: the server greets the socket with the document, so there is no re-read to run and no failure of one to classify.
+
+**A document every socket keeps.** `keepDocument(transport, type, initial)` keeps one for the page's life — `initial` made reactive, every frame of `type` applied to it by `@greendrake/rpc`'s `liveDocument` — and returns it. Such a socket is sent the whole document only as it opens, so call it where the transport is made, before it connects, rather than in a component that may mount after:
 
 ```ts
 export const transport = new WsTransport<Record<never, never>, Pushes>({ pipe })
 export const cameras: Cameras = keepDocument(transport, 'cameras', {})
 void transport.connect()
+```
+
+**Topic memberships.** `holdTopics(transport, { join, leave })` holds a socket's topic memberships by key, for any topic subscription. `hold(key)` returns the release.
+- **Counting.** The first hold of a key joins and the last release of it leaves.
+- **Swaps send nothing.** A release is torn down only after the current render flush, so a component swapped for another holding the same key sends nothing.
+- **Order.** A key's calls run one at a time, in the order asked, so the server never runs a join and a leave out of order.
+- **Reconnects.** A dropped socket takes its memberships with it, so after each return from a drop every held key joins again, unless a join of it is still out. A join failing with a `NetworkError` is retried then; any other failure is the key's `failure(key)` until a join of it succeeds.
+- **Leaving.** A leave goes out only where there is a membership to leave: not where the key's last join was refused or lost, and not while the socket is down, when leaving would only open a new socket to leave a topic it was never in. A leave failing other than for the network goes to the error sink.
+- **Plain calls.** `join` and `leave` are plain calls over the transport, an `RpcClient`'s, never an `ApiClient`'s, whose parking and retry prompt would re-join a key nobody holds or hold a join out indefinitely.
+
+**A document a topic keeps.** `keepTopicDocuments(transport, { typeOf, empty, join, leave })` is `holdTopics` with the document of `typeOf(key)` kept for each membership. Its socket is sent the whole document as it joins, so it is held where it is shown, at any time, and the first hold opens the socket.
+- `doc(key)` is the held key's document, `empty()` until it is greeted, and undefined while not held — and while its join stands refused, nothing more coming to keep it current.
+- A membership's document is fresh, started after any earlier leave of the key has settled, so nothing sent before that leave reaches it.
+
+```ts
+const units = keepTopicDocuments(transport, {
+    typeOf: (name: string) => `unit/${name}` as const,
+    empty: () => ({}),
+    join: name => client.call('unit.watch', { name }),
+    leave: name => client.call('unit.unwatch', { name })
+})
+const release = units.hold('web') // units.doc('web'), units.failure('web')
 ```
 
 `backgroundCall` also serves any loader told whether anybody asked for its load — a table re-reading after a push, say, which is where a panel's re-read actually calls the API:

@@ -30,26 +30,30 @@ Dashboard-wide styling — the denser `--font-md`, headings as section dividers,
 `ServiceStateControl` is a panel for one backend service that is `OFF`, `STARTING`, `ON`, `STOPPING` or `ERROR` — the state, why it failed if it did, and the one command that state accepts:
 
 ```ts
-// api.ts, where the socket is made
+// api.ts
 import { keepServiceStates } from '@greendrake/dash/service-state'
 
 export const transport = new WsTransport<Record<never, never>, ServiceStatePushes>({ pipe })
 export const api = new ApiClient<ServiceStateMethods>({ transport })
-export const states = keepServiceStates(transport)
-void transport.connect()
+export const services = keepServiceStates(transport)
 
 // main.ts
 import { ServiceStateControl } from '@greendrake/dash/service-state'
 
 const tabs: DashTab[] = [
-    { id: 'web', label: 'Web', component: ServiceStateControl, props: { service: 'web', api, states } },
-    { id: 'worker', label: 'Worker', component: ServiceStateControl, props: { service: 'worker', api, states } }
+    { id: 'web', label: 'Web', component: ServiceStateControl, props: { service: 'web', api, services } },
+    { id: 'worker', label: 'Worker', component: ServiceStateControl, props: { service: 'worker', api, services } }
 ]
 ```
 
-`keepServiceStates(transport)` keeps the backend's document of every service's state for the page's life. The socket is sent the whole document only as it opens, so call it where the transport is made, before connecting — and connect: no control calls anything until a button is pressed, so nothing else opens the socket. Every control then shows its service from that one copy, whenever it mounts.
+`keepServiceStates(transport)` is the keeper: it watches the backend's services over `transport` and keeps the document of each one watched (`@greendrake/vue-api`'s `keepTopicDocuments`).
+- `watch(service)` watches a service until the release it returns is called. Given a ref or getter, it follows it.
+- `status(service)` is the service's status, undefined until the backend has read it with somebody watching.
+- `failure(service)` is why watching it was refused.
 
-`service` is the name the backend registered the service's machine under; `api` is an `ApiCaller<ServiceStateMethods>` (`@greendrake/vue-api`'s `ApiClient` is one), its calls over the socket or HTTP alike; and `states` is what `keepServiceStates` returned. Any number of controls share one of each. The contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control shows its own loading indicator until the backend has read the service, then the service's state as the document has it — so a transition another operator started shows here too. A command's answer is nothing: where the service went comes in the document, and the button stays disabled until it has.
+A service is read only while something watches it, so a dashboard showing one service of many has that one read, and none while none is shown. The keeper can be made at any time, and needs no connect: the first watch opens the socket, and after a dropped socket returns every watched service is watched again. Watching goes over `transport`, by the keeper's own calls, whatever client the controls are given for commands.
+
+`ServiceStateControl` watches its `service` while it is shown — mounted, and not while a `keepAlive` tab it is on is switched away from — following the prop as it changes. `service` is the name the backend registered the service's machine under; `api` is an `ApiCaller<ServiceStateMethods>` (`@greendrake/vue-api`'s `ApiClient` is one) for the commands, its calls over the socket or HTTP alike; and `services` is the keeper. Any number of controls share one of each. The contracts come from [`@greendrake/service-state`](../service-state), whose `./server` entry is the machine a backend runs behind them. That package is an optional peer dependency: a dashboard importing this entry installs it, and one that does not never needs it. The control shows its own loading indicator until the backend has read the service — or why watching it was refused — then the service's state as its document has it, so a transition another operator started shows here too. A command's answer is nothing: where the service went comes in the document, and the button stays disabled until it has.
 
 The command each state offers is `@greendrake/service-state`'s `CONTROLS`: `OFF` offers *Turn ON*, `ON` *Turn OFF*, `ERROR` *Refresh*; `STARTING` and `STOPPING` offer nothing, there being no interfering with a transition already under way. The labels are `serviceStateMessages` (`start`, `stop`, `refresh`), keyed by the command and overridable with `configureServiceStateMessages`, both from this entry. The current state is on the root element as `data-state`, which is what the border colour is drawn from and what an end-to-end test asserts on. `examples/service-pair` is a complete dashboard and backend built on it.
 
