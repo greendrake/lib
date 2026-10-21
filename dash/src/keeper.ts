@@ -8,8 +8,9 @@ export interface ServiceStateKeeper {
     // release. Given a ref or getter it follows it: a change releases the
     // service held and watches the new one.
     watch(service: MaybeRefOrGetter<string>): () => void
-    // The service's status, reactively: undefined until the backend has read it
-    // with somebody watching, and while it is not watched.
+    // The service's status, reactively: undefined while the backend has
+    // neither a reading younger than its `maxAgeMs` nor a transition of its
+    // own, under way or failed, to send — and while it is not watched.
     status(service: string): ServiceStatus | undefined
     // Why watching the service was refused, while it is watched.
     failure(service: string): Error | undefined

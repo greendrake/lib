@@ -38,9 +38,10 @@ onActivated(show)
 onDeactivated(hide)
 onUnmounted(hide)
 
-// Absent until the backend has read the service with somebody watching: the
-// control shows its own Loading meanwhile, never a state nobody verified — or,
-// where watching it was refused, why.
+// Absent while the backend has neither a reading younger than its `maxAgeMs`
+// nor a transition of its own to send: the control shows its own Loading
+// meanwhile, never a state nobody verified — or, where watching it was refused,
+// why.
 const status = computed(() => props.services.status(props.service))
 const failure = computed(() => props.services.failure(props.service))
 

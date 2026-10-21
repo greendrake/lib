@@ -115,6 +115,20 @@ const unreadable = (service: ReturnType<typeof controllable>): void => {
     }
 }
 
+// Holds the service's next check out until the test answers it, so a test can
+// look at the machine while a read is under way; the checks after it answer
+// as before.
+const holdCheck = (service: ReturnType<typeof controllable>): PromiseWithResolvers<Exclude<ServiceState, 'ERROR'>> => {
+    const answer = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
+    const check = service.check
+    service.check = () => {
+        service.check = check
+        service.reads += 1
+        return answer.promise
+    }
+    return answer
+}
+
 // Lets the machine's promise chains run to their end. Each is a few microtasks
 // deep — a check or transition settling, its handler, its `finally`, the
 // command waiting on it — and the microtask queue drains in order whatever the
@@ -326,11 +340,10 @@ describe('the machine, watched', () => {
 
     test('a transition begun while a read is out goes ahead, and the read is not adopted over it', async () => {
         const machine = await ready(service, board)
-        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
-        service.check = () => held.promise
+        const check = holdCheck(service)
         const refreshed = machine.refresh()
         await machine.start()
-        held.resolve('OFF')
+        check.resolve('OFF')
         await refreshed
         expect(p.doc('web').status?.state).toBe('STARTING')
         service.settle()
@@ -340,16 +353,11 @@ describe('the machine, watched', () => {
 
     test('a refresh asked while a read is out joins it', async () => {
         const machine = await ready(service, board)
-        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
-        let reads = 0
-        service.check = () => {
-            reads += 1
-            return held.promise
-        }
+        const check = holdCheck(service)
         const asked = [machine.refresh(), machine.refresh()]
-        held.resolve('ON')
+        check.resolve('ON')
         await Promise.all(asked)
-        expect(reads).toBe(1)
+        expect(service.reads).toBe(2)
         expect(p.doc('web').status?.state).toBe('ON')
     })
 })
@@ -400,7 +408,7 @@ describe('commands act on a verified state', () => {
     })
 })
 
-describe('publishing only what somebody watched being taken', () => {
+describe('the reading in the document: kept while watched, and until it turns the age old after', () => {
     let p: Publisher
     let board: ServiceStateBoard
 
@@ -418,35 +426,57 @@ describe('publishing only what somebody watched being taken', () => {
         expect(p.seen('web')).toEqual([])
     })
 
-    test('a reading taken with nobody watching is not published: a refresh, a landing, a failed check', async () => {
+    test('a reading taken with nobody watching is in the document until it turns the age old: a refresh, a landing, a failed check', async () => {
         const service = controllable()
         const machine = make('web', service, board)
         await machine.refresh()
+        expect(p.doc('web').status?.state).toBe('OFF')
+        await elapse(AGE_MS - 1)
+        expect(p.doc('web').status?.state).toBe('OFF')
+        await elapse(1)
         expect(p.doc('web')).toEqual({})
-        // The transition under way is the machine's own word, and is published.
+        // The start reads first, the reading having aged out.
         await machine.start()
-        expect(p.doc('web').status?.state).toBe('STARTING')
         service.settle()
         await settled()
+        expect(p.doc('web').status?.state).toBe('ON')
+        await elapse(AGE_MS)
         expect(p.doc('web')).toEqual({})
         unreadable(service)
         await machine.refresh()
+        expect(p.doc('web').status?.state).toBe('ERROR')
+        await elapse(AGE_MS)
         expect(p.doc('web')).toEqual({})
+        // Nothing was read but what was asked for.
+        expect(service.reads).toBe(3)
+        expect(p.seen('web')).toEqual(['OFF', null, 'OFF', 'STARTING', 'ON', null, 'ERROR', null])
     })
 
-    test('the first to watch a service is greeted with no reading, and has it read at once', async () => {
-        const [web, worker] = [controllable(), controllable()]
-        await make('web', web, board).refresh()
-        await make('worker', worker, board).refresh()
+    test('the first to watch while the reading is younger than the age is greeted with it, and has the next re-read as it turns the age old', async () => {
+        const service = controllable()
+        await make('web', service, board).refresh()
+        await elapse(AGE_MS - 10)
+        p.watch('web')
+        expect(p.doc('web').status?.state).toBe('OFF')
+        expect(service.reads).toBe(1)
+        await elapse(9)
+        expect(service.reads).toBe(1)
+        await elapse(1)
+        expect(service.reads).toBe(2)
+    })
+
+    test('the first to watch after the reading aged out is greeted without a status, and has the service read at once', async () => {
+        const service = controllable()
+        await make('web', service, board).refresh()
+        await elapse(AGE_MS)
         p.watch('web')
         expect(p.doc('web')).toEqual({})
-        expect([web.reads, worker.reads]).toEqual([2, 1])
+        expect(service.reads).toBe(2)
         await settled()
-        expect(p.doc('web')).toEqual({ status: { state: 'OFF', changed_at: expect.any(Number) } })
-        expect(p.doc('worker')).toEqual({})
+        expect(p.doc('web').status?.state).toBe('OFF')
     })
 
-    test("the last to stop watching takes the reading out, a failed check's ERROR among them, and the machine's own word stays", async () => {
+    test("the last to stop watching leaves the reading in until it turns the age old, a failed check's ERROR among them, and the machine's own word stays", async () => {
         const [idle, broken, failing, busy] = [controllable(), controllable(), controllable(), controllable()]
         const names = ['idle', 'broken', 'failing', 'busy']
         names.forEach(name => p.watch(name))
@@ -460,14 +490,33 @@ describe('publishing only what somebody watched being taken', () => {
         failing.settle(new Error('port already bound'))
         await busyMachine.start()
         await settled()
-        expect(names.map(name => p.doc(name).status?.state)).toEqual(['OFF', 'ERROR', 'ERROR', 'STARTING'])
+        const states = (): (ServiceState | undefined)[] => names.map(name => p.doc(name).status?.state)
+        expect(states()).toEqual(['OFF', 'ERROR', 'ERROR', 'STARTING'])
         names.forEach(name => p.unwatch(name))
-        expect(names.map(name => p.doc(name).status?.state)).toEqual([undefined, undefined, 'ERROR', 'STARTING'])
+        expect(states()).toEqual(['OFF', 'ERROR', 'ERROR', 'STARTING'])
+        await elapse(AGE_MS)
+        expect(states()).toEqual([undefined, undefined, 'ERROR', 'STARTING'])
         // Begun with somebody watching, landed with nobody: a reading like any
-        // other, which nobody saw taken.
+        // other.
         busy.settle()
         await settled()
+        expect(p.doc('busy').status?.state).toBe('ON')
+        await elapse(AGE_MS)
         expect(p.doc('busy')).toEqual({})
+    })
+
+    test("the last to stop watching while a re-read is out takes the reading out at once, and the re-read's landing puts the new one in", async () => {
+        const service = controllable()
+        p.watch('web')
+        await ready(service, board)
+        const check = holdCheck(service)
+        jest.advanceTimersByTime(AGE_MS)
+        expect(service.reads).toBe(2)
+        p.unwatch('web')
+        expect(p.doc('web')).toEqual({})
+        check.resolve('ON')
+        await settled()
+        expect(p.doc('web').status?.state).toBe('ON')
     })
 
     test("a machine in its own word is not read when its first watcher arrives, and a transition's landing then counts as its reading", async () => {
@@ -478,6 +527,8 @@ describe('publishing only what somebody watched being taken', () => {
         failing.settle(new Error('port already bound'))
         await busyMachine.start()
         await settled()
+        // Past the age of the readings the commands took first.
+        await elapse(AGE_MS)
         p.watch('failing')
         p.watch('busy')
         await elapse(3 * AGE_MS)
@@ -489,6 +540,22 @@ describe('publishing only what somebody watched being taken', () => {
         expect(busy.reads).toBe(1)
         await elapse(1)
         expect(busy.reads).toBe(2)
+    })
+
+    test('a closed machine ages nothing: its reading stays, one landing after the close included', async () => {
+        const service = controllable()
+        const machine = make('web', service, board)
+        await machine.refresh()
+        const check = holdCheck(service)
+        await elapse(AGE_MS - 1)
+        const refreshed = machine.refresh()
+        machine.close()
+        await elapse(3 * AGE_MS)
+        expect(p.doc('web').status?.state).toBe('OFF')
+        check.resolve('ON')
+        await refreshed
+        await elapse(3 * AGE_MS)
+        expect(p.seen('web')).toEqual(['OFF', 'ON'])
     })
 
     test('close stops listening for watchers', async () => {
@@ -548,6 +615,18 @@ describe('keeping the state current while somebody watches', () => {
         expect(service.reads).toBe(3)
     })
 
+    test("a re-read falling due while a refresh's read is out joins it", async () => {
+        const machine = await ready(service, board)
+        const check = holdCheck(service)
+        await elapse(AGE_MS - 1)
+        const refreshed = machine.refresh()
+        jest.advanceTimersByTime(1)
+        check.resolve('ON')
+        await refreshed
+        expect(service.reads).toBe(2)
+        expect(p.doc('web').status?.state).toBe('ON')
+    })
+
     test('nothing is read while a transition is under way, and one that lands counts as a reading', async () => {
         const machine = await ready(service, board)
         await elapse(AGE_MS - 1)
@@ -599,55 +678,40 @@ describe('keeping the state current while somebody watches', () => {
 
     test('a command asked while a re-read is out joins it, and acts on what it finds', async () => {
         const machine = await ready(service, board)
-        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
-        let reads = 0
-        service.check = () => {
-            reads += 1
-            return held.promise
-        }
+        const check = holdCheck(service)
         jest.advanceTimersByTime(AGE_MS)
         const started = machine.start()
-        held.resolve('ON')
+        check.resolve('ON')
         await expect(started).rejects.toThrow(new ServiceBusyError('start', 'ON'))
-        expect(reads).toBe(1)
+        expect(service.reads).toBe(2)
     })
 
     test('a read left over from before a transition is not joined, so the re-reads carry on past it', async () => {
         const machine = await ready(service, board)
-        const leftover = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
-        let reads = 0
-        service.check = () => {
-            reads += 1
-            return reads === 1 ? leftover.promise : Promise.resolve(service.observed)
-        }
+        const leftover = holdCheck(service)
         const refreshed = machine.refresh()
         await machine.start()
         service.settle()
         await settled()
         service.observed = 'OFF'
         await elapse(AGE_MS)
-        expect(reads).toBe(2)
+        expect(service.reads).toBe(3)
         expect(p.doc('web').status?.state).toBe('OFF')
         leftover.resolve('ON')
         await refreshed
         expect(p.doc('web').status?.state).toBe('OFF')
         await elapse(AGE_MS)
-        expect(reads).toBe(3)
+        expect(service.reads).toBe(4)
     })
 
     test('close stops the re-reads, a read already out included', async () => {
         const machine = await ready(service, board)
-        const held = Promise.withResolvers<Exclude<ServiceState, 'ERROR'>>()
-        let reads = 0
-        service.check = () => {
-            reads += 1
-            return held.promise
-        }
+        const check = holdCheck(service)
         jest.advanceTimersByTime(AGE_MS)
         machine.close()
-        held.resolve('OFF')
+        check.resolve('OFF')
         await elapse(3 * AGE_MS)
-        expect(reads).toBe(1)
+        expect(service.reads).toBe(2)
     })
 
     test('the last to stop watching stops the re-reads', async () => {
@@ -670,6 +734,7 @@ describe('the methods', () => {
     const access = { watch: ROOT_ONLY, command: ROOT_ONLY }
 
     test("watch and unwatch join and leave the service's topic: it is read while watched, and its document goes to the watcher", async () => {
+        jest.useFakeTimers()
         const service = controllable()
         make('web', service, board)
         const methods = serviceStateMethods(board, access)
@@ -679,6 +744,9 @@ describe('the methods', () => {
         expect(service.reads).toBe(1)
         expect(p.doc('web').status?.state).toBe('OFF')
         await methods['service.unwatch'].handler(ctxOver(p.topics), web)
+        // Nobody watching: nothing re-read, and the reading ages out.
+        await elapse(AGE_MS)
+        expect(service.reads).toBe(1)
         expect(p.doc('web')).toEqual({})
     })
 

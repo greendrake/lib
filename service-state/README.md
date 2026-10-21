@@ -28,7 +28,7 @@ type ServiceStatus =
     | { state: 'OFF' | 'STARTING' | 'ON' | 'STOPPING'; changed_at: number }
 
 interface ServiceDocument {
-    status?: ServiceStatus // absent until the service has been read with somebody watching it
+    status?: ServiceStatus // absent until the service has been read, and once its latest reading turns maxAgeMs old with nobody watching — unless a transition is under way, or a failed one's ERROR stands
 }
 ```
 
@@ -89,10 +89,10 @@ The name is what a call's `{ service }` reaches the machine by, and what its doc
 
 Nothing tells the machine when a service is changed by other hands — a unit stopped from a shell, a schedule that turns it off overnight — so it reads the service when somebody needs to know, and only then:
 
-- **Watched.** While anybody watches the service — a socket in its topic — the machine re-reads whenever its latest reading turns `maxAgeMs` old, and publishes what changed, so a dashboard left open follows the service. The first to watch has the service read at once, and so does a machine created while somebody watches; the last to stop stops the re-reads. Watching one service reads nothing of the others on the board, however expensive their checks.
+- **Watched.** While anybody watches the service — a socket in its topic — the machine re-reads whenever its latest reading turns `maxAgeMs` old, and publishes what changed, so a dashboard left open follows the service. The first to watch is greeted with a reading younger than `maxAgeMs` where the document holds one, the next re-read timed from when it was taken, or has the service read at once where it holds none; a machine created while somebody watches reads at once. The last to stop stops the re-reads. Watching one service reads nothing of the others on the board, however expensive their checks.
 - **Commanded.** A `start` or `stop` on a machine whose latest reading is missing or `maxAgeMs` old reads first, and is refused or taken as that reading says, so a command with nobody watching never acts on a state the machine only assumed.
 
-With nobody commanding and nobody watching, the service is left alone. A reading is published only when somebody watched it being taken, and the last to stop watching takes the reading out of the document: a dashboard that starts watching after a quiet spell shows its loading indicator until the service has been read, and is never shown what it was. The machine reports nothing before its first reading, so it never reports a state it has not verified.
+With nobody commanding and nobody watching, the service is left alone. The document holds the latest reading while anybody watches the service, and once nobody does, until the reading turns `maxAgeMs` old; a reading taken with nobody watching, by a command or a `refresh`, is kept the same way. So a dashboard hidden and shown again before the reading ages is greeted with the service at once, and one that starts watching after a quiet spell shows its loading indicator until the service has been read: the first to watch is never greeted with a reading older than `maxAgeMs`. The machine reports nothing before its first reading, so it never reports a state it has not verified.
 
 A transition that lands counts as a reading, and so does a `refresh`; one asked while a read is under way joins it, unless a transition has begun since that read went out — which makes it a reading of the past, so a fresh one goes out instead. A transition under way, and the `ERROR` a failed one lands in, are the machine's own word rather than a reading: published whatever the audience, and not read past — that `ERROR` until somebody asks for a `refresh`, because reading past it would take the why away before anyone saw it. The `ERROR` of a check that failed is a reading like any other. A transition begun while a read is out goes ahead, and the read's answer, which describes the service before it, is dropped. `close()` stops the re-reads and the listening for watchers, for a process shutting down.
 

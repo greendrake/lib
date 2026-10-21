@@ -1,6 +1,6 @@
 {
     "@greendrake/css-reset": "0.7.0",
-    "@greendrake/dash": "0.13.0",
+    "@greendrake/dash": "0.13.1",
     "@greendrake/dev-config": "0.7.0",
     "@greendrake/domains": "0.7.0",
     "@greendrake/e2e": "0.8.0",

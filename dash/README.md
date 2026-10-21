@@ -48,7 +48,7 @@ const tabs: DashTab[] = [
 
 `keepServiceStates(transport)` is the keeper: it watches the backend's services over `transport` and keeps the document of each one watched (`@greendrake/vue-api`'s `keepTopicDocuments`).
 - `watch(service)` watches a service until the release it returns is called. Given a ref or getter, it follows it.
-- `status(service)` is the service's status, undefined until the backend has read it with somebody watching.
+- `status(service)` is the service's status, undefined while the backend has neither a reading younger than its `maxAgeMs` nor a transition of its own, under way or failed, to send.
 - `failure(service)` is why watching it was refused.
 
 A service is read only while something watches it, so a dashboard showing one service of many has that one read, and none while none is shown. The keeper can be made at any time, and needs no connect: the first watch opens the socket, and after a dropped socket returns every watched service is watched again. Watching goes over `transport`, by the keeper's own calls, whatever client the controls are given for commands.

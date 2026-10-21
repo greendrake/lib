@@ -83,15 +83,18 @@ export const serviceStateBoard = (publisher: DocumentPublisher): ServiceStateBoa
 // - Watched. While anybody watches the service — a socket in its topic — the
 //   machine re-reads whenever its latest reading turns `maxAgeMs` old, so a
 //   dashboard left open follows the service. The first to watch has the
-//   service read at once, and so does a machine created while somebody
-//   watches. Watching another service on the board reads nothing of this one.
+//   service read at once where the document holds no reading, and so does a
+//   machine created while somebody watches. Watching another service on the
+//   board reads nothing of this one.
 // - Commanded. A start or stop on a machine whose latest reading is missing or
 //   `maxAgeMs` old reads first, and is refused or taken as that reading says.
 //
-// A reading is published only when somebody watched it being taken, and the
-// last to stop watching takes the reading out of the document: so a dashboard
-// starting to watch is shown the service as it is, once it has been read, and
-// never as it was. A transition under way, and the ERROR a failed one lands in, are the
+// The document holds the latest reading while anybody watches the service,
+// and once nobody does, until the reading turns `maxAgeMs` old: so the first
+// to watch is greeted with a reading younger than `maxAgeMs`, the next re-read
+// timed from when it was taken — or with none, and the service read at once.
+// A reading taken with nobody watching, by a command or a refresh, is kept the
+// same way. A transition under way, and the ERROR a failed one lands in, are the
 // machine's own word rather than a reading: published whatever the audience,
 // and not read past — the failed transition's ERROR until somebody refreshes,
 // because reading past it would take the why away before anyone saw it. The
@@ -99,15 +102,15 @@ export const serviceStateBoard = (publisher: DocumentPublisher): ServiceStateBoa
 // counts as a reading.
 export const createServiceStateMachine = (name: string, service: ServiceImplementation, board: ServiceStateBoard, maxAgeMs: number): ServiceStateMachine => {
     // The service as the machine last knew it. Assumed OFF until the first
-    // reading, which is neither published nor acted on: `witnessed` is false and
+    // reading, which is neither published nor acted on: `kept` is false and
     // `readAt` names no time, so a command reads first.
     let current: ServiceStatus = { state: 'OFF', changed_at: Date.now() }
     // When the latest reading landed, or a transition last did — which is what
     // `maxAgeMs` is counted from. Never, before the first.
     let readAt = Number.NEGATIVE_INFINITY
-    // Whether somebody was watching as the latest reading landed: only then is
-    // it published.
-    let witnessed = false
+    // Whether the latest reading is in the document: from its landing until it
+    // turns `maxAgeMs` old with nobody watching.
+    let kept = false
     // The machine's own word: a transition under way, and the ERROR a failed
     // one landed in.
     let transitioning = false
@@ -122,7 +125,8 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
     // reading of the past: then a fresh read goes out, and the old one is
     // dropped when it settles.
     let reading: { promise: Promise<void>; under: number } | undefined
-    let nextRead: ReturnType<typeof setTimeout> | undefined
+    // For when the latest reading turns `maxAgeMs` old.
+    let ageing: ReturnType<typeof setTimeout> | undefined
     let closed = false
 
     // A change of condition, stamped; the same state for the same reason keeps
@@ -134,15 +138,36 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
         }
     }
 
-    // The next re-read, for when the latest reading turns `maxAgeMs` old —
-    // straight away if it already has. Only while somebody is watching; none
-    // while a transition is under way, whose landing is the next reading; and
-    // none in a failed transition's ERROR, which stands until somebody
-    // refreshes.
-    const schedule = (): void => {
-        clearTimeout(nextRead)
-        if (!closed && topic.size > 0 && !transitioning && !failed) {
-            nextRead = setTimeout(() => void read(), Math.max(0, readAt + maxAgeMs - Date.now()))
+    // The latest reading turning `maxAgeMs` old, which is one moment whoever
+    // watches; what it calls for is decided as it comes. With somebody watching,
+    // the service is re-read — joining a read already out — but not while a
+    // transition is under way, whose landing is the next reading, nor in a
+    // failed transition's ERROR, which stands until somebody refreshes. With
+    // nobody, the reading leaves the document.
+    const aged = (): void => {
+        if (topic.size > 0) {
+            if (!transitioning && !failed) {
+                void read()
+            }
+        } else if (kept) {
+            kept = false
+            topic.refresh()
+        }
+    }
+
+    // Times `aged` for the latest reading, on every reading and every change of
+    // audience. A reading already past its age is acted on now rather than on
+    // a timer's tick, before which a join would be greeted with it.
+    const age = (): void => {
+        clearTimeout(ageing)
+        if (closed) {
+            return
+        }
+        const left = readAt + maxAgeMs - Date.now()
+        if (left > 0) {
+            ageing = setTimeout(aged, left)
+        } else {
+            aged()
         }
     }
 
@@ -150,21 +175,20 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
     // which is a reading.
     const reached = (next: ServiceCondition): void => {
         readAt = Date.now()
-        witnessed = topic.size > 0
+        kept = true
         become(next)
         topic.refresh()
-        schedule()
+        age()
     }
 
     const read = (): Promise<void> => {
         if (reading?.under === transitions) {
             return reading.promise
         }
-        clearTimeout(nextRead)
         const under = transitions
         // A transition begun since the read went out has the last word — its
-        // own landing schedules the next read — and the read's answer, from
-        // before it, is dropped.
+        // own landing is the next reading — and the read's answer, from before
+        // it, is dropped.
         const land = (next: ServiceCondition): void => {
             if (under === transitions) {
                 failed = false
@@ -199,11 +223,10 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
         }
         transitioning = true
         transitions += 1
-        clearTimeout(nextRead)
         become({ state: during })
         topic.refresh()
-        // Over the moment it lands, because its landing is a reading and a
-        // reading schedules the next only with no transition under way.
+        // Out of the transition before its landing counts as a reading, so the
+        // reading is aged in the state the landing leaves.
         const landed = (next: ServiceCondition, failure: boolean): void => {
             transitioning = false
             failed = failure
@@ -227,32 +250,23 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
         },
         close: () => {
             closed = true
-            clearTimeout(nextRead)
+            clearTimeout(ageing)
             stopListening()
         }
     }
 
     // The machine's topic: its document, and the sockets watching it.
-    const topic = board.register(machine, () => (transitioning || failed || witnessed ? { status: current } : {}))
+    const topic = board.register(machine, () => (transitioning || failed || kept ? { status: current } : {}))
 
-    // The first watcher has the service read at once: the reading went out of
-    // the document with the last one to stop watching. The machine's own word
-    // stays, and is not read past. The last to stop stops the re-reads.
-    const stopListening = topic.onPresence(present => {
-        if (present) {
-            if (!transitioning && !failed) {
-                void read()
-            }
-            return
-        }
-        clearTimeout(nextRead)
-        witnessed = false
-        topic.refresh()
-    })
+    // Each change of audience ages the reading afresh. The first watcher has
+    // the service read at once where no reading is kept — one past its age, or
+    // none — and otherwise the re-read comes as the kept one turns `maxAgeMs`
+    // old. The last to stop watching takes a reading past its age out at once,
+    // and leaves a younger one in until it ages.
+    const stopListening = topic.onPresence(age)
 
-    if (topic.size > 0) {
-        void read()
-    }
+    // A machine created while somebody watches has no reading, and reads.
+    age()
     return machine
 }
 

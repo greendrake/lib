@@ -118,19 +118,16 @@ describe('the example API', () => {
         idle.close()
     })
 
-    // The first socket to watch: no reading of the service has been published —
-    // the refresh above was taken with nobody watching.
-    test('watching a service is greeted with no reading, has it read, and leaves the service beside it alone', async () => {
-        const [, workerBefore] = await reads()
+    // A reading taken with nobody watching is kept until it turns MAX_AGE_MS
+    // old, so the first socket to watch is greeted with it.
+    test('watching a service just read is greeted with the reading, has nothing read, and leaves the service beside it alone', async () => {
+        await httpClient(KEY).call('service.refresh', WEB)
+        const before = await reads()
         const watcher = await dashboard()
         await watcher.client.call('service.watch', WEB)
-        // Greeted ahead of the answer; the reading the watch set off may land
-        // on either side of it.
-        expect(watcher.seen('web')[0]).toBeNull()
-        await until(watcher, 'web', 'OFF')
-        const [webAfter, workerAfter] = await reads()
-        expect(webAfter).toBeGreaterThan(0)
-        expect(workerAfter).toBe(workerBefore)
+        // Greeted ahead of the answer.
+        expect(watcher.seen('web')).toEqual(['OFF'])
+        expect(await reads()).toEqual(before)
         expect(watcher.seen('worker')).toEqual([])
         watcher.close()
     })

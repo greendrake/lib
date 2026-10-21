@@ -25,8 +25,10 @@ export type ServiceStatus = ServiceCondition & {
     changed_at: number
 }
 
-// A service's own document: its status, absent until the service has been read
-// with somebody watching it (see the machine).
+// A service's own document: its status, absent until the service has been
+// read, and once its latest reading turns `maxAgeMs` old with nobody watching —
+// unless the machine's own word stands, a transition under way or a failed
+// one's ERROR (see the machine).
 export interface ServiceDocument {
     status?: ServiceStatus
 }
