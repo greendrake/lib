@@ -42,13 +42,11 @@ overrides:
   "@greendrake/font-inter>@greendrake/dev-config": 0.7.0
   "@greendrake/theme>@greendrake/dev-config": 0.7.0
   "@greendrake/domains>@greendrake/dev-config": 0.7.0
-  "@greendrake/vue-kit>@greendrake/dev-config": 0.7.0
-  "@greendrake/vue-kit>@greendrake/util": ^0.9.0
-  "@greendrake/rpc-server>@greendrake/dev-config": 0.7.0
-  "@greendrake/rpc-server>@greendrake/rpc": ^0.10.1
-  "@greendrake/rpc-server>@greendrake/util": ^0.9.0
-  "@greendrake/service-state>@greendrake/dev-config": 0.7.0
-  "@greendrake/service-state>@greendrake/rpc": ^0.10.1
+  "@greendrake/vue-api>@greendrake/vue-kit": ^0.9.0
+  "@greendrake/vue-app>@greendrake/vue-kit": ^0.9.0
+  "@greendrake/dash>@greendrake/rpc-server": 0.11.0
+  "@greendrake/dash>@greendrake/service-state": ^0.12.1
+  "@greendrake/dash>@greendrake/vue-kit": ^0.9.0
   "@greendrake/eslint-config>@greendrake/dev-config": 0.7.0
   "@greendrake/mse-video>@greendrake/dev-config": 0.7.0
   "@greendrake/mse-video>@greendrake/util": ^0.9.0
