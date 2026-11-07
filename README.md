@@ -37,7 +37,7 @@ They are developed against real applications rather than in the abstract, and pu
 | [`@greendrake/rpc-server`](rpc-server) | RPC server over JSON for bun: method dispatch with auth, nonce and Standard Schema argument validation, HTTP and WebSocket transports, connection registry and server push |
 | [`@greendrake/service-state`](service-state) | A backend service as a state machine (OFF/STARTING/ON/STOPPING/ERROR): the wire contract both halves share, and the server-side machine behind it |
 | [`@greendrake/server`](server) | Service-binary scaffolding for bun: dependency health probes with /healthz + /readyz, CORS, and the SIGTERM-driven graceful-shutdown sequence |
-| [`@greendrake/app-store-connect`](app-store-connect) | App Store Connect API client for bun: the ES256 JWT, paged collections, provisioning, builds and TestFlight, App Store versions and both localization levels, review submissions, and readings of an app's record and its App Store pages |
+| [`@greendrake/app-store-connect`](app-store-connect) | App Store Connect API client for bun: the ES256 JWT, paged collections, provisioning, builds and TestFlight, App Store versions and both localization levels, review submissions, readings of an app's record and its App Store pages, and the authorised round trips under them for any endpoint answering JSON the client does not cover |
 | [`@greendrake/google-api`](google-api) | Google APIs for bun with a service account: the JWT-bearer exchange behind any Google API, and a Search Console client with its readings — sites, sitemaps, search performance over a window, a URL's index status |
 
 ### Go

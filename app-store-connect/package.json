@@ -1,7 +1,7 @@
 {
     "name": "@greendrake/app-store-connect",
-    "version": "0.1.0",
-    "description": "App Store Connect API client for bun: the ES256 JWT, paged collections, provisioning, builds and TestFlight, App Store versions and both localization levels, review submissions, and readings of an app's record and its App Store pages",
+    "version": "0.2.0",
+    "description": "App Store Connect API client for bun: the ES256 JWT, paged collections, provisioning, builds and TestFlight, App Store versions and both localization levels, review submissions, readings of an app's record and its App Store pages, and the authorised round trips under them for any endpoint answering JSON the client does not cover",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
     "repository": {

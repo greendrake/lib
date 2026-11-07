@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { verify } from 'node:crypto'
-import { ApiResponseError, createAppStoreConnect, toManyIds, type AppStoreConnect } from '../src/main'
+import { ApiResponseError, createAppStoreConnect, includedBy, toManyIds, toOneId, type AppStoreConnect } from '../src/main'
 import { recordingFetch } from '@greendrake/util/testing'
 import { NOW, clientOver, collection, jsonOf, key, resource, routed } from './fake'
 
@@ -11,7 +11,7 @@ const EMPTY = () => Response.json(collection([]))
 describe('authentication', () => {
     test('signs each request with an ES256 JWT for the key, minted from the clock', async () => {
         const { fetch, requests: sent } = recordingFetch(EMPTY)
-        await clientOver(fetch).listDevices()
+        await clientOver(fetch).request('/v1/devices')
         const token = sent[0]?.headers.get('Authorization')?.replace(/^Bearer /, '') ?? ''
         const [header = '', claims = '', signature = ''] = token.split('.')
         expect(decode(header)).toEqual({
@@ -40,9 +40,9 @@ describe('authentication', () => {
             },
             { fetch, now: () => now }
         )
-        await client.listDevices()
+        await client.request('/v1/devices')
         now += 60_000
-        await client.listDevices()
+        await client.request('/v1/devices')
         const issued = sent.map(s => (decode(s.headers.get('Authorization')?.split('.')[1] ?? '') as { iat: number }).iat)
         expect(issued).toEqual([NOW / 1000, NOW / 1000 + 60])
     })
@@ -64,8 +64,21 @@ describe('authentication', () => {
 
 const LIMIT = { limit: '200' }
 
+// A write to an endpoint the client lacks.
+const ANALYTICS_REQUEST = {
+    data: {
+        type: 'analyticsReportRequests',
+        attributes: { accessType: 'ONGOING' },
+        relationships: { app: { data: { type: 'apps', id: 'app1' } } }
+    }
+}
+
 // Each call's request: method, path, query and JSON body.
 const REQUESTS: [string, (client: AppStoreConnect) => Promise<unknown>, string, string, Record<string, string>, unknown][] = [
+    ['request', c => c.request('/v1/analyticsReportRequests', { method: 'POST', json: ANALYTICS_REQUEST }), 'POST', '/v1/analyticsReportRequests', {}, ANALYTICS_REQUEST],
+    ['list', c => c.list('/v1/analyticsReports/r1/instances', { 'filter[granularity]': 'DAILY' }), 'GET', '/v1/analyticsReports/r1/instances', { ...LIMIT, 'filter[granularity]': 'DAILY' }, null],
+    ['list naming its limit', c => c.list('/v1/analyticsReportInstances/i1/segments', { limit: '10' }), 'GET', '/v1/analyticsReportInstances/i1/segments', { limit: '10' }, null],
+    ['getOrAbsent', c => c.getOrAbsent('/v1/analyticsReportRequests/q1'), 'GET', '/v1/analyticsReportRequests/q1', {}, null],
     ['findApp', c => c.findApp('one.list.app'), 'GET', '/v1/apps', { ...LIMIT, 'filter[bundleId]': 'one.list.app' }, null],
     ['listBundleIds', c => c.listBundleIds(), 'GET', '/v1/bundleIds', { ...LIMIT, include: 'bundleIdCapabilities' }, null],
     [
@@ -353,24 +366,65 @@ describe('requests', () => {
     })
 })
 
-describe('answers', () => {
+describe('transport', () => {
     test('a collection is followed page by page until there is no next', async () => {
-        const next = 'https://api.appstoreconnect.apple.com/v1/bundleIds?limit=200&include=bundleIdCapabilities&cursor=Mg'
+        const next = 'https://api.appstoreconnect.apple.com/v1/analyticsReportRequests/q1/reports?limit=200&include=instances&cursor=Mg'
         const pages = [
             {
-                data: [resource('bundleIds', 'b1', {})],
-                included: [resource('bundleIdCapabilities', 'c1', { capabilityType: 'PUSH_NOTIFICATIONS' })],
+                data: [resource('analyticsReports', 'r1', {})],
+                included: [resource('analyticsReportInstances', 'i1', { granularity: 'DAILY' })],
                 links: { self: 'x', next }
             },
-            { data: [resource('bundleIds', 'b2', {})], links: { self: next } }
+            { data: [resource('analyticsReports', 'r2', {})], links: { self: next } }
         ]
         const { fetch, requests: sent } = recordingFetch(() => Response.json(pages.shift()))
-        const { data, included } = await clientOver(fetch).listBundleIds()
-        expect(data.map(r => r.id)).toEqual(['b1', 'b2'])
-        expect(included.map(r => r.attributes.capabilityType)).toEqual(['PUSH_NOTIFICATIONS'])
-        expect(sent.map(s => s.url)).toEqual(['https://api.appstoreconnect.apple.com/v1/bundleIds?limit=200&include=bundleIdCapabilities', next])
+        const { data, included } = await clientOver(fetch).list<unknown, { granularity: string }>('/v1/analyticsReportRequests/q1/reports', { include: 'instances' })
+        expect(data.map(r => r.id)).toEqual(['r1', 'r2'])
+        expect(included.map(r => r.attributes.granularity)).toEqual(['DAILY'])
+        expect(sent.map(s => s.url)).toEqual(['https://api.appstoreconnect.apple.com/v1/analyticsReportRequests/q1/reports?limit=200&include=instances', next])
     })
 
+    test('a collection is refused a query in its path, before any request', async () => {
+        const { fetch, requests: sent } = recordingFetch(EMPTY)
+        await expect(clientOver(fetch).list('/v1/analyticsReports/r1/instances?filter[granularity]=DAILY')).rejects.toThrow('list takes its query as params, not in the path: /v1/analyticsReports/r1/instances?filter[granularity]=DAILY')
+        expect(sent).toHaveLength(0)
+    })
+
+    test.each([
+        ['a 404', () => Response.json({ errors: [{ status: '404' }] }, { status: 404 })],
+        ['a null data', () => Response.json({ data: null })]
+    ])('a resource that may not exist is null for %s', async (_name, answer) => {
+        expect(await clientOver(recordingFetch(answer).fetch).getOrAbsent('/v1/appStoreVersions/v1/appStoreReviewDetail')).toBeNull()
+    })
+
+    test('any other status of a resource that may not exist is the failure it is', async () => {
+        const { fetch } = recordingFetch(() => Response.json({ errors: [{ status: '500' }] }, { status: 500 }))
+        await expect(clientOver(fetch).getOrAbsent('/v1/appStoreVersions/v1/appStoreReviewDetail')).rejects.toBeInstanceOf(ApiResponseError)
+    })
+
+    test('the relationship readers', () => {
+        const one = { data: { type: 'builds', id: 'b1' } }
+        const many = {
+            data: [
+                { type: 'bundleIdCapabilities', id: 'c1' },
+                { type: 'bundleIdCapabilities', id: 'c2' }
+            ]
+        }
+        expect(toOneId(one)).toBe('b1')
+        expect([toOneId(many), toOneId({ data: null }), toOneId(undefined)]).toEqual([null, null, null])
+        expect(toManyIds(many)).toEqual(['c1', 'c2'])
+        expect([toManyIds(one), toManyIds(undefined)]).toEqual([[], []])
+
+        // By type as well as id: a companion of another type sharing the id is
+        // not the one pointed at.
+        const build = resource('builds', 'b1', { version: '7' })
+        const byBuild = includedBy({ data: [], included: [resource('preReleaseVersions', 'b1', { version: '1.2' }), build] }, 'builds')
+        expect(byBuild(one)).toEqual(build)
+        expect([byBuild({ data: { type: 'builds', id: 'b9' } }), byBuild(undefined)]).toEqual([null, null])
+    })
+})
+
+describe('answers', () => {
     test('a build carries the train it was uploaded under, or null for none', async () => {
         const { fetch } = routed({
             'GET /v1/builds': collection([resource('builds', 'b2', { version: '7' }, { preReleaseVersion: { data: { type: 'preReleaseVersions', id: 'p1' } } }), resource('builds', 'b1', { version: '6' })], [resource('preReleaseVersions', 'p1', { version: '1.2', platform: 'IOS' })])
@@ -396,19 +450,6 @@ describe('answers', () => {
             'GET /v1/reviewSubmissions/s1/items': collection([resource('reviewSubmissionItems', 'i1', { state: 'READY_FOR_REVIEW' }, { appStoreVersion: { data: { type: 'appStoreVersions', id: 'v1' } } }), resource('reviewSubmissionItems', 'i2', { state: 'READY_FOR_REVIEW' })])
         })
         expect((await clientOver(fetch).listReviewSubmissionItems('s1')).map(i => i.appStoreVersionId)).toEqual(['v1', null])
-    })
-
-    test('a bundle id names its capabilities by a to-many relationship', () => {
-        expect(
-            toManyIds({
-                data: [
-                    { type: 'bundleIdCapabilities', id: 'c1' },
-                    { type: 'bundleIdCapabilities', id: 'c2' }
-                ]
-            })
-        ).toEqual(['c1', 'c2'])
-        expect(toManyIds({ data: { type: 'x', id: 'one' } })).toEqual([])
-        expect(toManyIds(undefined)).toEqual([])
     })
 
     test('a write answers the resource it made', async () => {
@@ -460,28 +501,14 @@ describe('buildFileSizes', () => {
 })
 
 describe('reviewDetail', () => {
-    const PATH = 'GET /v1/appStoreVersions/v1/appStoreReviewDetail'
-    const detail = {
-        contactEmail: 'a@example.com',
-        demoAccountName: 'demo',
-        demoAccountRequired: true,
-        notes: null
-    }
-
     test('answers the detail a version has', async () => {
-        expect(await clientOver(routed({ [PATH]: { data: resource('appStoreReviewDetails', 'r1', detail) } }).fetch).reviewDetail('v1')).toEqual(detail)
-    })
-
-    test.each([
-        ['a 404', () => Response.json({ errors: [{ status: '404' }] }, { status: 404 })],
-        ['a null data', () => Response.json({ data: null })]
-    ])('answers null for %s', async (_name, answer) => {
-        expect(await clientOver(recordingFetch(answer).fetch).reviewDetail('v1')).toBeNull()
-    })
-
-    test('any other status is the failure it is', async () => {
-        const { fetch } = recordingFetch(() => Response.json({ errors: [{ status: '500' }] }, { status: 500 }))
-        await expect(clientOver(fetch).reviewDetail('v1')).rejects.toBeInstanceOf(ApiResponseError)
+        const detail = {
+            contactEmail: 'a@example.com',
+            demoAccountName: 'demo',
+            demoAccountRequired: true,
+            notes: null
+        }
+        expect(await clientOver(routed({ 'GET /v1/appStoreVersions/v1/appStoreReviewDetail': { data: resource('appStoreReviewDetails', 'r1', detail) } }).fetch).reviewDetail('v1')).toEqual(detail)
     })
 })
 
@@ -498,7 +525,7 @@ describe('failures', () => {
         }
         const { fetch } = recordingFetch(() => Response.json(answer, { status: 409 }))
         const error = await clientOver(fetch)
-            .createBundleId('one.list.app', 'List One', 'IOS')
+            .request('/v1/bundleIds', { method: 'POST', json: { data: { type: 'bundleIds' } } })
             .catch((e: unknown) => e)
         expect(error).toBeInstanceOf(ApiResponseError)
         expect(error).toMatchObject({
@@ -519,6 +546,6 @@ describe('failures', () => {
             },
             { fetch: () => Promise.reject(unreachable), now: () => NOW }
         )
-        await expect(client.listDevices()).rejects.toBe(unreachable)
+        await expect(client.request('/v1/devices')).rejects.toBe(unreachable)
     })
 })

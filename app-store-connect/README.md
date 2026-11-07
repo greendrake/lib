@@ -1,6 +1,6 @@
 # @greendrake/app-store-connect
 
-A client for the [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi): the ES256 JWT, every page of a collection, App IDs and capabilities, devices, certificates and provisioning profiles, builds and TestFlight, App Store versions and both levels of their localizations, review submissions — and two readings composed from them: an app's record, and its App Store pages. **Runs on [bun](https://bun.sh)**; its only runtime import besides [`@greendrake/util`](../util) is `node:crypto`.
+A client for the [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi): the ES256 JWT, every page of a collection, App IDs and capabilities, devices, certificates and provisioning profiles, builds and TestFlight, App Store versions and both levels of their localizations, review submissions; two readings composed from them: an app's record, and its App Store pages; and the authorised round trips they are written over, for any endpoint answering JSON the client does not cover. **Runs on [bun](https://bun.sh)**; its only runtime import besides [`@greendrake/util`](../util) is `node:crypto`.
 
 ## Install
 
@@ -92,6 +92,47 @@ The pages are the version on sale (`READY_FOR_DISTRIBUTION`), if any, and the ne
 ```ts
 const english = page.locales['en-US']?.version
 if (english) await appStore.updateLocalization('appStoreVersionLocalizations', english.id, { promotionalText: 'Now with more' })
+```
+
+## Calling what the client does not cover
+
+The calls above are written over three that take a path under `https://api.appstoreconnect.apple.com` — never a URL: the host is the client's. They are on the client too, so an endpoint answering JSON that it lacks is one call away, over the same key, with the same failures:
+
+| | |
+|---|---|
+| `request<T>(path, init?)` | one round trip answering JSON: a `json` in `init` is sent as JSON, an ok answer parsed (`null` when empty) |
+| `list<A, I>(path, params?)` | every page of a collection, 200 at a time unless `params` names a `limit`, with the `included` of every page; the query is `params`, and a path carrying one is refused |
+| `getOrAbsent<A>(path)` | a to-one resource that may not exist: `null` on a 404 and on a null `data` |
+
+The relationship readers are the ones the client's own calls join with: `toOneId` and `toManyIds` read the ids a resource's relationship points at, and `includedBy(page, type)` looks up, by a resource's to-one relationship, the companion of that type a `list` with `include` gathered.
+
+An app's analytics reports, which the client has no call for. A report request goes on generating reports until it is left unread for long enough to stop (`stoppedDueToInactivity`), and only a new one resumes them — so one still running is read rather than another made:
+
+```ts
+import type { Single } from '@greendrake/app-store-connect'
+
+interface ReportRequest {
+    accessType: 'ONGOING' | 'ONE_TIME_SNAPSHOT'
+    stoppedDueToInactivity: boolean
+}
+
+const { data: ongoing } = await appStore.list<ReportRequest>(`/v1/apps/${appKey}/analyticsReportRequests`, { 'filter[accessType]': 'ONGOING' })
+const requested =
+    ongoing.find(request => !request.attributes.stoppedDueToInactivity) ??
+    (
+        await appStore.request<Single<ReportRequest>>('/v1/analyticsReportRequests', {
+            method: 'POST',
+            json: { data: { type: 'analyticsReportRequests', attributes: { accessType: 'ONGOING' }, relationships: { app: { data: { type: 'apps', id: appKey } } } } }
+        })
+    ).data
+const { data: reports } = await appStore.list<{ name: string; category: string }>(`/v1/analyticsReportRequests/${requested.id}/reports`, { 'filter[category]': 'APP_USAGE' })
+for (const report of reports) {
+    const { data: instances } = await appStore.list<{ granularity: string; processingDate: string }>(`/v1/analyticsReports/${report.id}/instances`, { 'filter[granularity]': 'DAILY' })
+    for (const instance of instances) {
+        const { data: segments } = await appStore.list<{ url: string; checksum: string; sizeInBytes: number }>(`/v1/analyticsReportInstances/${instance.id}/segments`)
+        // Each segment's `url` is outside the API's host: fetch it yourself.
+    }
+}
 ```
 
 ## What the API does and does not do
