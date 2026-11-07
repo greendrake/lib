@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/mse-video",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "MSE live video over WebSocket: framework-free playback core with stall watchdogs and a server reset protocol, plus a thin Vue wrapper",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",

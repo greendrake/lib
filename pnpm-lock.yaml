@@ -167,21 +167,7 @@ overrides:
   '@greendrake/font-inter>@greendrake/dev-config': 0.7.0
   '@greendrake/theme>@greendrake/dev-config': 0.7.0
   '@greendrake/domains>@greendrake/dev-config': 0.7.0
-  '@greendrake/vue-api>@greendrake/vue-kit': ^0.9.0
-  '@greendrake/vue-app>@greendrake/vue-kit': ^0.9.0
-  '@greendrake/dash>@greendrake/rpc-server': 0.11.0
-  '@greendrake/dash>@greendrake/service-state': ^0.12.1
-  '@greendrake/dash>@greendrake/vue-kit': ^0.9.0
   '@greendrake/eslint-config>@greendrake/dev-config': 0.7.0
-  '@greendrake/mse-video>@greendrake/dev-config': 0.7.0
-  '@greendrake/mse-video>@greendrake/util': ^0.9.0
-  '@greendrake/ipcam>@greendrake/dev-config': 0.7.0
-  '@greendrake/ipcam>@greendrake/ui': ^0.9.0
-  '@greendrake/ipcam>@greendrake/rpc': ^0.10.1
-  '@greendrake/ipcam>@greendrake/util': ^0.9.0
-  '@greendrake/ipcam>@greendrake/vue-api': ^0.11.0
-  '@greendrake/server>@greendrake/dev-config': 0.7.0
-  '@greendrake/server>@greendrake/util': ^0.9.0
   ipcam-app>@greendrake/dash: 0.13.1
   ipcam-app>@greendrake/ipcam: 0.2.0
   ipcam-app>@greendrake/rpc: 0.10.1
@@ -303,18 +289,18 @@ importers:
         specifier: workspace:^
         version: link:../vue-app
       '@greendrake/vue-kit':
-        specifier: ^0.9.0
-        version: 0.9.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../vue-kit
     devDependencies:
       '@greendrake/dev-config':
         specifier: workspace:*
         version: link:../dev-config
       '@greendrake/rpc-server':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: workspace:*
+        version: link:../rpc-server
       '@greendrake/service-state':
-        specifier: ^0.12.1
-        version: 0.12.1(@greendrake/rpc-server@0.11.0)
+        specifier: workspace:*
+        version: link:../service-state
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
@@ -498,8 +484,8 @@ importers:
         specifier: workspace:^
         version: link:../mse-video
       '@greendrake/rpc':
-        specifier: ^0.10.1
-        version: 0.10.1
+        specifier: workspace:^
+        version: link:../rpc
       '@greendrake/scss-kit':
         specifier: workspace:^
         version: link:../scss-kit
@@ -507,18 +493,18 @@ importers:
         specifier: workspace:^
         version: link:../theme
       '@greendrake/ui':
-        specifier: ^0.9.0
-        version: 0.9.0(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../ui
       '@greendrake/util':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: workspace:^
+        version: link:../util
       '@greendrake/vue-api':
-        specifier: ^0.11.0
-        version: 0.11.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../vue-api
     devDependencies:
       '@greendrake/dev-config':
-        specifier: 0.7.0
-        version: 0.7.0(typescript@6.0.3)
+        specifier: workspace:*
+        version: link:../dev-config
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
@@ -535,12 +521,12 @@ importers:
   mse-video:
     dependencies:
       '@greendrake/util':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: workspace:^
+        version: link:../util
     devDependencies:
       '@greendrake/dev-config':
-        specifier: 0.7.0
-        version: 0.7.0(typescript@6.0.3)
+        specifier: workspace:*
+        version: link:../dev-config
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -601,12 +587,12 @@ importers:
   server:
     dependencies:
       '@greendrake/util':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: workspace:^
+        version: link:../util
     devDependencies:
       '@greendrake/dev-config':
-        specifier: 0.7.0
-        version: 0.7.0(typescript@6.0.3)
+        specifier: workspace:*
+        version: link:../dev-config
       '@types/bun':
         specifier: ^1.3.5
         version: 1.4.4
@@ -757,8 +743,8 @@ importers:
         specifier: workspace:^
         version: link:../util
       '@greendrake/vue-kit':
-        specifier: ^0.9.0
-        version: 0.9.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../vue-kit
     devDependencies:
       '@greendrake/dev-config':
         specifier: workspace:*
@@ -782,8 +768,8 @@ importers:
         specifier: workspace:^
         version: link:../util
       '@greendrake/vue-kit':
-        specifier: ^0.9.0
-        version: 0.9.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../vue-kit
     devDependencies:
       '@greendrake/dev-config':
         specifier: workspace:*
@@ -2551,6 +2537,7 @@ snapshots:
       '@greendrake/rpc': 0.10.1
       '@greendrake/util': 0.9.0
       '@standard-schema/spec': 1.1.0
+    optional: true
 
   '@greendrake/rpc@0.10.1':
     dependencies:
@@ -2563,6 +2550,7 @@ snapshots:
       '@greendrake/rpc': 0.10.1
     optionalDependencies:
       '@greendrake/rpc-server': 0.11.0
+    optional: true
 
   '@greendrake/theme@0.8.0':
     dependencies:
