@@ -1,7 +1,7 @@
 {
     "name": "@greendrake/util",
-    "version": "0.9.0",
-    "description": "Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, misc",
+    "version": "0.10.0",
+    "description": "Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, markup escaping, misc; global stubs for bun test",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
     "repository": {
@@ -24,6 +24,10 @@
         "./browser": {
             "types": "./src/browser.ts",
             "default": "./src/browser.ts"
+        },
+        "./testing": {
+            "types": "./src/testing.ts",
+            "default": "./src/testing.ts"
         }
     },
     "files": [

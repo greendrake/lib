@@ -1,7 +1,7 @@
 export { ApiClient, UnacceptableResultError, bubbled, type ApiCaller, type ApiClientOptions, type CallOptions } from './ApiClient'
 export { useExceptionState, classifyException, type ExceptionKind, type FailOptions } from './exceptionState'
 export { configureApiUX, getGoHome, type ConnectionSource, type ErrorSink } from './uxConfig'
-export { apiMessages, configureApiMessages, type ApiMessages } from './messages'
+export { apiMessages, apiStrings, configureApiMessages, type ApiMessages } from './messages'
 export { apiUXHooks } from './apiUXHooks'
 export { useConnectivity, useConnectionMessage } from './connectivity'
 export { retryWhenOnline } from './retryWhenOnline'

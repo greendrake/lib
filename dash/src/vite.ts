@@ -4,8 +4,9 @@ export interface DashAppOptions {
     // The app root (import.meta.dirname of the vite config): anchors both the
     // @ alias and the .env.<mode> lookup.
     dirname: string
-    // Compile-time globals, built from the app's resolved env.
-    define?: (env: Record<string, string>) => Record<string, string | number | boolean | object | null | undefined>
+    // Compile-time globals, built from the app's resolved env and the config
+    // env, so a global can follow the command and the mode.
+    define?: (env: Record<string, string>, configEnv: ConfigEnv) => Record<string, string | number | boolean | object | null | undefined>
     // Data elements in index.html the app reads at runtime (see
     // @greendrake/vite-preset's htmlData), built from the app's resolved env
     // and the config env.
@@ -51,7 +52,7 @@ export const dashApp =
         const env = loadAppEnv(configEnv.mode, options.dirname)
         return vueSpa({
             dirname: options.dirname,
-            define: options.define?.(env),
+            define: options.define?.(env, configEnv),
             htmlData: options.htmlData?.(env, configEnv),
             sourcePackages: options.sourcePackages,
             // Only the dev server and preview pin a port; builds run without one.

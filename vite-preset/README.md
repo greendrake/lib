@@ -2,7 +2,7 @@
 
 A Vite config factory and build-env helpers for Vue 3 single-page apps. `vueSpa()` owns the conventions an app would otherwise hand-copy: the Vue plugin, the strict `VITE_PORT` pin, the `@` alias, the dedupe list, unhashed font asset names and an HMR guard against circular imports. Apps pass app-specific config through `overrides`, which is deep-merged last.
 
-The package is Node-only, except the `./api-target` entry, which is pure and also runs in the browser bundle. It ships TypeScript, and Node does not type-strip files under `node_modules`, so a `vite.config.ts` importing it runs under bun: `bun --bun vite …`.
+The package is Node-only, except the `./api-target` entry, which is pure and also runs in the browser bundle; the `./deps` entry imports nothing but Node's builtins. It ships TypeScript, and Node does not type-strip files under `node_modules`, so a `vite.config.ts` importing it runs under bun: `bun --bun vite …`.
 
 ## Install
 
@@ -79,9 +79,12 @@ An HMR update whose accepted module sits inside an import cycle cannot be re-exe
 ## Env helpers
 
 ```ts
-import { loadAppEnv, requirePort, envBool, buildHash } from '@greendrake/vite-preset'
+import { loadAppEnv, requireEnv, requirePort, envBool, buildHash } from '@greendrake/vite-preset'
 ```
 
+The same helpers are the `./env` entry alone, for a Node process that reads its environment the same way without loading the plugins — a test suite's helpers, say.
+
+- `requireEnv(name)` — the variable `process.env` carries; unset or empty, the config throws rather than bake an absent value into a bundle.
 - `loadAppEnv(mode, dirname)` — the app's `.env` / `.env.<mode>` files, every key (not only `VITE_`-prefixed ones): they carry plain build inputs, and the `export` prefix they may be written with is stripped so the same file can be shell-sourced. `process.env` outranks the file. Do not name the files `.env.development` / `.env.production`: bun auto-loads those into `process.env` at startup, and whichever one it picked would then outrank the mode's file.
 - `requirePort()` — `VITE_PORT`, required; the single port convention.
 - `envBool(value)` — `"1"`, `"t"`, `"true"` (any case) are true; `"0"`, `"false"`, unset and everything else are false. `Boolean(process.env.X)` would take the literal string `"0"` as true.
@@ -120,6 +123,19 @@ const api = new HttpTransport({ url: `${httpOrigin}/rpc` })
 `ApiTargetEnv` is `{ dev, apiPort?, publicFeHost?, publicApiHost? }`: where its values come from — which environment variables a deployment sets — is the app's. Build it once, bake it into one define, and feed the same object to anything else that resolves the host.
 
 `browserRuntime()` is the `runtime` argument as a browser bundle supplies it: `{ host: location.host, https: location.protocol === 'https:' }`.
+
+## `./deps`
+
+```ts
+import { BUILD, RUNTIME, closure, installed, walk } from '@greendrake/vite-preset/deps'
+```
+
+The package graph an app sits in, walked once whatever the question: the `optimizeDeps` pinning above is one visitor on it, and the packages of an app's runtime closure that declare a translation `catalogue` another. It imports nothing but Node's builtins, so tooling that runs before anything is installed walks it too.
+
+- `walk(roots, edges, resolver, visit)` visits every edge of the kinds in `edges` (`dependencies`, `devDependencies`, `peerDependencies`) from the root packages, and from each package `visit` goes on into, in declaration order. `visit` is handed the package's name, the chain of packages it was reached through (from a root's own dependency down to its dependent) and the edge kind, and answers whether to go on into it. A package is walked into once, however many edges reach it; each edge is still visited. The package itself — its directory and `package.json` — is looked up the first time the visitor asks for it, so an edge a visitor passes over is never resolved: an optional peer nobody installed among them.
+- `closure(roots, edges, resolver)` is the roots and every package reachable from them, each once, in the order the walk first reaches it.
+- `RUNTIME` and `BUILD` are the two views of a closure as edge sets: what ships (`dependencies`, transitively) and what builds and tests it (`devDependencies` too).
+- `installed()` is the resolver of an installed tree: the nearest `node_modules` at or above the dependent holding the package, as the real path behind whatever link reached it — where an isolated install (bun's, pnpm's) puts its dependencies. A package declared and not installed is an error. A `Resolver` is `{ follows, find }`: whether an edge to a package is followed at all, and where it is.
 
 ## Sass: import shared style packages by bare specifier
 

@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/vite-preset",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "description": "Vite config factory and build-env helpers for Vue 3 single-page apps: plugin set, strict dev port, alias, dedupe and source-package pre-bundling rules",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -24,6 +24,14 @@
         "./api-target": {
             "types": "./src/apiTarget.ts",
             "default": "./src/apiTarget.ts"
+        },
+        "./env": {
+            "types": "./src/env.ts",
+            "default": "./src/env.ts"
+        },
+        "./deps": {
+            "types": "./src/deps.ts",
+            "default": "./src/deps.ts"
         }
     },
     "files": [
@@ -38,6 +46,7 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
+        "@greendrake/util": "workspace:^",
         "@vitejs/plugin-vue": "^6.0.7"
     },
     "peerDependencies": {

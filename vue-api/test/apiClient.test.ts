@@ -1,21 +1,22 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { ref } from 'vue'
 import { ApiError, NotFoundError } from '@greendrake/rpc'
-import { NetworkError } from '@greendrake/util'
+import { NetworkError, createDeferred } from '@greendrake/util'
 import { useAppState } from '@greendrake/vue-kit'
-import { ApiClient, UnacceptableResultError, bubbled } from '../src/ApiClient'
+import { ApiClient, UnacceptableResultError, bubbled, type ApiClientOptions } from '../src/ApiClient'
 import { useConnectivity } from '../src/connectivity'
 import { classifyException, useExceptionState } from '../src/exceptionState'
-import { FakeSource, ScriptedTransport, setDeviceOnline, tick, withSource } from './support'
+import { FakeSource, ScriptedTransport, stubNavigator, tick, toastsUp, withSource } from './support'
 
 interface Methods {
     'thing.get': () => string
     'thing.create': () => string
     'thing.find': (query: { q: string }) => string
+    'thing.put': (thing: { id: string }) => string
 }
 
 // One offline call, its transport and the oracle that will bring it back.
-const offlineCall = (cacheable?: boolean) => {
+const offlineCall = (cacheable?: boolean, errorHandlers?: ApiClientOptions<Methods>['errorHandlers']) => {
     const source = new FakeSource()
     withSource(source)
     const connectivity = useConnectivity()
@@ -24,7 +25,9 @@ const offlineCall = (cacheable?: boolean) => {
     const transport = new ScriptedTransport()
     const api = new ApiClient<Methods>({
         transport,
-        cache: cacheable ? { ttl: 300, endpoints: { 'thing.get': true } } : undefined
+        cache: cacheable ? { ttl: 300, endpoints: { 'thing.get': true } } : undefined,
+        idempotent: ['thing.put'],
+        errorHandlers
     })
     return {
         source,
@@ -36,9 +39,9 @@ const offlineCall = (cacheable?: boolean) => {
     }
 }
 
-beforeEach(() => {
-    setDeviceOnline(true)
-})
+// A device that claims a network throughout: going offline is the oracle's
+// alone here.
+stubNavigator()
 
 describe('ApiClient calls', () => {
     test('send a method its arguments as given, and one that takes none none at all', async () => {
@@ -229,12 +232,119 @@ describe('per-call cache refusal', () => {
     })
 })
 
+describe('idempotent methods', () => {
+    test('go out with no nonce to deduplicate or abort them by, and are never cached', async () => {
+        const { transport, api } = offlineCall(true)
+        await api.call('thing.put', { id: 'a' })
+        await api.call('thing.put', { id: 'a' })
+        // Each call reaches the wire: idempotent is not reusable.
+        expect(transport.sent.map(request => request.nonce)).toEqual([undefined, undefined])
+        await api.call('thing.create')
+        expect(transport.sent[2]!.nonce).toBeString()
+    })
+
+    test('park when dropped in flight, and are re-issued on reconnect', async () => {
+        const { source, exceptionState, transport, api } = offlineCall()
+        transport.outcomes = ['in-flight-drop']
+        source.report(false)
+
+        const call = api.call('thing.put', { id: 'a' })
+        await tick()
+        // A repeat cannot double-apply, so the user is not asked whether to
+        // risk one.
+        expect(exceptionState.exception).toBe(false)
+
+        source.report(true)
+        expect(await call).toBe('result')
+        expect(transport.sent.length).toBe(2)
+        expect(transport.sent[1]!.nonce).toBeUndefined()
+    })
+})
+
+describe('unattended calls', () => {
+    const unattended = { unattended: true } as const
+
+    test('raise no loading indication while in flight, a scoped ref included', async () => {
+        const { appState } = offlineCall()
+        const reply = createDeferred<unknown>()
+        const api = new ApiClient<Methods>({ transport: { send: () => reply.promise } })
+        const pending = ref(false)
+        const call = api.with({ ...unattended, pending }).call('thing.put', { id: 'a' })
+        await tick()
+        expect(appState.isLoading).toBe(false)
+        expect(pending.value).toBe(false)
+        reply.resolve('result')
+        expect(await call).toBe('result')
+    })
+
+    test('park through an outage like an attended call, showing nothing', async () => {
+        const { source, exceptionState, appState, transport, api } = offlineCall()
+        transport.outcomes = ['in-flight-drop']
+        source.report(false)
+
+        const call = api.with(unattended).call('thing.put', { id: 'a' })
+        await tick()
+        expect(exceptionState.exception).toBe(false)
+        expect(appState.isLoading).toBe(false)
+
+        source.report(true)
+        expect(await call).toBe('result')
+        expect(transport.sent.length).toBe(2)
+    })
+
+    test.each([
+        ['an answer nothing handles', new ApiError('REFUSED')],
+        ['a network failure the oracle does not corroborate', new NetworkError('gone')]
+    ])('reject with %s, raising no toast', async (_name, outcome) => {
+        const { exceptionState, transport, api } = offlineCall()
+        transport.outcomes = [outcome]
+        await expect(api.with(unattended).call('thing.create')).rejects.toBe(outcome)
+        expect(exceptionState.exception).toBe(false)
+    })
+
+    test('reject a nonce-carrying call dropped in flight while offline, re-sending nothing', async () => {
+        const { source, exceptionState, transport, api } = offlineCall()
+        transport.outcomes = ['in-flight-drop']
+        source.report(false)
+        // It may have executed: the caller learns it failed and decides for
+        // itself rather than have it re-sent.
+        await expect(api.with(unattended).call('thing.create')).rejects.toBeInstanceOf(NetworkError)
+        expect(exceptionState.exception).toBe(false)
+        expect(transport.sent.length).toBe(1)
+    })
+
+    test('reject a result the caller cannot accept', async () => {
+        const { exceptionState, api } = offlineCall()
+        await expect(api.with({ ...unattended, validate: () => false }).call('thing.put', { id: 'a' })).rejects.toBeInstanceOf(UnacceptableResultError)
+        expect(exceptionState.exception).toBe(false)
+    })
+
+    test('run the handler of the code, then reject with the error it consumed', async () => {
+        const seen: ApiError[] = []
+        const { transport, api } = offlineCall(false, { SESSION_GONE: e => seen.push(e) })
+        const gone = new ApiError('SESSION_GONE')
+        transport.outcomes = [gone]
+        // An attended call would be parked for good, its flow superseded by
+        // the handler's; the engine awaiting this one would wait forever.
+        await expect(api.with(unattended).call('thing.put', { id: 'a' })).rejects.toBe(gone)
+        expect(seen).toEqual([gone])
+    })
+
+    test('reject with what a throwing handler bubbles', async () => {
+        const { transport, api } = offlineCall(
+            false,
+            bubbled(['REFUSED'], e => new Error(`told ${e.code}`))
+        )
+        transport.outcomes = [new ApiError('REFUSED')]
+        await expect(api.with(unattended).call('thing.put', { id: 'a' })).rejects.toThrow('told REFUSED')
+    })
+})
+
 describe('error handlers', () => {
     const handled = (outcome: Error) => {
-        const { transport } = offlineCall()
-        transport.outcomes = [outcome]
         const seen: ApiError[] = []
-        const api = new ApiClient<Methods>({ transport, errorHandlers: { REFUSED: e => seen.push(e), THING_NOT_FOUND: e => seen.push(e) } })
+        const { transport, api } = offlineCall(false, { REFUSED: e => seen.push(e), THING_NOT_FOUND: e => seen.push(e) })
+        transport.outcomes = [outcome]
         void api.call('thing.create').catch(() => undefined)
         return seen
     }
@@ -258,6 +368,33 @@ describe('error handlers', () => {
 })
 
 describe('the toast', () => {
+    test('stands for calls failing together until each is through: one through on Try again, the other failing again, it leaves "Trying..." for the one still failing', async () => {
+        const { exceptionState, transport, api } = offlineCall()
+        const again = new ApiError('AGAIN')
+        transport.outcomes = [new ApiError('A'), new ApiError('B'), 'ok', again]
+        const through = api.call('thing.create')
+        const failing = api.call('thing.create')
+        void failing.catch(() => undefined)
+        await tick()
+        expect(toastsUp().length).toBe(1)
+        await toastsUp()[0]!.retry()
+        expect(await through).toBe('result')
+        expect(exceptionState.exception).toBe('other')
+        toastsUp()[0]!.cancel()
+        await expect(failing).rejects.toBe(again)
+        expect(exceptionState.exception).toBe(false)
+    })
+
+    test('stands for calls failing with one error object, each answered', async () => {
+        const { transport, api } = offlineCall()
+        const shared = new ApiError('SHARED')
+        transport.outcomes = [shared, shared]
+        const settled = Promise.allSettled([api.call('thing.create'), api.call('thing.create')])
+        await tick()
+        toastsUp()[0]!.cancel()
+        expect((await settled).map(s => s.status === 'rejected' && s.reason)).toEqual([shared, shared])
+    })
+
     test.each([
         ['a not-found is only acknowledged', new NotFoundError(), 'notfound'],
         ['a socket gone is a network failure', new NetworkError('gone'), 'network'],

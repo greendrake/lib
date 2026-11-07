@@ -3,10 +3,12 @@ import { NetworkError } from '@greendrake/util'
 import { useConnectionMessage, useConnectivity } from '../src/connectivity'
 import { apiMessages, configureApiMessages } from '../src/messages'
 import { retryWhenOnline } from '../src/retryWhenOnline'
-import { FakeSource, setDeviceOnline, withSource } from './support'
+import { FakeSource, stubNavigator, withSource } from './support'
+
+const device = stubNavigator()
 
 beforeEach(() => {
-    setDeviceOnline(true)
+    device.onLine = true
 })
 
 describe('useConnectivity', () => {
@@ -82,7 +84,7 @@ describe('useConnectivity', () => {
     })
 
     test('with no source the device signal alone drives both flags', () => {
-        setDeviceOnline(false)
+        device.onLine = false
         withSource(undefined)
         const connectivity = useConnectivity()
         // An HTTP-only app has no oracle and no attempts to count, so the
@@ -91,7 +93,7 @@ describe('useConnectivity', () => {
         expect(connectivity.confirmedOffline).toBe(true)
         expect(connectivity.deviceOffline).toBe(true)
 
-        setDeviceOnline(true)
+        device.onLine = true
         dispatchEvent(new Event('online'))
         expect(connectivity.offline).toBe(false)
         expect(connectivity.confirmedOffline).toBe(false)
@@ -102,7 +104,7 @@ describe('useConnectivity', () => {
         withSource(source)
         const connectivity = useConnectivity()
 
-        setDeviceOnline(false)
+        device.onLine = false
         dispatchEvent(new Event('offline'))
         expect(connectivity.deviceOffline).toBe(true)
         // The device saying it is offline is not evidence that calls cannot
@@ -117,7 +119,7 @@ describe('useConnectionMessage', () => {
         const message = useConnectionMessage()
         expect(message.value).toBe(apiMessages.unreachable)
 
-        setDeviceOnline(false)
+        device.onLine = false
         dispatchEvent(new Event('offline'))
         expect(message.value).toBe(apiMessages.deviceOffline)
 

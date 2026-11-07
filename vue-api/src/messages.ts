@@ -17,3 +17,11 @@ const defaults = {
 export type ApiMessages = typeof defaults
 
 export const { messages: apiMessages, configure: configureApiMessages } = configurableMessages(defaults)
+
+// This package's strings as a host's i18n setup hands them over: read from the
+// host catalogue's `api` namespace, under these keys.
+export const apiStrings = {
+    namespace: 'api',
+    messages: apiMessages,
+    configure: configureApiMessages
+}

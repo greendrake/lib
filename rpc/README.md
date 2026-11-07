@@ -8,7 +8,7 @@ Client for the `@greendrake/rpc` wire format, defined below: a typed method-map 
 bun add @greendrake/rpc
 ```
 
-TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d.ts`), for Vite + Vue 3 apps written in TypeScript. The one runtime dependency, `@greendrake/util` (`NetworkError`, `Emitter`, `safeFetch`, `randomString`), installs with it.
+TypeScript source ships as-is (`src/main.ts` is the entry; no build step, no `.d.ts`), for Vite + Vue 3 apps written in TypeScript. The one runtime dependency, `@greendrake/util` (`NetworkError`, `HttpError`, `Emitter`, `safeFetch`, `randomString`), installs with it.
 
 ## The wire
 
@@ -90,6 +90,8 @@ A code ending in `_NOT_FOUND` says the thing a call names does not exist, and th
 
 `packRequest(method, args, nonce, locale?)` builds the request: a fresh random `nonce` when `nonce` is true, `arguments` only when non-empty, `locale` only when supplied. `settleResponse(response, method)` returns `data` on success or throws the mapped error (see Errors); in a Vite dev build a non-success response is also logged with `console.warn`.
 
+`settleKickoff(text, method, reissue)` settles a call made ahead of any client — the response text an inline boot script fetched before the bundle loaded — as `settleResponse` would; a kickoff with no envelope to read (its fetch rejected, or the body does not parse) is re-issued through `reissue`, a client's own call, while an error the server answered is thrown.
+
 ## Typed method map
 
 Declare the API surface once as method name → call signature; every call site infers argument and result types from it.
@@ -132,7 +134,7 @@ const transport = new HttpTransport({
 - `codec?: Codec` — applied to the outbound body and the inbound response text (see Codec).
 - `requestInit?: Partial<RequestInit>` — merged into every `fetch` call.
 
-A `fetch` rejection (DNS, refused connection, offline, CORS) surfaces as `@greendrake/util`'s `NetworkError`.
+A `fetch` rejection (DNS, refused connection, offline, CORS), and an answer whose body breaks off, surface as `@greendrake/util`'s `NetworkError`. Every server of the format answers an envelope with a 200, so a status other than 2xx is the answer of something between — a proxy's 502, say — and surfaces as `@greendrake/util`'s `HttpError`.
 
 ## WebSocket transport
 
@@ -261,7 +263,7 @@ A server's half is here too, so that both ends agree on what a document is: `doc
 - `NotFoundError` — extends `ApiError`, for every `*_NOT_FOUND` code. `new NotFoundError()`, an app's own not-found (a route that resolved to nothing), is `NOT_FOUND`.
 - `WebSocketClosedError` — extends `@greendrake/util`'s `NetworkError`. Carries `code`, `reason` and `wasClean` from the `CloseEvent`; `inFlight` (whether the failed request was already on the wire — one that never left is safe to re-issue, one in flight may have executed server-side with only its response lost); `isAbnormal` (anything but a clean 1000/1001 close); `asInFlight()`.
 
-Mapping rule, `makeError(code, details?)`, shared by both transports: any code ending in `_NOT_FOUND` becomes a `NotFoundError`, every other code an `ApiError`, each carrying `details`. Transport failures — a `fetch` rejection, a socket closing under a call — are `NetworkError`s, so one `instanceof NetworkError` check classifies all of them.
+Mapping rule, `makeError(code, details?)`, shared by both transports: any code ending in `_NOT_FOUND` becomes a `NotFoundError`, every other code an `ApiError`, each carrying `details`. Transport failures — a `fetch` rejection, a body breaking off, a socket closing under a call — are `NetworkError`s, so one `instanceof NetworkError` check classifies all of them; an HTTP answer that is no envelope is an `HttpError`.
 
 ## Response cache
 
@@ -285,7 +287,7 @@ cache.invalidate('search.things', { q: 'x' }) // that args-key only
 cache.clear() // everything, e.g. when the session identity changes
 ```
 
-`ttlFor(method)` returns the seconds for a listed method, `false` otherwise. `CacheConfig` and `CacheLookup` are the config and `get` result types. `RpcClient` holds no cache; a client that composes one derives its nonce rule from the same endpoint list.
+`ttlFor(method)` returns the seconds for a listed method, `false` otherwise. `CacheConfig` and `CacheLookup` are the config and `get` result types. `RpcClient` holds no cache; a client that composes one sends every listed method without a nonce, since a request carrying one is never cached.
 
 ## Codec
 

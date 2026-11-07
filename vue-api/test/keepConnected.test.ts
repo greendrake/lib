@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test'
+import { stubGlobals } from '@greendrake/util/testing'
 import { keepConnected, type Revivable } from '../src/keepConnected'
-import { removeDocument, setVisibility } from './support'
+
+// Bun has no document; keepConnected reads only its visibility, which a test
+// sets.
+let visibility: DocumentVisibilityState = 'visible'
+stubGlobals(() => ({
+    document: {
+        get visibilityState() {
+            return visibility
+        }
+    }
+}))
 
 interface Methods {
     'app.ping': () => void
@@ -19,7 +30,7 @@ class FakeSocket implements Revivable {
 }
 
 const becomes = (state: DocumentVisibilityState): void => {
-    setVisibility(state)
+    visibility = state
     dispatchEvent(new Event('visibilitychange'))
 }
 
@@ -32,12 +43,11 @@ beforeEach(() => {
 afterEach(() => {
     stop()
     jest.useRealTimers()
-    removeDocument()
 })
 
 describe('keepConnected', () => {
     test('a visible page reconnects at once, probes, and keeps probing on the beat', () => {
-        setVisibility('visible')
+        visibility = 'visible'
         const socket = new FakeSocket()
         stop = keepConnected<Methods>(socket, 'app.ping')
         expect(socket.reconnects).toBe(1)
@@ -50,7 +60,7 @@ describe('keepConnected', () => {
     })
 
     test('a hidden page asks nothing until it is shown', () => {
-        setVisibility('hidden')
+        visibility = 'hidden'
         const socket = new FakeSocket()
         stop = keepConnected<Methods>(socket, 'app.ping')
         jest.advanceTimersByTime(120_000)
@@ -63,7 +73,7 @@ describe('keepConnected', () => {
     })
 
     test('hiding the page stops the beat', () => {
-        setVisibility('visible')
+        visibility = 'visible'
         const socket = new FakeSocket()
         stop = keepConnected<Methods>(socket, 'app.ping')
         becomes('hidden')
@@ -72,7 +82,7 @@ describe('keepConnected', () => {
     })
 
     test('showing the page again restarts the beat rather than adding one', () => {
-        setVisibility('visible')
+        visibility = 'visible'
         const socket = new FakeSocket()
         stop = keepConnected<Methods>(socket, 'app.ping')
         becomes('visible')
@@ -82,7 +92,7 @@ describe('keepConnected', () => {
     })
 
     test('the device coming back reconnects without probing', () => {
-        setVisibility('hidden')
+        visibility = 'hidden'
         const socket = new FakeSocket()
         stop = keepConnected<Methods>(socket, 'app.ping')
         dispatchEvent(new Event('online'))
@@ -91,7 +101,7 @@ describe('keepConnected', () => {
     })
 
     test('the teardown silences every trigger', () => {
-        setVisibility('visible')
+        visibility = 'visible'
         const socket = new FakeSocket()
         keepConnected<Methods>(socket, 'app.ping')()
         stop = (): void => {}

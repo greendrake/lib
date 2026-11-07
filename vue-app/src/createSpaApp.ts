@@ -40,11 +40,13 @@ export interface SpaAppOptions {
     // Runs once the router exists, before anything mounts — for a layer that
     // navigates on its own account, such as an error UX's "go home".
     onRouter?: (router: Router) => void
-    // Where a failed boot is reported: init work or document readiness
-    // rejecting. The splash lifts either way. Absent, the failure is rethrown
-    // as an unhandled rejection, which is where an app with no error UX of its
-    // own has it logged.
-    onBootError?: (error: Error) => void
+    // Where a failure nothing else handles is reported: a failed boot (init
+    // work or document readiness rejecting — the splash lifts either way) and
+    // every error Vue catches (a component's setup, render, watcher, hook or
+    // event handler throwing), as the app's errorHandler. Absent, a failed
+    // boot is rethrown as an unhandled rejection and Vue logs the rest, which
+    // is where an app with no error UX of its own has them.
+    onError?: (error: Error) => void
     // What a route's failed data fetch makes of its navigation: what a
     // beforeRoute returns. Absent, the error is rethrown and the navigation
     // fails with it, for the router's error handling; an error UX that has
@@ -72,7 +74,7 @@ export interface SpaApp {
     setPageTitle(title?: string): void
 }
 
-const KNOWN_OPTIONS = new Set<keyof SpaAppOptions>(['root', 'rootProps', 'routes', 'plugins', 'piniaPlugins', 'defaultTitle', 'routeClasses', 'beforeRoute', 'ready', 'onRouter', 'onBootError', 'onRouteFetchError'])
+const KNOWN_OPTIONS = new Set<keyof SpaAppOptions>(['root', 'rootProps', 'routes', 'plugins', 'piniaPlugins', 'defaultTitle', 'routeClasses', 'beforeRoute', 'ready', 'onRouter', 'onError', 'onRouteFetchError'])
 
 // Route-level code splitting puts a network fetch between a navigation and the
 // component that serves it: vue-router awaits the `() => import(…)` loader once
@@ -122,6 +124,12 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
     }
 
     const vue = createApp(options.root, options.rootProps)
+    // A failure handed to onError as an Error, whatever was thrown.
+    const { onError } = options
+    const report = onError && ((err: unknown): void => onError(err instanceof Error ? err : new Error(String(err))))
+    if (report) {
+        vue.config.errorHandler = report
+    }
     const pinia = createPinia()
     options.piniaPlugins?.forEach(plugin => pinia.use(plugin))
     vue.use(pinia)
@@ -278,10 +286,10 @@ export const createSpaApp = (options: SpaAppOptions): SpaApp => {
             // behind a splash that never lifts. Settle first, then hand the
             // error to whatever shows it.
             settleInitDone()
-            if (!options.onBootError) {
+            if (!report) {
                 throw e
             }
-            options.onBootError(e as Error)
+            report(e)
         })
         // The boot slot deliberately does NOT await router.isReady(): the first
         // navigation may never commit (a login gate parking it behind the auth

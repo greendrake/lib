@@ -55,11 +55,18 @@ import { rowKeyOf, type ColumnDefinition, type Filters, type LoaderFunction, typ
 //   - detail          — receives { tab, isNew, record, isDupe }.
 //                         isNew    — tab.id starts with `new:`.
 //                         record   — the active table row (undefined when
-//                                    isNew, or when the table hasn't seen
-//                                    the row yet).
+//                                    isNew, with rowTab, or when the table
+//                                    hasn't seen the row yet).
 //                         isDupe   — `(original, candidate) => boolean`,
 //                                    backed by the `keyExists` prop, for
 //                                    rename / new-tab key collision checks.
+//
+// A row opens its own tab, at its key: the tab's `record` is the row while
+// the table holds it, deleting the row closes the tab, and applySaved renames
+// and relabels it. With `rowTab`, a row opens instead the tab of what it
+// refers to, at the id rowTab gives — one tab per id, however many rows refer
+// to it. Such a tab is no row's: its detail goes by tab.id alone, and none of
+// that touches it.
 const props = withDefaults(
     defineProps<{
         columns: ColumnDefinition<T>[]
@@ -73,10 +80,17 @@ const props = withDefaults(
         minWidth?: number
         fullWidthUntilTab?: boolean
         showRange?: boolean
-        // null = table default; false = always filter remotely (see table prop).
-        localSearchFields?: string[] | false | null
-        // The detail tab label of a row; null labels a tab with the row key.
+        // Whether the loader searches: false shows no search field, for a
+        // list whose method takes no search text.
+        searchable?: boolean
+        // The fields the loader's search matches, mirrored in memory (see the
+        // table's prop).
+        localSearchFields?: string[] | false
+        // The detail tab label of a row; null labels a tab with its id.
         rowLabel?: ((record: T) => string) | null
+        // The id of the detail tab a row opens, that of something the row
+        // refers to; null opens the row's own tab, at its key.
+        rowTab?: ((record: T) => string) | null
         // --- Create / Delete affordances (all opt-in) ---
         creatable?: boolean
         newTabLabel?: string
@@ -93,13 +107,16 @@ const props = withDefaults(
         minWidth: 120,
         fullWidthUntilTab: true,
         showRange: true,
-        localSearchFields: null,
+        searchable: true,
+        // Stated, since Vue reads an absent prop that may be false as false.
+        localSearchFields: undefined,
         creatable: false,
         newTabLabel: undefined,
         onDelete: null,
         deleteConfirmMessage: null,
         keyExists: null,
-        rowLabel: null
+        rowLabel: null,
+        rowTab: null
     }
 )
 
@@ -117,13 +134,13 @@ const newTabLabelText = computed(() => props.newTabLabel ?? messages.newTab)
 // a table-only panel: rows select for deletion and never open an empty pane.
 function onRowActivate(record: T): void {
     if (!slots.detail) return
-    const key = String(rowKeyOf(record, props.rowKey))
-    masterDetailRef.value!.openTab(key, labelOf(record, key))
+    const id = props.rowTab ? props.rowTab(record) : String(rowKeyOf(record, props.rowKey))
+    masterDetailRef.value!.openTab(id, labelOf(record, id))
 }
 
-// A row's detail tab label: its rowLabel, else its key.
-function labelOf(record: T, key: string): string {
-    return props.rowLabel ? props.rowLabel(record) : key
+// A row's detail tab label: its rowLabel, else the tab's id.
+function labelOf(record: T, id: string): string {
+    return props.rowLabel ? props.rowLabel(record) : id
 }
 
 const searchQuery = ref<string | undefined>('')
@@ -168,7 +185,7 @@ async function doDelete(): Promise<void> {
     deleteConfirm.value = null
     try {
         await props.onDelete!(keys)
-        for (const k of keys) masterDetailRef.value?.closeTab(String(k))
+        if (!props.rowTab) for (const k of keys) masterDetailRef.value?.closeTab(String(k))
         tableRef.value?.removeRows(keys)
         tableRef.value?.selected?.clear()
     } finally {
@@ -190,17 +207,18 @@ function isDupe(original: Key, candidate: Key): boolean {
 // given the originating `new:` tab's id, rename that tab to the persisted key
 // so the editor's `record` slot prop resolves and subsequent saves route to
 // update instead of create. With a rowLabel, the record's tab follows its
-// label, which a save may change.
+// label, which a save may change. With rowTab, rows have no tabs of their own
+// to rename or relabel.
 function applySaved(key: Key, record: T, tabId?: string): void {
     if (tableRef.value?.getRow(key)) {
         tableRef.value.patchRow(key, record)
     } else {
         tableRef.value?.addRow(record)
-        if (tabId && tabId !== String(key)) {
+        if (tabId && tabId !== String(key) && !props.rowTab) {
             masterDetailRef.value?.updateTab(tabId, String(key), labelOf(record, String(key)))
         }
     }
-    if (props.rowLabel) {
+    if (props.rowLabel && !props.rowTab) {
         masterDetailRef.value?.updateTab(String(key), undefined, props.rowLabel(record))
     }
 }
@@ -235,7 +253,7 @@ defineExpose(exposed)
         <MasterDetail ref="masterDetailRef" :initial-width="initialWidth" :min-width="minWidth" :full-width-until-tab="fullWidthUntilTab">
             <template #master>
                 <div class="CrudPanel__controls">
-                    <SearchField v-model="searchQuery" :debounce="filterDebounce" :placeholder="messages.search" />
+                    <SearchField v-if="searchable" v-model="searchQuery" :debounce="filterDebounce" :placeholder="messages.search" />
                     <button v-if="creatable" type="button" class="CrudPanel__create" @click="onCreate">{{ messages.create }}</button>
                     <slot name="controls-left" />
                     <div class="CrudPanel__controls__gap" />
@@ -248,10 +266,10 @@ defineExpose(exposed)
                         <p>{{ deleteConfirm }}</p>
                     </Modal>
                 </div>
-                <InfiniteScrollTable ref="tableRef" :loader="loader" :columns="columns" :row-height="rowHeight" :filters="filters" :text="searchQuery" :sort="sort" :row-key="rowKey" :hide-header="singleColumn" v-bind="localSearchFields !== null ? { localSearchFields } : {}" selectable @rowactivate="onRowActivate" @range-changed="onRangeChanged" />
+                <InfiniteScrollTable ref="tableRef" :loader="loader" :columns="columns" :row-height="rowHeight" :filters="filters" :text="searchQuery" :sort="sort" :row-key="rowKey" :hide-header="singleColumn" :local-search-fields="localSearchFields" selectable @rowactivate="onRowActivate" @range-changed="onRangeChanged" />
             </template>
             <template #detail="{ tab }">
-                <slot name="detail" :tab="tab" :is-new="tab.id.startsWith('new:')" :record="tab.id.startsWith('new:') ? undefined : tableRef?.getRow(tab.id)" :is-dupe="isDupe" />
+                <slot name="detail" :tab="tab" :is-new="tab.id.startsWith('new:')" :record="tab.id.startsWith('new:') || rowTab ? undefined : tableRef?.getRow(tab.id)" :is-dupe="isDupe" />
             </template>
         </MasterDetail>
     </div>

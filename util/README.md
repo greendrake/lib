@@ -1,6 +1,6 @@
 # @greendrake/util
 
-Framework-free, Node-safe TypeScript utilities: a payload-typed event emitter, timing primitives, retry orchestration, a staleness detector, comparators, `fetch` helpers, locale and browser helpers, and small misc functions. Ships as TypeScript source (`src/main.ts`) with no build step and no `.d.ts`; `sideEffects: false`.
+Framework-free, Node-safe TypeScript utilities: a payload-typed event emitter, timing primitives, retry orchestration, a staleness detector, comparators, `fetch` helpers, locale, markup and browser helpers, small misc functions, and global stubs for `bun test`. Ships as TypeScript source (`src/main.ts`) with no build step and no `.d.ts`; `sideEffects: false`.
 
 ## Install
 
@@ -124,9 +124,14 @@ items.sort(composeComparators<Item>(byPreset('kind', ['grid', 'solar']), byProp(
 ## Fetch
 
 - `safeFetch(...args)` — same signature as `fetch`; a rejection (DNS failure, connection refused, TLS/CORS rejection, device offline) is rethrown as `NetworkError`. A non-2xx status resolves normally, as with `fetch`.
-- `fetchJson<T>(url, init?)` — `safeFetch`, then `HttpError` on non-2xx, else the parsed JSON body as `T`.
+- `fetchJson<T>(url, init?)` — `request` over `safeFetch`: `NetworkError` on transport failure, `ApiResponseError` on non-2xx, else the parsed JSON body as `T`.
+- `request<T>(fetch, url, init?)` — one round trip to an API, through the `fetch` it is handed. `init` is a `RequestInit`, or one carrying `json` in place of `body`, which is sent serialized with `Content-Type: application/json`. `fetch` is called once and outside any `try`: its rejection reaches the caller untouched, so "no answer at all" stays distinguishable from any answer. A non-2xx status throws `ApiResponseError`; a 2xx answers the body parsed as JSON, `null` when empty.
+- `bearerRequest(fetch, token)` — `request` with `Authorization: Bearer <token()>` on every call; `token` may answer synchronously (a JWT minted per request) or not (an access token held until it nearly expires).
+- `Fetch` — `(url: string, init: RequestInit) => Promise<Response>`: what `request` calls. The global `fetch` is one; so is a test double, which need not fake whatever a runtime adds to `typeof fetch`.
+- `ClientOptions` — `{ fetch: Fetch; now: () => number }`: what an API client built on `request` is constructed with, the clock in milliseconds as `Date.now` gives them.
 - `NetworkError` — `name` `'NetworkError'`; message taken from the wrapped error, which is kept as `cause`. Transport-level failures elsewhere (an abnormal WebSocket close, say) can extend it so one `instanceof` check classifies all of them.
 - `HttpError` — `status`, `statusText`; message `"<status> <statusText>"`.
+- `ApiResponseError` — an `HttpError` that also carries the request's `method` and `path` (with its query) and the response's whole `body`: parsed when the response says it is JSON (`application/json` or `…+json`), its text otherwise, `null` when empty. Its message is `"<method> <path> → <status>"` and the body.
 - `OriginPolicy` — which browser origins a server admits: `'*'`, a list of origins as browsers send them (`'https://app.example.com'`), or a predicate. `admitsOrigin(policy, origin)` applies one.
 
 ```ts
@@ -144,6 +149,26 @@ try {
 }
 ```
 
+```ts
+import { ApiResponseError, bearerRequest, type ClientOptions } from '@greendrake/util'
+
+const createClient = (token: () => string, { fetch }: ClientOptions) => {
+    const call = bearerRequest(fetch, token)
+    return {
+        rename: (id: string, name: string) => call(`https://api.example/v1/things/${id}`, { method: 'PATCH', json: { name } })
+    }
+}
+
+try {
+    await createClient(mint, { fetch, now: Date.now }).rename('42', 'Forty-two')
+} catch (e) {
+    if (e instanceof ApiResponseError) {
+        // e.status, e.method, e.path, e.body — whatever the API answered
+    }
+    // anything else rejected before an answer arrived
+}
+```
+
 ## Locale
 
 - `RTL_LANGUAGES: readonly string[]` — ISO 639-1 subtags of right-to-left scripts: `ar`, `fa`, `he`, `ur`, `ps`, `sd`, `ug`, `yi`.
@@ -153,6 +178,21 @@ try {
 import { isRTLLocale } from '@greendrake/util'
 
 document.documentElement.dir = isRTLLocale(navigator.language) ? 'rtl' : 'ltr'
+```
+
+## Markup
+
+For text written into HTML (or XML) as a string.
+
+- `escapeHtml(text)` — `&`, `<`, `>`, `"` and `'` as `&amp;`, `&lt;`, `&gt;`, `&quot;` and `&#39;`: the text reads back verbatim as element content and as an attribute value in either quote.
+- `scriptJson(value)` — `JSON.stringify(value)` with every `<` as its JSON unicode escape, so the JSON can sit inside a `<script>` element (`application/json`, `application/ld+json`): neither `</script>` nor `<!--` can occur in it, and `JSON.parse` reads the value back unchanged.
+
+```ts
+import { escapeHtml, scriptJson } from '@greendrake/util'
+
+const head = `<title>${escapeHtml(title)}</title>
+<meta name="description" content="${escapeHtml(description)}">
+<script type="application/ld+json">${scriptJson(structuredData)}</script>`
 ```
 
 ## DOM and geolocation
@@ -173,13 +213,42 @@ if (!toggleFullscreen(viewer)) openOverlayInstead()
 const { latitude, longitude } = await getUserLocation()
 ```
 
+## Testing
+
+The `./testing` entry, for test files run by `bun test`: it imports `bun:test`, so it loads under bun's test runner only.
+
+- `stubGlobals(values)` — the globals `values()` returns, for the calling test file's tests (or a `describe` block's, called inside one). `bun test` runs a run's files in one process, so they share the global object; `stubGlobals` puts each name in before the first test (`beforeAll`), recording the global object's own property for it, and after the last (`afterAll`) puts that property back — or removes the name, where there was none. Nothing happens at the call: a file a `-t` filter leaves no tests to run touches no global. Each stub is a non-writable, configurable own property of the global object.
+- `memoryStorage()` — `{ storage, store }`: a `Storage` backed by a `Map` (bun has neither `localStorage` nor `sessionStorage`), for code taking one as an argument or for `stubGlobals` to install, and the `Map`, for the test to inspect and clear.
+- `recordingFetch(answer)` — `{ fetch, requests }`: a `Fetch` standing in for a server, for a client built on `request` to be handed. Each request is recorded in `requests`, in order — `url`, `method`, `headers` (a `Headers`) and `body` as given — and answered with whatever `answer(request)` returns; an `answer` that throws makes the call reject, as a fetch that got no answer does.
+
+```ts
+import { test } from 'bun:test'
+import { stubGlobals } from '@greendrake/util/testing'
+
+let visibility: DocumentVisibilityState = 'visible'
+stubGlobals(() => ({
+    document: {
+        get visibilityState() {
+            return visibility
+        }
+    }
+}))
+
+test('a hidden page', () => {
+    visibility = 'hidden'
+    // ...
+})
+```
+
 ## Misc
 
 - `randomString(prefix?)` — `prefix` followed by a base-36 fragment of `Math.random()`.
+- `randomKey()` — 128 random bits from `crypto.getRandomValues`, as 32 hex digits: an idempotency key or a nonce. Unlike `crypto.randomUUID`, available outside secure contexts.
 - `dClone(data)` — deep clone via a JSON round-trip (JSON-representable data only).
 - `isEmpty(o, emptyArraysAreNotEmpty?)` — true for `null`, `undefined`, `''`, `NaN`, an empty array (unless the flag is set) and an empty plain object.
 - `arrayRemove(a, el)` — removes the first occurrence of `el` in place.
 - `arraysEqual(a, b, same = Object.is)` — same length and `same` holds element-wise, in order.
+- `recordsEqual(a, b)` — the same keys, each holding the same value (`Object.is`).
 - `capitalise(s)` — upper-cases the first character.
 - `humanSeconds(seconds)` — compact duration, two most significant units: `3661` → `'1h 1m'`.
 - `humanFileSize(bytes, si = false, dp = 1)` — binary units (`KiB`, `MiB`, …) by default, decimal units (`kB`, `MB`, …) with `si`; `dp` decimal places.

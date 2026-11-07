@@ -1,5 +1,5 @@
 export { showToast, type ToastHandle, type ToastOptions, type ToastVariant } from './toast/showToast'
-export { messages, configureUiMessages, configurableMessages, type UiMessages } from './messages'
+export { messages, configureUiMessages, configurableMessages, uiStrings, type UiMessages } from './messages'
 export { default as Loading } from './Loading.vue'
 export { default as TabBar } from './TabBar.vue'
 export type { Pane, TabDef, TabPane } from './TabBar.vue'

@@ -17,9 +17,15 @@ export const apiUXHooks = {
             }
         })
     },
-    // A failed boot surfaces through the same toast as any other failure.
-    onBootError: (error: Error): void => {
-        useExceptionState().fail(error)
+    // A failed boot, or anything Vue catches, surfaces through the same toast
+    // as any other failure; Try again reloads the app it left broken. An error
+    // already raised — a cancelled call's, bubbling up from its caller — was
+    // shown already.
+    onError: (error: Error): void => {
+        const exceptionState = useExceptionState()
+        if (!exceptionState.raised(error)) {
+            exceptionState.fail(error, { retry: () => location.reload() })
+        }
     },
     // A route's data is fetched through the client, whose toast has already
     // shown the failure — Retry re-runs the fetch, acknowledging a not-found

@@ -1,5 +1,6 @@
 import { ref, watch, toValue, type Ref, type WatchSource } from 'vue'
 import { errorMessage } from '@greendrake/ui'
+import { latestOnly } from './latestOnly'
 
 export interface DetailLoader<T> {
     data: Ref<T | null>
@@ -23,21 +24,21 @@ export const useDetailLoader = <T, Id>(id: WatchSource<Id>, fetcher: (id: Id) =>
     const data = ref(null) as Ref<T | null>
     const loading = ref(false)
     const error = ref<string | null>(null)
-    let seq = 0
+    const startRead = latestOnly()
 
     const reload = async (): Promise<void> => {
-        const token = ++seq
+        const current = startRead()
         loading.value = true
         error.value = null
         try {
             const result = await fetcher(toValue(id))
-            if (token !== seq) return
+            if (!current()) return
             data.value = result
         } catch (e) {
-            if (token !== seq) return
+            if (!current()) return
             error.value = errorMessage(e)
         } finally {
-            if (token === seq) loading.value = false
+            if (current()) loading.value = false
         }
     }
 

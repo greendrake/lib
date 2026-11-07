@@ -1,13 +1,21 @@
 #!/bin/bash
-# Every module of the Go workspace (go.work): formatted, vetted and tested.
+# The Go modules named — directories relative to the repository root — or,
+# with none named, every module of the Go workspace (go.work): formatted,
+# vetted and tested.
 set -euo pipefail
 cd "$(dirname "$0")"
-dirs=$(go list -m -f '{{.Dir}}')
-unformatted=$(gofmt -l $dirs)
+if [ $# -gt 0 ]; then
+    dirs=("$@")
+else
+    # Word-split on purpose: one directory per line, none with a space. (bash
+    # 3, which macOS ships, has no mapfile.)
+    dirs=($(go list -m -f '{{.Dir}}'))
+fi
+unformatted=$(gofmt -l "${dirs[@]}")
 if [ -n "$unformatted" ]; then
     printf 'not gofmt-formatted:\n%s\n' "$unformatted" >&2
     exit 1
 fi
-for dir in $dirs; do
+for dir in "${dirs[@]}"; do
     (cd "$dir" && go vet ./... && go test ./...)
 done

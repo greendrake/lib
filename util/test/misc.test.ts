@@ -1,5 +1,17 @@
 import { describe, expect, test } from 'bun:test'
-import { arrayRemove, capitalise, configuration, createDeferred, dClone, fileMime, humanFileSize, humanSeconds, isEmpty, randomString } from '../src/misc'
+import { arrayRemove, capitalise, configuration, createDeferred, dClone, fileMime, humanFileSize, humanSeconds, isEmpty, randomKey, randomString, recordsEqual } from '../src/misc'
+
+describe('recordsEqual', () => {
+    test.each([
+        [{}, {}, true],
+        [{ a: '1', b: '2' }, { b: '2', a: '1' }, true],
+        [{ a: '1' }, { a: '2' }, false],
+        [{ a: '1' }, { a: '1', b: '2' }, false],
+        [{ a: undefined }, { b: undefined }, false]
+    ] as [Record<string, string | undefined>, Record<string, string | undefined>, boolean][])('recordsEqual(%p, %p) → %p', (a, b, expected) => {
+        expect(recordsEqual(a, b)).toBe(expected)
+    })
+})
 
 describe('isEmpty', () => {
     test.each([
@@ -28,6 +40,11 @@ describe('misc', () => {
         const a = randomString('x-')
         expect(a.startsWith('x-')).toBe(true)
         expect(randomString()).not.toBe(randomString())
+    })
+
+    test('randomKey is 128 bits of hex, fresh each time', () => {
+        expect(randomKey()).toMatch(/^[0-9a-f]{32}$/)
+        expect(randomKey()).not.toBe(randomKey())
     })
 
     test('dClone deep-copies', () => {

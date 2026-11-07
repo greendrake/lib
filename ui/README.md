@@ -75,6 +75,8 @@ configureUiMessages({ cancel: 'Abbrechen', nothingFound: 'Nichts gefunden' })
 
 Keys and defaults: `loading` "Loading", `ok`, `cancel`, `close`, `clear`, `retryCountdown` "Error. Retrying in {seconds}" (`{seconds}` is substituted at render time), `nothingFound`, `searchResults`, `search`, `create`, `refresh`, `delete`, `deleting`, `newTab`, `copied`, `clickToCopy`, `invalidEmail` "Not a valid email address", `selectOption` "Select an option", `aboutThis` "About this".
 
+`uiStrings` is these strings as a host's i18n setup takes them: read from the host catalogue's `ui` namespace, under these keys, with `{seconds}` passed through for the countdown to fill.
+
 `configurableMessages(defaults)` is the same arrangement for a package of its own: `{ messages, configure }`, `messages` reactive and starting as `defaults`. The `@greendrake/ui/messages` entry carries this module alone, for a module that has to load without the components — one under `bun test`, which compiles no SFC.
 
 ## Form controls
@@ -368,7 +370,7 @@ Independently collapsible sections, all open initially. Prop `sections: Accordio
 
 ### ThumbnailGrid
 
-Paged multi-select grid of thumbnails. Props: `loader: ThumbnailGridLoader` (required), `filters` (reloads from the first page when it changes), `thumbnailField` (default `'thumbnail'`), `titleField` (default `'title'`), `idField` (default `'id'`), `pageSize` (default 24). `v-model:selected: Array<string | number>`; clicking a tile toggles it. Exposes `refresh()`.
+Paged multi-select grid of thumbnails. Props: `loader: ThumbnailGridLoader` (required), `filters` (reloads from the first page when it changes), `thumbnail: (item) => string | null` (required: the URL of the image an item's tile shows, null for none), `titleField` (default `'title'`), `idField` (default `'id'`), `pageSize` (default 24). `v-model:selected: Array<string | number>`; clicking a tile toggles it. Exposes `refresh()`.
 
 ```ts
 interface ThumbnailGridLoaderParams {

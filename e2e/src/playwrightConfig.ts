@@ -10,6 +10,10 @@ export interface SpaPlaywrightOptions {
     // The app's origin, for an app its own backend serves rather than a dev
     // server: VITE_PORT is then not read at all.
     baseURL?: string
+    // The browser's language (Playwright's use.locale), for an app that boots
+    // in its visitor's: the one the specs' assertions are written in. Omitted,
+    // Playwright's own default.
+    locale?: string
     overrides?: PlaywrightTestConfig
 }
 
@@ -27,6 +31,7 @@ export const spaPlaywright = (options: SpaPlaywrightOptions = {}): PlaywrightTes
         timeout: 120_000,
         use: {
             baseURL: options.baseURL ?? `http://localhost:${frontendPort('spaPlaywright', options.defaultPort)}`,
+            locale: options.locale,
             trace: 'on-first-retry',
             video: 'retain-on-failure'
         },

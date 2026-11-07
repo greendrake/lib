@@ -1,6 +1,8 @@
-import './dom'
 import { describe, expect, test } from 'bun:test'
 import { inlineMarkup } from '../src/inlineMarkup'
+import { withDom } from './dom'
+
+withDom()
 
 // The fragment as InlineMarkup renders it.
 const serialized = (markup: string): string => {

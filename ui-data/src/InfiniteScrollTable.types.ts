@@ -1,6 +1,7 @@
 import type { Component, Ref } from 'vue'
 
 export interface ColumnDefinition<T = Record<string, unknown>> {
+    /** The row's value the column shows, sorts and searches by: a dotted field reads a path into the row (valueAt). */
     field: string
     label: string
     className?: string
@@ -59,6 +60,11 @@ export type RowKey<T = Record<string, unknown>> = string | ((row: T) => string |
 
 export const rowKeyOf = <T>(row: T, key: RowKey<T>): string | number => (typeof key === 'function' ? key(row) : ((row as Record<string, unknown>)[key] as string | number))
 
+// A row's value under a field: a dotted field reads a path into the row
+// (`original.size`: the size of the row's `original`), a step through no
+// object reading as undefined.
+export const valueAt = <T>(row: T, field: string): unknown => field.split('.').reduce<unknown>((v, step) => (v !== null && typeof v === 'object' ? (v as Record<string, unknown>)[step] : undefined), row)
+
 export interface Props<T = Record<string, unknown>> {
     loader: LoaderFunction<T>
     columns: ColumnDefinition<T>[]
@@ -66,15 +72,16 @@ export interface Props<T = Record<string, unknown>> {
     visibleHeight?: number | null
     filters?: Filters
     // The search text, empty meaning none: served from memory, when the whole
-    // dataset is there, as long as it narrows the text the dataset was
-    // fetched under.
+    // dataset is there, as long as localSearchFields mirror the search and it
+    // narrows the text the dataset was fetched under.
     text?: string
     // The order: served from memory when the whole dataset is there.
     sort?: Sort
-    // Fields the local text filter matches against when the whole dataset is
-    // in memory. `false` opts out of local filter routing entirely — every
-    // text or order change goes to the server (for search semantics the client
-    // cannot mirror, e.g. full-text over fields absent from the rows).
+    // The fields the loader's search matches, for the table to mirror it in
+    // memory: when the whole dataset is there, a text narrowing the one it was
+    // fetched under is matched there against them. Absent, every other text
+    // goes to the loader, which alone knows what its search matches; `false`,
+    // every order change too (for an order the client cannot mirror either).
     localSearchFields?: string[] | false
     rowKey?: RowKey<T>
     selectable?: boolean

@@ -1,6 +1,6 @@
 # greendrake/lib
 
-Packages for building web applications, and an app built from them. TypeScript packages for Vue 3 + Vite frontends, bun backends and the typed wire between them: an RPC client and server over HTTP and WebSocket with live server push, and a Vue binding for it; an SPA bootstrap and a dashboard shell; a component library with data-heavy widgets; design tokens and SCSS primitives; service scaffolding with health probes and a graceful shutdown; the Vite, TypeScript, ESLint and Playwright configuration that builds and tests the result; and live camera video in the browser. Go modules for the server side: the same RPC wire format, service scaffolding, a single-page app inside a Go binary, and IP cameras — a DVRIP and an RTSP client, a camera engine, and their streams cast to browsers. And `ipcam-app`, one camera in the browser, served by a single static binary.
+Packages for building web applications, and apps built from them. TypeScript packages for Vue 3 + Vite frontends, bun backends and the typed wire between them: an RPC client and server over HTTP and WebSocket with live server push, and a Vue binding for it; an SPA bootstrap and a dashboard shell; a component library with data-heavy widgets; design tokens and SCSS primitives; file uploads and downloads with progress; service scaffolding with health probes and a graceful shutdown; the Vite, TypeScript, ESLint and Playwright configuration that builds and tests the result; and live camera video in the browser. Go modules for the server side: the same RPC wire format, service scaffolding, a single-page app inside a Go binary, and IP cameras — a DVRIP and an RTSP client, a camera engine, and their streams cast to browsers. And two apps, each served by a single static binary: `ipcam-app`, one camera in the browser, and `uploader`, files and folders uploaded from a browser to the machine it runs on.
 
 They are developed against real applications rather than in the abstract, and published for anyone whose application has the problems they solve. This repository is a one-way mirror of their source, synchronised from the monorepo they are developed in; releases go out from there — npm packages to npm, Go modules as tags here, apps as GitHub Releases with their binaries — each package on its own version, released when it changes. Issues are welcome here; a pull request is applied upstream and arrives back with the next sync.
 
@@ -10,11 +10,11 @@ They are developed against real applications rather than in the abstract, and pu
 
 | Package | What it is |
 | --- | --- |
-| [`@greendrake/dev-config`](dev-config) | TypeScript and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy |
+| [`@greendrake/dev-config`](dev-config) | TypeScript, Prettier and Stylelint configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy |
 | [`@greendrake/css-reset`](css-reset) | Modern CSS reset (adapted from Josh Comeau's and Andy Bell's resets) |
 | [`@greendrake/scss-kit`](scss-kit) | Framework-free SCSS primitives: breakpoints (single-sourced with TS via codegen), z-layer map, icon-mask registry, @font-face generator, misc mixins |
 | [`@greendrake/font-inter`](fonts/inter) | Inter webfont (woff2, OFL): @font-face registration via the @greendrake/scss-kit generator; opt-in document default via the ./default entry |
-| [`@greendrake/util`](util) | Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, misc |
+| [`@greendrake/util`](util) | Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, markup escaping, misc; global stubs for bun test |
 | [`@greendrake/rpc`](rpc) | RPC client over JSON: typed method-map API, HTTP and reconnecting WebSocket transports, pluggable codec and headers, TTL response cache |
 | [`@greendrake/theme`](theme) | Design tokens, document-level element styling, a light/dark theming mixin and an opt-in dashboard palette |
 | [`@greendrake/domains`](domains) | Email and domain-name validation backed by the IANA TLD list |
@@ -37,6 +37,8 @@ They are developed against real applications rather than in the abstract, and pu
 | [`@greendrake/rpc-server`](rpc-server) | RPC server over JSON for bun: method dispatch with auth, nonce and Standard Schema argument validation, HTTP and WebSocket transports, connection registry and server push |
 | [`@greendrake/service-state`](service-state) | A backend service as a state machine (OFF/STARTING/ON/STOPPING/ERROR): the wire contract both halves share, and the server-side machine behind it |
 | [`@greendrake/server`](server) | Service-binary scaffolding for bun: dependency health probes with /healthz + /readyz, CORS, and the SIGTERM-driven graceful-shutdown sequence |
+| [`@greendrake/app-store-connect`](app-store-connect) | App Store Connect API client for bun: the ES256 JWT, paged collections, provisioning, builds and TestFlight, App Store versions and both localization levels, review submissions, and readings of an app's record and its App Store pages |
+| [`@greendrake/google-api`](google-api) | Google APIs for bun with a service account: the JWT-bearer exchange behind any Google API, and a Search Console client with its readings — sites, sitemaps, search performance over a window, a URL's index status |
 
 ### Go
 
@@ -48,8 +50,8 @@ They are developed against real applications rather than in the abstract, and pu
 | [`greendrake.nz/go/ipcam`](go/ipcam) | Package ipcam is the camera engine's core: what it asks of a camera, through the ports Driver, Camera and Settings that each protocol's adapter implements, and the settings it edits, in terms of its own rather than any protocol's. |
 | [`greendrake.nz/go/ipcamrpc`](go/ipcamrpc) | Package ipcamrpc is a greendrake.nz/go/ipcam fleet over the wire, to a browser app: the methods it calls on the cameras (greendrake.nz/go/rpcserver), each on the camera it names; every camera's state, which it keeps (a Broadcast document); and the streams it watches (greendrake.nz/go/webcast), keyed <camera>/<stream>. |
 | [`greendrake.nz/go/rpcserver`](go/rpcserver) | Package rpcserver is the server end of the `@greendrake/rpc` wire format: a method dispatch table with per-method authentication, served over HTTP (one POST endpoint) and over WebSocket (the same envelope plus a correlation id and server push). |
-| [`greendrake.nz/go/rtsp`](go/rtsp) | Package rtsp is an RTSP 1.0 client (RFC 2326), as thin as playing an IP camera's stream takes: requests on one TCP connection, authenticated as the camera asks (Basic, or Digest), the stream's RTP packets sent to a pair of the client's UDP ports or interleaved on the connection, and H.265 put back together from them. |
-| [`greendrake.nz/go/spa`](go/spa) | Package spa ships a single-page app inside a Go binary: the binary's main package embeds the app's build from its dist/ directory, which the bake command fills before compiling the binary, and Handler serves it. |
+| [`greendrake.nz/go/rtsp`](go/rtsp) | Package rtsp is an RTSP 1.0 client (RFC 2326), as thin as playing an IP camera's streams takes: requests on one TCP connection, authenticated as the camera asks (Basic, or Digest), each stream played as a session of its own on it, its RTP packets sent to a pair of the client's UDP ports or interleaved on the connection, and H.265 put back together from them. |
+| [`greendrake.nz/go/spa`](go/spa) | Package spa serves a single-page app's build from its dist/ directory: embedded in a Go binary, whose main package embeds it and which the bake command fills before compiling the binary, or on disk, where a deploy replaces it under the running binary. |
 | [`greendrake.nz/go/webcast`](go/webcast) | Package webcast casts live camera streams (greendrake.nz/go/camstream) to browsers: H.265 in fragmented MP4 with the camera's G.711 audio beside it, any number of streams over one WebSocket, each pulled off its camera only while someone watches. |
 
 ### Apps
@@ -70,23 +72,27 @@ Styles are Sass, imported by bare specifier (`@use '@greendrake/theme'`); `@gree
 
 ## Consuming the Go modules
 
-`go get greendrake.nz/go/<name>`. The modules live in [`go/`](go), one directory each, and a version of one is the tag `go/<name>/v<version>`; the module proxy and pkg.go.dev serve them like any other. Inside this repository, [`go.work`](go.work) puts them beside each other and the apps' servers.
+`go get greendrake.nz/go/<name>`. The modules live in [`go/`](go), one directory each, and a version of one is the tag `go/<name>/v<version>`; the module proxy and pkg.go.dev serve them like any other. Inside this repository, [`go.work`](go.work) puts them beside each other and the apps' servers — all but a module or server left as released while a module it requires has moved on, which is consumed as released (`go get greendrake.nz/go/<name>@v<version>`).
 
 ## A pair, end to end
 
 [`examples/service-pair`](examples/service-pair) shows several of the packages working together — a demonstration, not the edge of what they are for. It is a complete dashboard and the backend it talks to, built from nothing but these packages: a dispatch table with per-method auth and schema-validated arguments, an HTTP endpoint and a WebSocket one over it, health probes and a graceful shutdown, and a Vue dashboard whose one control follows the service's state live rather than polling for it. It has its own test at both levels — the API driven by the client the dashboard bundles, and the whole thing through a browser — and CI runs both on every push here.
 
-[`apps/ipcam-app`](apps/ipcam-app) is an app built from both kinds: a Go server baking in its Vue SPA. Each release of it carries its binaries.
+[`apps/ipcam-app`](apps/ipcam-app) and [`apps/uploader`](apps/uploader) are apps built from both kinds: each a Go server baking in its Vue SPA. Each release of one carries its binaries.
 
-Each package's README documents the rest: the wire format, transports, live bindings and state documents (`@greendrake/rpc`, `@greendrake/rpc-server`, `@greendrake/vue-api`, `greendrake.nz/go/rpcserver`), the dispatch table and push registry (`@greendrake/rpc-server`), the service binary's probes and shutdown (`@greendrake/server`, `greendrake.nz/go/apiserver`), the components and their styling contract (`@greendrake/ui`, `@greendrake/theme`), the data table and CRUD kit (`@greendrake/ui-data`), the app bootstrap (`@greendrake/vue-app`, `@greendrake/dash`), the Playwright kit (`@greendrake/e2e`), and the cameras (`greendrake.nz/go/ipcam`, `@greendrake/ipcam`).
+Each package's README documents the rest: the wire format, transports, live bindings and state documents (`@greendrake/rpc`, `@greendrake/rpc-server`, `@greendrake/vue-api`, `greendrake.nz/go/rpcserver`), the dispatch table and push registry (`@greendrake/rpc-server`), the service binary's probes and shutdown (`@greendrake/server`, `greendrake.nz/go/apiserver`), the components and their styling contract (`@greendrake/ui`, `@greendrake/theme`), the data table and CRUD kit (`@greendrake/ui-data`), the app bootstrap (`@greendrake/vue-app`, `@greendrake/dash`), file transfer (`@greendrake/upload`), the Playwright kit (`@greendrake/e2e`), and the cameras (`greendrake.nz/go/ipcam`, `@greendrake/ipcam`).
 
 ## Developing in this repository
 
+pnpm installs the workspace (`package.json` pins the version) and bun runs it:
+
 ```sh
-bun install
-bun run check   # vue-tsc / tsc in every package
-bun run lint
-bun run test
-./check-go      # gofmt, vet and test of every Go module
-bun run e2e     # the example pair and the apps, through a browser
+pnpm install
+pnpm run check   # vue-tsc / tsc in every package
+pnpm run lint
+pnpm run test
+./check-go       # gofmt, vet and test of every module in go.work (or of the directories named)
+bun e2e.ts       # the example pair and the apps, through a browser
 ```
+
+A change is verified by what it puts in question rather than by everything: `bun affected.ts --base=<ref>` names the packages, modules, apps and examples that changed since `<ref>` and everything built against them; `bun verify.ts --base=<ref>` installs, type-checks, lints and tests those, and formats, vets and tests their Go; `bun e2e.ts --base=<ref>` runs their browser suites. CI runs the same three against the commit a push or pull request is measured from. A package is released on its own, without its dependants: a dependant left as released is built against what it was released with — `pnpm-workspace.yaml` overrides its edge to a sibling that has moved outside its published range (an app's web half, to every sibling at its bundle's pins), and a Go module or app server stays out of `go.work` once a module it requires has moved — so it comes into question only through a move its published range takes. A change to what one side is verified with — for the npm packages, examples and apps' web halves the lint config and the pinned pnpm, Bun, root dev tooling and install permissions; for the Go modules and apps' servers the Go version — puts that side's every unit in question.

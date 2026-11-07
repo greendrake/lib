@@ -41,3 +41,13 @@ const defaults = {
 export type UiMessages = typeof defaults
 
 export const { messages, configure: configureUiMessages } = configurableMessages(defaults)
+
+// This package's strings as a host's i18n setup hands them over: read from the
+// host catalogue's `ui` namespace, under these keys, with {seconds} left for
+// the countdown to fill.
+export const uiStrings = {
+    namespace: 'ui',
+    messages,
+    configure: configureUiMessages,
+    named: { seconds: '{seconds}' }
+}

@@ -16,8 +16,9 @@ import { Modal, useAsyncAction } from '@greendrake/ui'
 // The operator-decision shell: a note where a decision takes one, and a button
 // per decision that records it. The parent owns the (silent) API calls and
 // re-reads on @done; this owns the note, the shared in-flight guard, the
-// confirmation and the error line.
-const props = defineProps<{ actions: NoteAction[]; placeholder: string }>()
+// confirmation and the error line. With `choices` the note is one of them,
+// picked rather than typed — a reason code — `placeholder` naming the pick.
+const props = defineProps<{ actions: NoteAction[]; placeholder: string; choices?: readonly string[] }>()
 const emit = defineEmits<{ done: [] }>()
 
 const note = ref('')
@@ -39,7 +40,13 @@ const request = (a: NoteAction): void => {
 </script>
 <template>
     <div class="NoteActions">
-        <input v-if="takesNote" v-model="note" :placeholder="placeholder" :disabled="action.acting.value" />
+        <template v-if="takesNote">
+            <select v-if="choices" v-model="note" :aria-label="placeholder" :disabled="action.acting.value">
+                <option value="">{{ placeholder }}</option>
+                <option v-for="choice in choices" :key="choice" :value="choice">{{ choice }}</option>
+            </select>
+            <input v-else v-model="note" :placeholder="placeholder" :disabled="action.acting.value" />
+        </template>
         <button v-for="a in actions" :key="a.label" :disabled="action.acting.value || (a.note === 'required' && !note.trim())" @click="request(a)">{{ a.label }}</button>
         <div v-if="action.error.value" class="NoteActions__error">{{ action.error.value }}</div>
         <Modal v-if="confirming" :title="confirming.label" :ok-label="confirming.label" @ok="action.run(confirming)" @cancel="confirming = null">

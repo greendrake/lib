@@ -1,7 +1,7 @@
 {
     "name": "@greendrake/dev-config",
-    "version": "0.7.0",
-    "description": "TypeScript and Prettier configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy",
+    "version": "0.8.0",
+    "description": "TypeScript, Prettier and Stylelint configuration for Vue 3 + Vite projects, as config files to extend or re-export rather than option sets to copy",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
     "repository": {
@@ -19,11 +19,13 @@
         "./tsconfig/vue.json": "./tsconfig/vue.json",
         "./tsconfig/node.json": "./tsconfig/node.json",
         "./tsconfig/strict.json": "./tsconfig/strict.json",
-        "./prettier": "./prettier.config.js"
+        "./prettier": "./prettier.config.js",
+        "./stylelint": "./stylelint.config.js"
     },
     "files": [
         "tsconfig",
-        "prettier.config.js"
+        "prettier.config.js",
+        "stylelint.config.js"
     ],
     "publishConfig": {
         "access": "public"

@@ -1,8 +1,38 @@
-import { createApp } from 'vue'
+import { mock } from 'bun:test'
+import { createApp, type VNode } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { WebSocketClosedError } from '@greendrake/rpc'
 import type { RpcRequest, Transport } from '@greendrake/rpc'
+import * as ui from '@greendrake/ui'
+import { stubGlobals } from '@greendrake/util/testing'
+import type { ExceptionKind } from '../src/exceptionState'
 import { configureApiUX, type ConnectionSource } from '../src/uxConfig'
+
+// What an exception toast was given: its kind, and what its buttons call.
+export interface ToastButtons {
+    kind: ExceptionKind
+    retry: () => Promise<void> | undefined
+    cancel: () => void
+}
+
+// The toasts raised, as their buttons and whether they are still up: bun has
+// no DOM to render them into.
+const raised: { buttons: ToastButtons; up: boolean }[] = []
+mock.module('@greendrake/ui', () => ({
+    ...ui,
+    showToast: (options: ui.ToastOptions): ui.ToastHandle => {
+        const toast = { buttons: (options.content as VNode).props as ToastButtons, up: true }
+        raised.push(toast)
+        return {
+            destroy: () => {
+                toast.up = false
+            }
+        }
+    }
+}))
+
+// The toasts up, oldest first.
+export const toastsUp = (): ToastButtons[] => raised.filter(t => t.up).map(t => t.buttons)
 
 // A transport standing in for the real connectivity oracle: reports are driven
 // by hand, and deliberately not deduplicated — repeated `false` is what a run
@@ -47,24 +77,20 @@ export class ScriptedTransport implements Transport {
     }
 }
 
-// Bun's navigator carries no onLine, and the store reads it at construction.
-export const setDeviceOnline = (on: boolean): void => {
-    Object.defineProperty(navigator, 'onLine', { value: on, configurable: true })
-}
-
-// Bun has no document; keepConnected reads only its visibility. Every test
-// file shares the global, so the stand-in is removed once a test is done.
-export const setVisibility = (state: DocumentVisibilityState): void => {
-    Object.defineProperty(globalThis, 'document', { value: { visibilityState: state }, configurable: true })
-}
-
-export const removeDocument = (): void => {
-    Reflect.deleteProperty(globalThis, 'document')
+// Bun's navigator carries no onLine, and the store reads it at construction:
+// the calling test file's navigator is the stand-in returned, whose onLine its
+// tests set.
+export const stubNavigator = (): { onLine: boolean } => {
+    const navigator = { onLine: true }
+    stubGlobals(() => ({ navigator }))
+    return navigator
 }
 
 // The store reads its source once, when it materialises, so each test wires the
-// source it wants before touching useConnectivity().
+// source it wants before touching useConnectivity(); it starts on fresh stores,
+// no toast raised.
 export const withSource = (source?: ConnectionSource): void => {
+    raised.length = 0
     configureApiUX({ connectionSource: source })
     const pinia = createPinia()
     createApp({}).use(pinia)

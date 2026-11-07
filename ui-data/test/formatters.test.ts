@@ -1,7 +1,9 @@
-import './dom'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { fmtBytes, fmtDate, fmtDateTime, fmtDay, fmtMarkupText, fmtNumber, fmtYesNo, parseInstant } from '../src/formatters'
 import { configureUiDataMessages } from '../src/messages'
+import { withDom } from './dom'
+
+withDom()
 
 // Intl's output is the test machine's locale's; the cases below assert what
 // does not depend on it, or build the expectation through Intl too.

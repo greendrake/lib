@@ -1,3 +1,4 @@
+import { scriptJson } from '@greendrake/util'
 import type { Plugin } from 'vite'
 
 // Writes a data element per entry into index.html's head —
@@ -12,7 +13,7 @@ export const htmlData = (map: Record<string, unknown>): Plugin => ({
         Object.entries(map).map(([id, value]) => ({
             tag: 'script',
             attrs: { type: 'application/json', id },
-            children: value === null ? '' : JSON.stringify(value).replace(/</g, '\\u003c'),
+            children: value === null ? '' : scriptJson(value),
             injectTo: 'head-prepend' as const
         }))
 })

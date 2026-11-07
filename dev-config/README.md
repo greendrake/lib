@@ -1,6 +1,6 @@
 # @greendrake/dev-config
 
-TypeScript and Prettier configuration for a Vue 3 + Vite project written in TypeScript. Each entry is a config file a consumer extends or re-exports, so a package carries no tooling opinions of its own beyond the one line that points here — and a set of them agrees by construction rather than by anyone diffing option lists.
+TypeScript, Prettier and Stylelint configuration for a Vue 3 + Vite project written in TypeScript. Each entry is a config file a consumer extends or re-exports, so a package carries no tooling opinions of its own beyond the one line that points here — and a set of them agrees by construction rather than by anyone diffing option lists.
 
 ## Install
 
@@ -59,3 +59,13 @@ An app's `tsconfig.json`:
 Settings: `printWidth: 9999`, `tabWidth: 4`, `arrowParens: 'avoid'`, `singleQuote: true`, `trailingComma: 'none'`, `semi: false`. Width never governs line-breaking; lint rules that break literals by shape govern it instead.
 
 One override: `*.jsx` and `*.tsx` get `printWidth: 120`. JSX is the one place the no-wrapping default fails. A Vue template is its own block, so width never governs it; a JSX element is an expression nested inside the code that returns it, and at 9999 a single component with a handful of props and a class list becomes one 500-character line. Structural breaking cannot help — it governs object literals, not elements — so JSX gets a real width and Prettier breaks it.
+
+## Stylelint
+
+`./stylelint` is the design-token gate, re-exported from the consumer's `stylelint.config.js`:
+
+```js
+export { default } from '@greendrake/dev-config/stylelint'
+```
+
+Colour, background, border colour and radius, outline colour, fill, box shadow, font size, padding, margin and gap declarations must resolve to a custom property rather than a bare literal; CSS-wide keywords, zero, percentages, pure black and white, negative values, 1–2px hairlines and `em`/`rem` lengths pass, as does any function (`calc()`, `rgba()`, `color-mix()`, gradients). Animations of layout-triggering properties are flagged; paint-only ones are not. It covers SCSS files (`postcss-scss`) and Vue `<style>` blocks (`postcss-html`). The plugins are named rather than imported, so stylelint resolves them from the consumer's config: the consumer installs `stylelint`, `stylelint-declaration-strict-value`, `stylelint-high-performance-animation`, `postcss-scss` and `postcss-html`.

@@ -26,6 +26,14 @@ export interface CallOptions {
     // straight to the caller. For background calls (token refresh) and callers
     // owning their own error presentation.
     silent?: boolean
+    // A call nobody is watching — a background engine's. It waits out an
+    // outage as an attended call does, and the error handler of its code runs
+    // as for any call, since a session-ending answer must end the session
+    // whichever call brings it; but it shows no loading indication (`pending`
+    // is not consulted) and no toast, and every failure rejects to the caller
+    // — after its handler, where a non-throwing one consumed it — rather than
+    // parking forever: the engine awaiting it has to learn how it ended.
+    unattended?: true
     // Refuse the response cache for this call: read past whatever is stored,
     // and do not store the answer either. For the read whose whole promise is
     // freshness on a method that is worth caching everywhere else — the same
@@ -35,19 +43,24 @@ export interface CallOptions {
     cache?: false
 }
 
-export interface ApiClientOptions {
+export interface ApiClientOptions<M extends MethodMapConstraint<M> = MethodMap> {
     transport: Transport
     // Which methods may be answered from an in-browser response cache, and for
-    // how long. THE list drives two things at once — see `call` below: a listed
-    // method is served/stored from the cache and goes out nonce-less; every
-    // other method carries a nonce and is never cached. Only list stateless,
-    // platform-static reads — never per-user data that mutates in-session.
+    // how long. The list drives two things at once — see `#call` below: a
+    // listed method is served/stored from the cache and goes out nonce-less.
+    // Only list stateless, platform-static reads — never per-user data that
+    // mutates in-session.
     cache?: CacheConfig
+    // The methods whose repeat cannot double-apply but whose answers are not
+    // to be reused: per-user reads, and writes idempotent by the identity they
+    // carry. Sent nonce-less and never cached — see `#call`. A method on
+    // neither list carries a nonce.
+    idempotent?: readonly (keyof M & string)[]
     // Per-error-code interception, keyed by the code of the ApiError a call
     // fails with. A handler that re-throws bubbles the error to the caller
-    // (bypassing the toast); a handler that returns parks the call forever —
-    // its flow is abandoned, superseded by the handler's side effect (logout,
-    // redirect).
+    // (bypassing the toast); a handler that returns parks an attended call
+    // forever — its flow is abandoned, superseded by the handler's side effect
+    // (logout, redirect) — and rejects an unattended one with the error.
     errorHandlers?: Record<string, (e: ApiError) => void>
     // The caller's UI language tag, evaluated per request. Server-resolved
     // labels (taxonomy names, breadcrumbs, facet chips) come back in it, so a
@@ -86,18 +99,20 @@ export interface ApiCaller<M extends MethodMapConstraint<M>> extends Caller<M> {
 export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements ApiCaller<M> {
     readonly transport: Transport
     readonly #cache?: ResponseCache
+    readonly #idempotent: ReadonlySet<string>
     readonly #errorHandlers?: Record<string, (e: ApiError) => void>
     // Dev-only per-method artificial delays (ms), keyed by method name. See
     // setDebugDelay / #debugDelay.
     readonly #debugDelays = new Map<string, number>()
     readonly #locale?: () => string | undefined
 
-    constructor(options: ApiClientOptions) {
+    constructor(options: ApiClientOptions<M>) {
         this.transport = options.transport
         // The locale scopes the cache as well as stamping the request: a
         // response carries server-resolved labels in the language it was asked
         // in, so it may only answer a later call asking in that same one.
         this.#cache = options.cache && new ResponseCache(options.cache, options.locale)
+        this.#idempotent = new Set(options.idempotent)
         this.#errorHandlers = options.errorHandlers
         this.#locale = options.locale
     }
@@ -139,26 +154,28 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
     }
 
     // What every call comes down to. Whether the request carries a nonce is
-    // not a per-call-site choice: it follows from the cache config, which is
-    // the single declaration of "this answer may be reused".
+    // not a per-call-site choice: it follows from the client's two method
+    // lists, the declarations of "a repeat of this cannot double-apply".
     //
     //   listed in cache.endpoints → served from / stored in the cache, sent
     //                               WITHOUT a nonce
-    //   not listed                → straight to the wire WITH a nonce
+    //   listed in idempotent      → straight to the wire WITHOUT a nonce,
+    //                               never cached
+    //   on neither                → straight to the wire WITH a nonce
     //
-    // Why that pairing, and why it is safe to let one list decide both: a
-    // nonce's server-side effects are dedup (a repeat is refused with
-    // DUPLICATE_REQUEST) and abort-by-nonce, and a fresh random nonce is minted
-    // per call, so on a read it buys nothing and costs the server a write to
-    // its nonce store. Sending it is therefore harmless but pointless — which
-    // makes "cacheable" the only axis worth declaring. The protocol's rule that
-    // nonce-bearing requests are never cached is preserved by construction.
-    //
-    // The trade being made: a method that is idempotent but deliberately
-    // uncached — left off the list, not merely read past it by a call site —
-    // pays that one nonce-store write per call. Declaring idempotency per
-    // method, separate from cacheability, is the split for when those writes
-    // matter, or for a cacheable method a caller would abort by its nonce.
+    // A nonce's server-side effects are dedup (a repeat is refused with
+    // DUPLICATE_REQUEST) and abort-by-nonce, and a fresh random nonce is
+    // minted per send (see #run), so its dedup never spans a retry anyway. On
+    // a method whose repeat cannot double-apply it buys nothing, costs the
+    // server a write to its nonce store, and costs the call its offline
+    // parking: a nonce-less call dropped in flight waits out the outage where
+    // a nonce-carrying one has to ask the user. A reusable answer is such a
+    // read by definition, so the cache list implies nonce-lessness and the
+    // protocol's rule that nonce-bearing requests are never cached holds by
+    // construction; the idempotent list is the same declaration for a method
+    // whose answers are not to be reused — a per-user read, or a write made
+    // idempotent by the identity it carries. A method a caller would abort by
+    // its nonce belongs on neither.
     async #call<K extends keyof M & string>(options: CallOptions, method: K, args: Parameters<M[K]>): Promise<Awaited<ReturnType<M[K]>>> {
         const cacheable = this.#cache?.ttlFor(method) !== false && this.#cache !== undefined
         // Refusing the cache is about this answer, not about the method: it
@@ -175,7 +192,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                 return cached.data as Awaited<ReturnType<M[K]>>
             }
         }
-        return this.#run(!cacheable, useCache, method, args, options)
+        return this.#run(!cacheable && !this.#idempotent.has(method), useCache, method, args, options)
     }
 
     invalidateCache(method: keyof M & string, ...args: unknown[]): void {
@@ -220,7 +237,9 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
         const appState = useAppState()
         const exceptionState = useExceptionState()
         const connectivity = useConnectivity()
-        const pending = options.pending
+        // An unattended call shows nothing while it runs: nobody is there to
+        // see it.
+        const pending = options.unattended ? false : options.pending
         const switchLoading = (on: boolean): void => {
             if (isRef(pending)) {
                 pending.value = on
@@ -229,23 +248,17 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
             }
         }
 
+        // A retried attempt's end, which the toast's "Trying…" waits on: settled
+        // whatever the attempt's outcome, as the toast may outlive this call
+        // standing for others.
         let settleRetryAttempt: (() => void) | undefined
-        // Whether THIS call raised the exception currently on screen. A
-        // success only clears its own error toast — never one a concurrent
-        // call is showing (e.g. a background list refresh must not dismiss a
-        // navigation's "not found" toast it had nothing to do with).
-        let raisedException = false
-        // Drop this call's own toast once it no longer needs one: on success,
-        // and on parking to wait out an outage (which takes the failure off
-        // the user's hands entirely). Clearing the flag with it keeps the
-        // claim honest across a park — whatever appears on screen afterwards
-        // belongs to someone else until this call raises again.
-        const clearOwnException = (): void => {
-            if (raisedException && exceptionState.exception) {
-                exceptionState.fail(false)
-            }
-            raisedException = false
-        }
+        // This call's failure the toast stands for, withdrawn once the call no
+        // longer needs the user: on success, on parking to wait out an outage
+        // (which takes the failure off the user's hands entirely), and to an
+        // error handler. Only its own — a success never takes down a failure
+        // a concurrent call raised (e.g. a background list refresh must not
+        // dismiss a navigation's "not found" it had nothing to do with).
+        let withdraw = (): void => {}
         while (true) {
             switchLoading(true)
             try {
@@ -254,7 +267,8 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                 await this.#debugDelay(method)
                 const result = await send()
                 switchLoading(false)
-                clearOwnException()
+                settleRetryAttempt?.()
+                withdraw()
                 return result
             } catch (e) {
                 settleRetryAttempt?.()
@@ -265,10 +279,11 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                 // double-apply. That holds when the request demonstrably never
                 // left this machine (the socket was already down, so the
                 // transport rejected before writing), and when it carries no
-                // nonce at all (a cacheable read; see call). A nonce-carrying
-                // request that was on the wire when the socket went may have
-                // executed with only its response lost, so whether to re-send
-                // it stays the user's decision and keeps the toast.
+                // nonce at all (a method on either list; see #call). A
+                // nonce-carrying request that was on the wire when the socket
+                // went may have executed with only its response lost, so
+                // whether to re-send it stays the caller's decision: the
+                // user's, through the toast, on an attended call.
                 const neverSent = e instanceof WebSocketClosedError && !e.inFlight
                 if (e instanceof NetworkError && connectivity.offline && (!nonce || neverSent)) {
                     // Park OUTSIDE the loading window: holding the global
@@ -282,7 +297,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                     if (pending === undefined) {
                         appState.setLoading(false)
                     }
-                    clearOwnException()
+                    withdraw()
                     await connectivity.whenOnline()
                     continue
                 }
@@ -290,20 +305,34 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                 if (e instanceof ApiError) {
                     const handler = this.#errorHandlers?.[e.code]
                     if (handler) {
+                        // The handler takes the call over, from whatever an
+                        // earlier attempt left on the toast too.
+                        withdraw()
                         // Pass the original error so a handler that re-throws
                         // (the bubble pattern) preserves its payload
                         // (ApiError.details).
                         handler(e)
                         // A non-throwing handler's side effect (logout,
-                        // redirect) supersedes this call's flow: park it
-                        // forever rather than lie with an undefined result.
-                        return new Promise<never>(() => {})
+                        // redirect) supersedes an attended call's flow: park
+                        // it forever rather than lie with an undefined result.
+                        if (!options.unattended) {
+                            return new Promise<never>(() => {})
+                        }
                     }
+                }
+                // Nobody to ask, and an engine awaiting the call that has to
+                // learn how it ended — handled or not — to decide what next.
+                if (options.unattended) {
+                    throw e
                 }
                 const decision = createDeferred<void>()
                 const retryAttempt = createDeferred<void>()
                 settleRetryAttempt = retryAttempt.resolve
-                exceptionState.fail(e as Error, {
+                // The new failure registered before the previous attempt's is
+                // withdrawn, so the toast standing for both never drops in
+                // between.
+                const previous = withdraw
+                withdraw = exceptionState.fail(e as Error, {
                     // The toast's "Trying..." state lasts until the retried
                     // attempt settles (tracked via retryAttempt).
                     retry: () => {
@@ -315,7 +344,7 @@ export class ApiClient<M extends MethodMapConstraint<M> = MethodMap> implements 
                     // deliberately omitted — they can carry credentials/PII.
                     reportContext: { apiMethod: method }
                 })
-                raisedException = true
+                previous()
                 try {
                     await decision.promise
                 } catch {

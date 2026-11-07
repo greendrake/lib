@@ -24,10 +24,15 @@ export const envBool = (v: string | undefined): boolean => /^(1|t|true)$/i.test(
 // build environment).
 export const buildHash = (): string => execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
 
-// The single port convention: VITE_PORT, required, strict.
-export const requirePort = (): number => {
-    if (!process.env.VITE_PORT) {
-        throw new Error('VITE_PORT environment variable must be set')
+// A build input the environment must carry: unset or empty, the config stops
+// rather than baking an absent value into a bundle.
+export const requireEnv = (name: string): string => {
+    const value = process.env[name]
+    if (!value) {
+        throw new Error(`${name} environment variable must be set`)
     }
-    return parseInt(process.env.VITE_PORT, 10)
+    return value
 }
+
+// The single port convention: VITE_PORT, required, strict.
+export const requirePort = (): number => parseInt(requireEnv('VITE_PORT'), 10)

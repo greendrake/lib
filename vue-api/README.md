@@ -89,8 +89,9 @@ const vlans = await api.with({ silent: true }).call('vlan.list') // no spinner, 
 `ApiClientOptions`:
 
 - `transport` — any `@greendrake/rpc` `Transport`.
-- `cache?: CacheConfig` — the `@greendrake/rpc` `ResponseCache` config. The endpoint list decides two things at once: a listed method is served from and stored in the cache and goes out without a nonce; every other method carries a nonce and is never cached. List only stateless, platform-static reads.
-- `errorHandlers?: Record<string, (e: ApiError) => void>` — keyed by the `code` of the `ApiError` a call fails with (a `NotFoundError` included), consulted before the toast. A handler that throws bubbles the error to the caller with its `details` intact, bypassing the toast; a handler that returns parks the call forever — its side effect (logout, redirect) supersedes the call's flow. `bubbled(codes, as?)` is the handlers bubbling each of `codes`, as `as` turns the error (the error itself by default).
+- `cache?: CacheConfig` — the `@greendrake/rpc` `ResponseCache` config. The endpoint list decides two things at once: a listed method is served from and stored in the cache and goes out without a nonce. List only stateless, platform-static reads.
+- `idempotent?: (keyof M & string)[]` — the methods whose repeat cannot double-apply but whose answers are not to be reused: per-user reads, and writes idempotent by the identity they carry (a record created under a client-minted id, an upload presigned for a named object). A listed method goes out without a nonce and is never cached. A method on neither list carries a nonce and is never cached. A nonce buys a request server-side dedup and abort-by-nonce; a method whose repeat cannot double-apply needs neither, and without one a call dropped in flight waits out an outage instead of asking the user (see Offline parking) — so a method a caller would abort by its nonce belongs on neither list.
+- `errorHandlers?: Record<string, (e: ApiError) => void>` — keyed by the `code` of the `ApiError` a call fails with (a `NotFoundError` included), consulted before the toast. A handler that throws bubbles the error to the caller with its `details` intact, bypassing the toast; a handler that returns parks an attended call forever — its side effect (logout, redirect) supersedes the call's flow — and rejects an unattended one with the error. `bubbled(codes, as?)` is the handlers bubbling each of `codes`, as `as` turns the error (the error itself by default).
 - `locale?: () => string | undefined` — the UI language tag put in every request envelope, evaluated per call.
 
 `CallOptions`:
@@ -98,6 +99,7 @@ const vlans = await api.with({ silent: true }).call('vlan.list') // no spinner, 
 - `pending` — `undefined`: the call holds a slot in `@greendrake/vue-kit`'s `useAppState` loading counter (the global spinner). A `Ref<boolean>`: that scoped busy flag is set instead. `false`: no loading indication.
 - `validate: (result) => boolean | Error` — rejects a result the server calls success: a returned `Error` is thrown, `false` throws `UnacceptableResultError`. Feeds the same retry pipeline as a failure.
 - `silent: true` — no loading indication and no error UX; errors reject straight to the caller. For background calls and callers owning their own error presentation.
+- `unattended: true` — a call nobody is watching, a background engine's. It parks through an outage as an attended call does (see Offline parking) and its code's error handler runs — a session-ending answer ends the session whichever call brings it — but it shows no loading indication (`pending` is not consulted) and no toast, and every failure rejects to the caller: after the handler where a non-throwing one consumed it, never parked forever, since the engine awaiting the call has to learn how it ended. `silent` skips both the parking and the handlers, which is why it does not serve here.
 - `cache: false` — reads past the cache and does not store the answer. Cannot opt an unlisted method in and leaves the nonce rule alone.
 
 Cache access on the client: `invalidateCache(method, ...args)` (with args, that entry; without, the whole method), `clearCache()`.
@@ -106,7 +108,7 @@ Cache access on the client: `invalidateCache(method, ...args)` (with args, that 
 
 ## Error-UX pipeline
 
-A non-silent call that fails, and that no error handler claimed, raises the failure on `useExceptionState()`, which shows one blocking toast at a time (`@greendrake/ui`'s `showToast`, `variant: 'warning'`, `blocking`). The toast's kind is `classifyException(e)`:
+An attended call (neither silent nor unattended) that fails, and that no error handler claimed, raises the failure on `useExceptionState()`, which shows one blocking toast at a time (`@greendrake/ui`'s `showToast`, `variant: 'warning'`, `blocking`). The toast's kind is `classifyException(e)`:
 
 | kind | error | toast |
 | --- | --- | --- |
@@ -114,9 +116,9 @@ A non-silent call that fails, and that no error handler claimed, raises the fail
 | `network` | `NetworkError` (fetch failure, socket closed) | Try again / Cancel |
 | `other` | everything else | Try again / Cancel; also reported to the error sink and logged with `console.warn` |
 
-Retry re-runs the same call (the button reads "Trying..." until the retried attempt settles, and a repeat failure counts up in the message); Cancel rejects the call's promise with the original error. A call's success clears its own toast, never one raised by a concurrent call. A same-kind failure while a toast is showing re-drives the existing toast rather than stacking another.
+The toast stands for every failure raised while it shows, and shows the latest one's kind. Try again re-runs every call it stands for (the button reads "Trying..." until every retried attempt settles, and a repeat failure counts up in the message); Cancel rejects each call's promise with its original error. A call's success withdraws its own failure, never one raised by a concurrent call, and the toast goes with the last failure it stands for. Each raiser registers its own failure, even of an error object another raised too. The app's error handler (`apiUXHooks.onError`) passes by an error already raised: a cancelled call's error that its caller lets bubble adds nothing.
 
-`useExceptionState()`: state `exception: ExceptionKind` (`'network' | 'notfound' | 'other' | false`); action `fail(e: Error | false, options?: FailOptions)`, where `false` clears the toast. `FailOptions`: `retry?: () => Promise<void>`, `cancel?: () => void`, `onDismiss?: () => void` (runs when a not-found's toast is acknowledged), `reportContext?: Record<string, unknown>` (attached to the error report). An app raises its own errors through the same store, e.g. `fail(new NotFoundError())` from a route that resolved to nothing.
+`useExceptionState()`: state `exception: ExceptionKind` (`'network' | 'notfound' | 'other' | false`); actions `fail(e: Error, options?: FailOptions)`, answering the failure's withdrawal, `raised(e)`, whether the error has been registered, and `cancelAll()`, which cancels every failure the toast stands for, as its Cancel does. `FailOptions`: `retry?: () => Promise<void> | void` (a promise keeps the toast on "Trying..." until it settles), `cancel?: () => void`, `onDismiss?: () => void` (runs when the toast is cancelled or a not-found's acknowledged), `reportContext?: Record<string, unknown>` (attached to the error report). An app raises its own errors through the same store, e.g. `fail(new NotFoundError())` from a route that resolved to nothing.
 
 Boot wiring, `configureApiUX({ errorSink?, goHome?, connectionSource? })`:
 
@@ -124,7 +126,7 @@ Boot wiring, `configureApiUX({ errorSink?, goHome?, connectionSource? })`:
 - `goHome` — the not-found toast's home action; default `location.assign('/')`. `getGoHome()` returns the configured function for modules that navigate home outside a component.
 - `connectionSource: ConnectionSource` — `{ readonly connected: boolean; onConnectionChange(listener) }`, read once when `useConnectivity` first materialises, so configure it before the store is first used. `@greendrake/rpc`'s `WsTransport` satisfies it as-is.
 
-`apiUXHooks` is `{ onRouter(router), onBootError(error), onRouteFetchError() }`, for an app bootstrap that offers those hooks (`@greendrake/vue-app`'s `createSpaApp` does): `onRouter` sets `goHome` to `router.push('/')` the moment the router exists, `onBootError` shows a failed boot through `useExceptionState().fail`, and `onRouteFetchError` abandons a navigation whose data fetch failed, quietly — the fetch went through the client, whose toast has already shown the failure. The router is typed structurally (`{ push(to: string): unknown }`), so this package takes no router dependency.
+`apiUXHooks` is `{ onRouter(router), onError(error), onRouteFetchError() }`, for an app bootstrap that offers those hooks (`@greendrake/vue-app`'s `createSpaApp` does): `onRouter` sets `goHome` to `router.push('/')` the moment the router exists, `onError` shows a failed boot, or any error Vue catches, through `useExceptionState().fail` — Try again reloading the page — and `onRouteFetchError` abandons a navigation whose data fetch failed, quietly — the fetch went through the client, whose toast has already shown the failure. The router is typed structurally (`{ push(to: string): unknown }`), so this package takes no router dependency.
 
 ### Strings
 
@@ -133,9 +135,11 @@ Every string this package shows is in one reactive `apiMessages` object (`ApiMes
 - the toast's: `errorOther` "Oops.. Sorry, something went wrong", `errorNetwork` "Looks like a network connectivity issue", `errorNotFound` "The requested page not found", `tryAgain`, `trying` "Trying...", `toHomePage` "To the home page". Its OK and Cancel are `@greendrake/ui`'s `ok` and `cancel`.
 - the connection's (see `useConnectionMessage`): `deviceOffline` "You appear to be offline — waiting for your connection…", `unreachable` "Cannot reach the site — waiting for the connection…".
 
+`apiStrings` is these strings as a host's i18n setup takes them: read from the host catalogue's `api` namespace, under these keys.
+
 ### Offline parking
 
-A non-silent call that fails with a `NetworkError` while `useConnectivity().offline` is true is parked instead of toasted, provided re-issuing it cannot double-apply: it carries no nonce (a cacheable read), or the transport rejected it before writing it (`WebSocketClosedError` with `inFlight === false`). A parked call releases its global loading slot — a scoped `pending` ref stays on, so the submitting control stays disabled — waits on `whenOnline()`, and re-runs once per reconnection. A nonce-carrying request that was on the wire when the socket went may have executed server-side with only its response lost, so it keeps the toast and the decision stays with the user.
+A non-silent call that fails with a `NetworkError` while `useConnectivity().offline` is true is parked instead of failed, provided re-issuing it cannot double-apply: it carries no nonce (a method on the `cache` or `idempotent` list), or the transport rejected it before writing it (`WebSocketClosedError` with `inFlight === false`). A parked call releases its global loading slot — a scoped `pending` ref stays on, so the submitting control stays disabled — waits on `whenOnline()`, and re-runs once per reconnection. A nonce-carrying request that was on the wire when the socket went may have executed server-side with only its response lost, so an attended one keeps the toast and the decision stays with the user, and an unattended one rejects with the error for its caller to decide.
 
 ## Connectivity
 

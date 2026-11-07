@@ -1,3 +1,4 @@
+import { randomKey } from '@greendrake/util'
 import { ApiError, NotFoundError } from './errors'
 import type { RpcRequest, RpcResponse } from './types'
 import type { WsAuthStrategy } from './WsTransport'
@@ -25,9 +26,7 @@ export const tokenAuth: WsAuthStrategy = {
 export const packRequest = (method: string, args: unknown[], nonce: boolean, locale?: string): RpcRequest => {
     const request: RpcRequest = { method }
     if (nonce) {
-        // 128 random bits. Not crypto.randomUUID: that exists only in secure
-        // contexts, and a page served over plain HTTP on a LAN is none.
-        request.nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')
+        request.nonce = randomKey()
     }
     if (args.length) {
         request.arguments = args
@@ -62,4 +61,20 @@ export const settleResponse = (response: RpcResponse, method: string): unknown =
     }
     logIfDev(method, response)
     throw makeError(response.error!, response.error_details)
+}
+
+// The answer of a call made ahead of any client — the text an inline boot
+// script fetched before the bundle loaded — settled as a transport settles one:
+// its data, or the mapped error. A kickoff with no envelope to read — its
+// fetch failed, or what came back is not one — is re-issued through `reissue`,
+// a client's call with its handling of an outage; an error the server answered
+// is a fault, and errs.
+export const settleKickoff = async <T>(text: Promise<string>, method: string, reissue: () => Promise<T>): Promise<T> => {
+    let response: RpcResponse
+    try {
+        response = JSON.parse(await text) as RpcResponse
+    } catch {
+        return reissue()
+    }
+    return settleResponse(response, method) as T
 }

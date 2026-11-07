@@ -5,44 +5,66 @@ on:
     branches: [main]
   pull_request:
 
-# Bun is the version .bun-version pins, Go the one go.work names: what the
-# packages were verified on before they were mirrored.
+# What a push or a pull request puts in question, and nothing else: affected.ts
+# works out, from the commit it is measured against, the packages, modules,
+# apps and examples that changed and everything built against them — a package
+# left as released is built against what it was released with, so a move
+# outside its published range does not reach it; each job verifies its part of
+# that. A change to what a side is verified with — the
+# lint config, the pinned pnpm, Bun, root dev tooling and install permissions;
+# the Go version — puts that side's every unit in question; a push with nothing
+# to measure against (the first) puts every unit in question.
+#
+# pnpm is the version package.json pins, Bun the one .bun-version pins, Go the
+# one go.work names: what the packages were verified on before they were
+# mirrored. pnpm installs, bun runs.
+env:
+  BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+
 jobs:
+  # The affected npm packages, examples and apps' web halves: installed over
+  # the committed lockfile, type-checked, linted and tested.
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-      - run: bun run check
-      - run: bun run lint
-      - run: bun run test
+      - run: bun verify.ts --base="$BASE" --only=js
 
-  # Every Go module and app server: formatted, vetted and tested.
+  # The affected Go modules and app servers: formatted, vetted and tested.
   go:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
         with:
-          go-version-file: go.work
-      - run: ./check-go
-
-  # The example pair and the apps, driven through a browser: the one check that
-  # says the halves still fit together rather than only compiling. An app's
-  # suite builds its server first, which takes Go.
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.work
-      - run: bun install --frozen-lockfile
-      - run: bun run e2e:browsers
-      - run: bun run e2e
+      - run: bun verify.ts --base="$BASE" --only=go
+
+  # The affected examples and apps, driven through a browser: the one check
+  # that says the halves still fit together rather than only compiling. An
+  # app's suite builds its server first, which takes Go.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+      - run: bun e2e.ts --base="$BASE"

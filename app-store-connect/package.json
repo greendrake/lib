@@ -1,0 +1,44 @@
+{
+    "name": "@greendrake/app-store-connect",
+    "version": "0.1.0",
+    "description": "App Store Connect API client for bun: the ES256 JWT, paged collections, provisioning, builds and TestFlight, App Store versions and both localization levels, review submissions, and readings of an app's record and its App Store pages",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "app-store-connect"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/app-store-connect#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/util": "workspace:^"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "typescript": "6.0.3"
+    }
+}

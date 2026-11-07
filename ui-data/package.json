@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/ui-data",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "Data-heavy dashboard components: virtualized InfiniteScrollTable, CrudPanel/MasterDetail, record editing and the admin-CRUD kit",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -24,10 +24,19 @@
         "./formatters": {
             "types": "./src/formatters.ts",
             "default": "./src/formatters.ts"
+        },
+        "./money": {
+            "types": "./src/money.ts",
+            "default": "./src/money.ts"
+        },
+        "./e2e": {
+            "types": "./e2e/table.ts",
+            "default": "./e2e/table.ts"
         }
     },
     "files": [
-        "src"
+        "src",
+        "e2e"
     ],
     "publishConfig": {
         "access": "public"
@@ -38,13 +47,21 @@
     "prettier": "@greendrake/dev-config/prettier",
     "dependencies": {
         "@greendrake/scss-kit": "workspace:^",
-        "@greendrake/ui": "workspace:^"
+        "@greendrake/ui": "workspace:^",
+        "@greendrake/util": "workspace:^"
     },
     "peerDependencies": {
+        "@playwright/test": ">=1.49.0",
         "vue": "^3.5.34"
+    },
+    "peerDependenciesMeta": {
+        "@playwright/test": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*",
+        "@playwright/test": "1.60.0",
         "@types/bun": "^1.3.5",
         "@types/jsdom": "28.0.3",
         "jsdom": "28.1.0",

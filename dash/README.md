@@ -71,7 +71,7 @@ export default defineConfig(
 )
 ```
 
-`sourcePackages` passes through to `@greendrake/vite-preset` for a dashboard that pulls in source-shipped packages beyond the `@greendrake` scope. `define`, `htmlData` (runtime settings written into `index.html`, see `@greendrake/vite-preset`) and `overrides` receive the app's resolved env; `requireEnv` turns a missing build input into a failed build rather than a default. `htmlData` and `overrides` also receive the config env, so a dev-only input is demanded only when there is a dev server to demand it for. `VITE_PORT` is required when serving.
+`sourcePackages` passes through to `@greendrake/vite-preset` for a dashboard that pulls in source-shipped packages beyond the `@greendrake` scope. `define`, `htmlData` (runtime settings written into `index.html`, see `@greendrake/vite-preset`) and `overrides` receive the app's resolved env; `requireEnv` turns a missing build input into a failed build rather than a default. `define`, `htmlData` and `overrides` also receive the config env, so a global can follow the command and the mode, and a dev-only input is demanded only when there is a dev server to demand it for. `VITE_PORT` is required when serving.
 
 **The env file names are load-bearing.** bun injects `.env.development` / `.env.production` into `process.env` at startup, and a `process.env` value outranks the file Vite's loader reads — with those names a production build silently bakes in development credentials. Dashboards therefore use `.env.dev` / `.env.prod`, names bun ignores, and pass the mode explicitly:
 

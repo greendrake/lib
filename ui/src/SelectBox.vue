@@ -89,6 +89,13 @@ const anchorStyle = (rootRect: DOMRect, up: boolean): Record<string, string> => 
     ...(up ? { bottom: `${window.innerHeight - rootRect.top - MENU_OVERLAP}px` } : { top: `${rootRect.bottom - MENU_OVERLAP}px` })
 })
 
+// Brings the focused option into the menu's view: on the menu opening, on stepping
+// through it from the keyboard, and on filtering it to a new list. Never on hover —
+// the pointer landing on a half-visible option must not move the list under it.
+const revealFocused = (): void => {
+    nextTick(() => menu.value?.querySelector('.SelectBox__option--focused')?.scrollIntoView({ block: 'nearest' }))
+}
+
 // The menu's height with nothing clamping it, read from the scroll extent rather
 // than by dropping the clamp and measuring again: re-measuring would paint the
 // unclamped menu for a frame, which on a scroll-driven re-place is a flicker
@@ -131,15 +138,18 @@ const placeMenu = async (): Promise<void> => {
     if (probe && probe !== m && !m.contains(probe)) {
         floor = Math.min(floor, probe.getBoundingClientRect().top)
     }
-    const below = floor - rootRect.bottom - MARGIN
-    const above = rootRect.top - viewportTop - MARGIN
+    // The room each way is measured from the menu's own edge, which overlaps the
+    // control by MENU_OVERLAP: measured from the control's, a menu with room to
+    // spare would be clamped that much short of its height, and scroll by it.
+    const below = floor - (rootRect.bottom - MENU_OVERLAP) - MARGIN
+    const above = rootRect.top + MENU_OVERLAP - viewportTop - MARGIN
     if (height > below && above > below) {
         menuStyle.value = { ...anchorStyle(rootRect, true), maxHeight: `${Math.min(height, above)}px` }
     } else if (height > below) {
         menuStyle.value = { ...anchorStyle(rootRect, false), maxHeight: `${Math.max(0, below)}px` }
     }
     // Re-anchor the focused option inside the resized/flipped scroller.
-    nextTick(() => m.querySelector('.SelectBox__option--focused')?.scrollIntoView({ block: 'nearest' }))
+    revealFocused()
 }
 
 const open = () => {
@@ -205,6 +215,7 @@ const moveFocus = (dir: 1 | -1) => {
         i = (i + dir + opts.length) % opts.length
         if (!opts[i].disabled) {
             focusedIndex.value = i
+            revealFocused()
             return
         }
     }
@@ -254,14 +265,10 @@ const onKeyUp = (e: KeyboardEvent) => {
     }
 }
 
-// Keep the focused option visible while stepping through a scrolled menu.
-watch(focusedIndex, () => {
-    nextTick(() => menu.value?.querySelector('.SelectBox__option--focused')?.scrollIntoView({ block: 'nearest' }))
-})
-
 // Typing changes the option list — restart focus from its top.
 watch(search, () => {
     focusedIndex.value = firstSelectableIndex()
+    revealFocused()
 })
 
 const onDocumentPointerDown = (e: PointerEvent) => {

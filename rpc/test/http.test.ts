@@ -89,6 +89,36 @@ describe('HttpTransport', () => {
         await expect(dead.call('echo')).rejects.toBeInstanceOf(NetworkError)
     })
 
+    test('a status other than 2xx, which no server of the format answers with, surfaces as HttpError', async () => {
+        const proxy = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 502, statusText: 'Bad Gateway' }) })
+        try {
+            const behind = new RpcClient(new HttpTransport({ url: `http://localhost:${proxy.port}/` }))
+            await expect(behind.call('echo')).rejects.toMatchObject({ name: 'HttpError', status: 502 })
+        } finally {
+            proxy.stop(true)
+        }
+    })
+
+    test('a body that breaks off surfaces as NetworkError', async () => {
+        // A connection closing short of the length its answer announced.
+        const broken = Bun.listen({
+            hostname: '127.0.0.1',
+            port: 0,
+            socket: {
+                data: socket => {
+                    socket.write('HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{"success":')
+                    socket.end()
+                }
+            }
+        })
+        try {
+            const behind = new RpcClient(new HttpTransport({ url: `http://127.0.0.1:${broken.port}/` }))
+            await expect(behind.call('echo')).rejects.toBeInstanceOf(NetworkError)
+        } finally {
+            broken.stop(true)
+        }
+    })
+
     test('codec encodes requests and decodes responses', async () => {
         const encodedClient = new RpcClient<{ ping: () => { method: string } }>(new HttpTransport({ url: `http://localhost:${encodedServer.port}/`, codec }))
         const result = await encodedClient.call('ping')

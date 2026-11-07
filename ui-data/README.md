@@ -1,6 +1,6 @@
 # @greendrake/ui-data
 
-Data-heavy dashboard components on top of `@greendrake/ui`: a virtualised `InfiniteScrollTable`, the `MasterDetail` split and the `CrudPanel` shell built on it, the `useRecordEditor` diff-and-patch editing convention, and an admin-CRUD kit of sort state, detail composables, formatters, the `NoteActions` shell and `DescriptionList`. Ships as TypeScript + SFC source; the consuming Vite app compiles it.
+Data-heavy dashboard components on top of `@greendrake/ui`: a virtualised `InfiniteScrollTable`, the `MasterDetail` split and the `CrudPanel` shell built on it, the `useRecordEditor` diff-and-patch editing convention, and an admin-CRUD kit of sort state, detail composables, formatters, the `NoteActions` shell, `FilterSelect`, `RecordsTable` and `DescriptionList`. Ships as TypeScript + SFC source; the consuming Vite app compiles it.
 
 ## Install
 
@@ -8,7 +8,7 @@ Data-heavy dashboard components on top of `@greendrake/ui`: a virtualised `Infin
 bun add @greendrake/ui-data vue
 ```
 
-`vue` is the peer dependency; `@greendrake/ui` and `@greendrake/scss-kit` come in as dependencies.
+`vue` is the peer dependency; `@greendrake/ui`, `@greendrake/scss-kit` and `@greendrake/util` come in as dependencies.
 
 No build step, no `.d.ts`: `exports` points at `src/main.ts` and the consumer's Vite + `vue-tsc` toolchain compiles the SFCs, whose generics (`InfiniteScrollTable<T>`, `CrudPanel<T>`) are written against the `vueCompilerOptions` of `@greendrake/dev-config/tsconfig/vue.json`. A consumer's tsconfig extends it:
 
@@ -27,7 +27,7 @@ Layout: `InfiniteScrollTable` measures its own container to decide how many rows
 
 ## InfiniteScrollTable
 
-Virtualised table: only the rows that fit the measured viewport (plus two clipped ones) are in the DOM, scrolling is pixel-continuous through a custom scrollbar, the wheel, touch panning with inertia, and the keyboard when `selectable`. Rows arrive through the loader in `bufferSize` windows around the viewport; when a single response holds the whole dataset (`data.length >= total`) the table keeps it in memory and serves text-filter refinements and sorting locally without further calls. Columns are resizable by dragging header edges.
+Virtualised table: only the rows that fit the measured viewport (plus two clipped ones) are in the DOM, scrolling is pixel-continuous through a custom scrollbar, the wheel, touch panning with inertia, and the keyboard when `selectable`. Rows arrive through the loader in `bufferSize` windows around the viewport; when a single response holds the whole dataset (`data.length >= total`) the table keeps it in memory and serves sorting — an unset value first, as a database's NULL — and text-filter refinements over the fields it is given (`localSearchFields`), locally without further calls. Columns are resizable by dragging header edges.
 
 ### Loader contract
 
@@ -62,7 +62,7 @@ The params are in no backend's terms: what the loader's API calls the text, the 
 type Filters = Record<string, string | null | undefined> // an empty value (null, undefined, '') is no filter
 ```
 
-A change to `text`, `sort` or `filters` re-fetches from offset 0, unless the whole dataset is in memory and the filters are as it was fetched under: then a new order, or a text containing the one it was fetched under (only narrowing it), is applied locally — the text over `localSearchFields`.
+A change to `text`, `sort` or `filters` re-fetches from offset 0, unless the whole dataset is in memory and the filters are as it was fetched under: then a new order is applied locally, and so is a text containing the one it was fetched under (only narrowing it) given `localSearchFields` to match it against. Without them every other text is the loader's: only the loader knows what its search matches. Rows land only from the latest load: one a later load (a new query, a new window) has superseded is dropped.
 
 ### Props
 
@@ -76,7 +76,7 @@ A change to `text`, `sort` or `filters` re-fetches from offset 0, unless the who
 | `filters` | `Filters` | `{}` |
 | `text` | the search text; empty is none | — |
 | `sort` | `Sort`, the order | — |
-| `localSearchFields` | fields the in-memory text filter matches; `false` sends every text and order change to the loader | `['title']` |
+| `localSearchFields` | the fields the loader's search matches (a case-insensitive substring), for the in-memory text filter to mirror it; absent, a text change goes to the loader; `false`, every text and order change does | — |
 | `selectable` | pointer/keyboard row selection (wrapper gets `tabindex="0"`) | `false` |
 | `rowDraggable` | rows are `draggable`, drop targets are tracked | `false` |
 | `hideHeader` | | `false` |
@@ -86,7 +86,7 @@ A change to `text`, `sort` or `filters` re-fetches from offset 0, unless the who
 
 ```ts
 interface ColumnDefinition<T> {
-    field: string
+    field: string // a dotted field reads a path into the row: `original.size`
     label: string
     className?: string // on th and td
     cellClass?: (value: unknown, record: T) => string | undefined
@@ -168,7 +168,7 @@ A `SplitPane` from `@greendrake/ui`: the resizable master pane on the left, tabb
 
 ## CrudPanel
 
-Master/detail CRUD shell: a controls bar (search field, optional Create button, refresh, visible-range readout, optional Delete button) over an `InfiniteScrollTable` in the master pane, and detail tabs opened by double-clicking a row. A panel without a `detail` slot is table-only: rows select (for deletion) and never open a pane.
+Master/detail CRUD shell: a controls bar (search field where the loader searches, optional Create button, refresh, visible-range readout, optional Delete button) over an `InfiniteScrollTable` in the master pane, and detail tabs opened by double-clicking a row. A panel without a `detail` slot is table-only: rows select (for deletion) and never open a pane.
 
 | Prop | Type | Default |
 | --- | --- | --- |
@@ -180,8 +180,10 @@ Master/detail CRUD shell: a controls bar (search field, optional Create button, 
 | `sort` | `Sort`, forwarded to the table | — |
 | `initialWidth`, `minWidth`, `fullWidthUntilTab` | forwarded to `MasterDetail` | 200, 120, `true` |
 | `showRange` | render the `start-end/total` readout | `true` |
-| `localSearchFields` | `string[] \| false \| null`; `null` keeps the table's default | `null` |
-| `rowLabel` | `(record: T) => string`, a row's detail tab label; `null` labels it with the row key | `null` |
+| `searchable` | the loader searches; `false` shows no search field, for a list whose method takes no search text | `true` |
+| `localSearchFields` | `string[] \| false`, forwarded to the table | — |
+| `rowLabel` | `(record: T) => string`, a row's detail tab label; `null` labels it with the tab's id | `null` |
+| `rowTab` | `(record: T) => string`, the id of the detail tab a row opens, that of something the row refers to; `null` opens the row's own tab, at its key | `null` |
 | `creatable` | Create button, opens a `new:<n>` tab | `false` |
 | `newTabLabel` | label of that tab | `messages.newTab` |
 | `onDelete` | `(keys: Key[]) => Promise<unknown>`; enables the Delete button for the selection | `null` |
@@ -190,7 +192,9 @@ Master/detail CRUD shell: a controls bar (search field, optional Create button, 
 
 The search field's debounce is `localFilterDebounce` over the table: swift when the change resolves in memory, longer when it triggers a fetch. A single column hides the table header.
 
-Slots: `controls-left` (after the search field and Create), `controls-middle` (`{ range: VisibleRange }`), `controls-right` (after Delete; `{ selected: Set<Key> | undefined }`), `detail` (`{ tab: TabDef, isNew: boolean, record: T | undefined, isDupe: (original: Key, candidate: Key) => boolean }`). `record` is the live table row for the tab's key (`undefined` for a `new:` tab or a row the table has not seen); `isDupe` flags a candidate key that differs from `original` and already exists, for rename and create forms.
+Slots: `controls-left` (after the search field and Create), `controls-middle` (`{ range: VisibleRange }`), `controls-right` (after Delete; `{ selected: Set<Key> | undefined }`), `detail` (`{ tab: TabDef, isNew: boolean, record: T | undefined, isDupe: (original: Key, candidate: Key) => boolean }`). `record` is the live table row for the tab's key (`undefined` for a `new:` tab, a row the table has not seen, or with `rowTab`); `isDupe` flags a candidate key that differs from `original` and already exists, for rename and create forms.
+
+A row opens its own tab, at its key: the tab's `record` is the row while the table holds it, deleting the row closes the tab, and `applySaved` renames and relabels it. With `rowTab`, a row opens instead the tab of what it refers to, at the id `rowTab` gives — one tab per id, however many rows refer to it, as a list of disputes opens each one's payment. Such a tab is no row's: its detail goes by `tab.id` alone, so it stays as it is when a filter or the search drops the rows that opened it, and neither deletion nor `applySaved` touches it.
 
 Exposed (`CrudPanelExposed<T>`; type the ref as `ref<CrudPanelExposed<Row>>()`): `openTab`, `closeTab`, `updateTab`, `removeRows(keys)` (also clears the selection), `addRow`, `patchRow`, `getRow`, `refresh`, `applySaved(key, record, tabId?)`, and readonly `selected`, `range`, `deleting`.
 
@@ -325,14 +329,34 @@ Beside `fmtBool` and `fmtYesNo`, which read any value as a boolean, the formatte
 - `fmtBool(v: unknown): string` — `'✓'` or `''`, for table cells.
 - `fmtYesNo(v: unknown): string` — `uiDataMessages.yes` / `uiDataMessages.no`, for detail prose: "yes" / "no" until `configureUiDataMessages({ yes, no })` says otherwise. `@greendrake/ui`'s `configurableMessages` keeps them (`UiDataMessages`), so an app with i18n calls it at boot and again on a locale change.
 
+### Money
+
+Amounts as a payment's wire carries them: an integer count of a currency's minor units beside its `Denomination` — `{ currency, scale }`, the ISO 4217 code and the decimals of its minor unit as the server reckons them, never `Intl`'s, whose CLDR departs from the server's for some currencies — read and written through decimal strings, never a float. A payment on the wire is its own denomination. From `@greendrake/ui-data/money`, which imports no component; each denomination's formatter is made once.
+
+- `fmtMoney(minor: number, of: Denomination): string` — the amount with the currency's sign and the scale's decimals, in the browser's locale; throws on what is no non-negative safe integer.
+- `toMinor(amount: string, scale: number): number | null` — a decimal amount (a `CurrencyInput`'s model, the scale its `precision`) as minor units; null for what is no amount at the scale — no decimal, a fraction finer than it, or past what a count of them holds — which is a form's to refuse.
+- `toDecimal(minor: number, scale: number): string` — `toMinor` read back: the decimal string minor units count, digit for digit (`1250` at 2 is `'12.50'`); throws on what is no non-negative safe integer.
+
 ### inlineMarkup, InlineMarkup
 
 `inlineMarkup(markup: string): DocumentFragment` rebuilds markup as one line of inline content, safe to render whatever its source: text, and the inline formatting elements `b`, `strong`, `i`, `em`, `u`, `s`, `del`, `ins`, `sub`, `sup`, `code`, `mark`, `small`, recreated without attributes. Other elements are unwrapped; block-level ones and `<br>` part runs of text with one space; scripts, styles, templates, `noscript`, embedded and media content are dropped with everything inside, as are comments. It parses with `DOMParser`, whose document is inert. The `InlineMarkup` component (prop `markup: string`) renders the fragment on one line, cut with an ellipsis — a table cell's `component` for rich text.
 
 ### NoteActions
 
-An operator's decisions on a record, recorded with a note. Props: `actions: NoteAction[]` and `placeholder: string`. `NoteAction` is `{ label, fn(note) => Promise, note?: 'optional' | 'required', confirm? }`: a button per action; the note field shows when any action takes a note, one requiring it stays disabled until there is one, and one with `confirm` asks in a modal first. The actions share one in-flight guard and an error line; `done` is emitted once one succeeded, so the parent re-reads.
+An operator's decisions on a record, recorded with a note. Props: `actions: NoteAction[]`, `placeholder: string` and `choices?: readonly string[]`. `NoteAction` is `{ label, fn(note) => Promise, note?: 'optional' | 'required', confirm? }`: a button per action; the note field shows when any action takes a note, one requiring it stays disabled until there is one, and one with `confirm` asks in a modal first. Given `choices`, the note is one of them — a reason code rather than free text — picked from a select whose empty option is `placeholder`. The actions share one in-flight guard and an error line; `done` is emitted once one succeeded, so the parent re-reads.
+
+### FilterSelect
+
+A list's filter over a closed set, for a `controls-left` slot: `v-model` is the value picked, `''` for any. Props: `options: readonly S[]` (shown as they are), `label` (the accessible name) and `anyLabel` (the empty option's words). Feed the model to the table's `filters` and to the loader's arguments (see `@greendrake/rpckit`'s `narrowedList`).
+
+### RecordsTable
+
+A record's records of a kind — a payment attempt's refunds, a certificate's access log — as a static table, every row at once; nothing for none. Props: `rows: T[]`, `columns: RecordColumn<T>[]` (`ColumnDefinition`'s `field`, `label`, `formatter` and `cellClass`), `rowKey: (row: T, index: number) => string` (records with no identity of their own, as a log's, go by their place) and `testid`, which each row carries as `data-testid`, its `status` (where it has one) as `data-status`.
 
 ### DescriptionList
 
 Label/value grid for detail panes. Prop `items: (DescriptionItem | false | null | undefined)[]` — falsy entries are skipped, so conditional rows inline as `cond && { … }`. `DescriptionItem` is `{ label: string; value: string | number | null | undefined; code?: boolean }`; `code` renders the value in `<code>`. Values arrive display-ready.
+
+## E2E helpers
+
+`@greendrake/ui-data/e2e` finds a table's rows for a host's Playwright suite: `cells(page, text)` the cells showing `text`, and `openRow(page, text)` the first row showing it opened in its detail tab, as the table binds a row's activation to a double click.

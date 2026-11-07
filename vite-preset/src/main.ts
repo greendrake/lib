@@ -3,11 +3,11 @@ import path from 'node:path'
 import vue from '@vitejs/plugin-vue'
 import { mergeConfig, searchForWorkspaceRoot, type ConfigEnv, type UserConfig, type UserConfigFnObject } from 'vite'
 
-export { envBool, loadAppEnv, requirePort, buildHash } from './env'
+export { envBool, loadAppEnv, requireEnv, requirePort, buildHash } from './env'
 // Re-exported so config factories building on vueSpa speak this package's
 // vite types: a second vite copy resolved downstream is a structurally
 // unrelated set of the same names.
-export type { ConfigEnv, UserConfig, UserConfigFnObject } from 'vite'
+export type { ConfigEnv, Plugin, UserConfig, UserConfigFnObject } from 'vite'
 export { htmlData, htmlPlaceholders } from './html'
 export { resolveApiTarget, browserRuntime, type ApiTarget, type ApiTargetEnv, type ApiTargetRuntime } from './apiTarget'
 export { staticRoots, staticRootFiles, type StaticRoot } from './staticRoots'

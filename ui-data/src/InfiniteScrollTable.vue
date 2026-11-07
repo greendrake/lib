@@ -1,4 +1,5 @@
 <script lang="ts">
+import { recordsEqual } from '@greendrake/util'
 import type { Filters, Sort } from './InfiniteScrollTable.types'
 
 // What rows are fetched under besides their window: the search text and the
@@ -14,11 +15,6 @@ const queryOf = (text: string | undefined, sort: Sort | undefined, filters: Filt
     ...(sort ? { sort } : {}),
     filters: Object.fromEntries(Object.entries(filters).filter((entry): entry is [string, string] => entry[1] != null && entry[1] !== ''))
 })
-
-const sameFilters = (a: Record<string, string>, b: Record<string, string>): boolean => {
-    const keys = Object.keys(a)
-    return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key])
-}
 
 // Whether rows matching `text` are all among those matching `baseline`: a
 // text containing the baseline only narrows it.
@@ -36,13 +32,16 @@ const FLING_SAMPLE_WINDOW_MS = 100
 <script setup lang="ts" generic="T extends Record<string, unknown>">
 import { ref, computed, watch, onMounted, onUnmounted, type Ref } from 'vue'
 import { useSelection, useWidthDrag, capturePointer, messages, TOUCH_PAN_SLOP_PX } from '@greendrake/ui'
-import { rowKeyOf, type Props, type DropTarget, type LoaderResponse, type RowPosition, type VisibleRange, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
+import { rowKeyOf, valueAt, type Props, type DropTarget, type RowPosition, type VisibleRange, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
+import { latestOnly } from './latestOnly'
 
 const props = withDefaults(defineProps<Props<T>>(), {
     rowHeight: 45,
     visibleHeight: null,
     filters: () => ({}),
-    localSearchFields: () => ['title'],
+    // No field to mirror the search in unless given one. Stated, since Vue
+    // reads an absent prop that may be false as false.
+    localSearchFields: undefined,
     rowKey: 'id',
     selectable: false,
     rowDraggable: false,
@@ -244,21 +243,24 @@ const visibleRange = computed(() => {
     }
 })
 
-// Local filtering/sorting helpers. The order and a narrowing of the text are
-// served from the dataset in memory; a change to the filters is a new dataset.
+// Local filtering/sorting helpers. The order is served from the dataset in
+// memory, and so is a narrowing of the text given the fields to mirror the
+// loader's search in; a change to the filters is a new dataset, and so is any
+// other text: the loader's search matches what only it knows.
 const canOperateLocally = (next: Query): boolean => {
-    // localSearchFields: false = the caller's search semantics cannot be
-    // mirrored client-side; every change goes remote.
+    // localSearchFields: false = the order cannot be mirrored client-side
+    // either; every change goes remote.
     if (props.localSearchFields === false || !hasAllRecords.value || !baseline.value) return false
-    return sameFilters(next.filters, baseline.value.filters) && narrows(next.text, baseline.value.text)
+    if (!recordsEqual(next.filters, baseline.value.filters)) return false
+    return props.localSearchFields ? narrows(next.text, baseline.value.text) : next.text === baseline.value.text
 }
 
-const applyLocalFilter = (data: T[], textFilter: string | undefined, searchFields: string[] | false): T[] => {
-    if (!textFilter || searchFields === false) return data
+const applyLocalFilter = (data: T[], textFilter: string | undefined, searchFields: string[] | false | undefined): T[] => {
+    if (!textFilter || !searchFields) return data
     const lowerFilter = textFilter.toLowerCase()
     return data.filter(record =>
         searchFields.some(field => {
-            const value = record[field]
+            const value = valueAt(record, field)
             return value && String(value).toLowerCase().includes(lowerFilter)
         })
     )
@@ -267,17 +269,19 @@ const applyLocalFilter = (data: T[], textFilter: string | undefined, searchField
 const getFieldType = (field: string, records: T[]): 'string' | 'number' | 'date' => {
     const col = props.columns.find(c => c.field === field)
     if (col?.sortType) return col.sortType
-    const sample = records.find(r => r[field] != null)?.[field]
+    const sample = records.map(r => valueAt(r, field)).find(v => v != null)
     if (sample == null) return 'string'
     if (typeof sample === 'number') return 'number'
     if (sample instanceof Date || (typeof sample === 'string' && /^\d{4}-\d{2}-\d{2}/.test(sample))) return 'date'
     return 'string'
 }
 
+// An unset value sorts before any other, as a database's NULL does: the
+// order served from memory is the loader's.
 const compareValues = (a: unknown, b: unknown, type: 'string' | 'number' | 'date'): number => {
     if (a == null && b == null) return 0
-    if (a == null) return 1
-    if (b == null) return -1
+    if (a == null) return -1
+    if (b == null) return 1
     switch (type) {
         case 'number':
             return (a as number) - (b as number)
@@ -295,7 +299,7 @@ const applyLocalSort = (data: T[], sort: Sort | undefined): T[] => {
     const { by } = sort
     const type = getFieldType(by, data)
     const dir = sort.dir === 'asc' ? 1 : -1
-    return [...data].sort((a, b) => dir * compareValues(a[by], b[by], type))
+    return [...data].sort((a, b) => dir * compareValues(valueAt(a, by), valueAt(b, by), type))
 }
 
 const applyLocalOperations = (resetScroll = true): void => {
@@ -309,17 +313,7 @@ const applyLocalOperations = (resetScroll = true): void => {
     }
 }
 
-// API functions
-const fetchData = (offset: number, limit: number, background: boolean): Promise<LoaderResponse<T>> =>
-    props.loader(
-        {
-            offset,
-            limit,
-            ...query.value
-        },
-        loading,
-        background
-    )
+const startLoad = latestOnly()
 
 const loadBuffer = async (targetOffset: number, scrollingDown = true, background = false): Promise<void> => {
     const paddingTotal = Math.max(0, props.bufferSize - renderCount.value)
@@ -337,13 +331,28 @@ const loadBuffer = async (targetOffset: number, scrollingDown = true, background
         return
     }
 
-    const { data, total } = await fetchData(offset, props.bufferSize, background)
+    // A load started since this one — a new query, a new window — supersedes
+    // it, and its rows are dropped. Kept, they answer the query they were
+    // asked under, which the dataset in memory is labelled with: the query may
+    // have moved on by the time they land.
+    const asked = query.value
+    const current = startLoad()
+    const { data, total } = await props.loader(
+        {
+            offset,
+            limit: props.bufferSize,
+            ...asked
+        },
+        loading,
+        background
+    )
+    if (!current()) return
     lastRequestOffset.value = offset
 
     if (data.length >= total) {
         fullDataset.value = data
         hasAllRecords.value = true
-        baseline.value = query.value
+        baseline.value = asked
         applyLocalOperations()
     } else {
         hasAllRecords.value = false
@@ -778,11 +787,11 @@ defineExpose(exposed)
                     </tr>
                     <template v-else>
                         <tr v-for="record in displayRecords" :key="keyOf(record)" :style="{ height: `${rowHeight}px` }" :class="{ 'clickable-row': onRowClick, 'selected-row': selection?.selected.has(keyOf(record)), 'drop-before': dropTarget?.record === record && dropTarget.position === 'before', 'drop-after': dropTarget?.record === record && dropTarget.position === 'after' }" :draggable="rowDraggable || undefined" @click="onRowClick?.(record)" @pointerdown="onRowPointerDown(record, $event)" @pointerup="onRowPointerUp(record, $event)" @dblclick="emit('rowactivate', record)" @dragstart="rowDraggable && emit('rowdragstart', record, $event)">
-                            <td v-for="(column, i) in columns" :key="column.field" :class="[column.className, column.cellClass?.(record[column.field], record), { clickable: column.onCellClick }]" :style="{ height: `${rowHeight}px`, width: colWidths[i] != null ? colWidths[i] + 'px' : undefined }" @click="column.onCellClick?.(record[column.field], record)">
+                            <td v-for="(column, i) in columns" :key="column.field" :class="[column.className, column.cellClass?.(valueAt(record, column.field), record), { clickable: column.onCellClick }]" :style="{ height: `${rowHeight}px`, width: colWidths[i] != null ? colWidths[i] + 'px' : undefined }" @click="column.onCellClick?.(valueAt(record, column.field), record)">
                                 <div :class="['cell-content', { 'cell-wrap': column.wrap }]" :style="{ height: `${rowHeight}px`, lineHeight: column.wrap ? undefined : `${rowHeight}px` }">
                                     <component :is="column.component" v-if="column.component" v-bind="column.componentProps?.(record)" />
                                     <template v-else>
-                                        {{ column.formatter ? column.formatter(record[column.field], record) : record[column.field] }}
+                                        {{ column.formatter ? column.formatter(valueAt(record, column.field), record) : valueAt(record, column.field) }}
                                     </template>
                                 </div>
                             </td>

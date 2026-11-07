@@ -12,7 +12,7 @@ dash/  @greendrake/{dash,rpc,vue-api,service-state}  — a tab and a ServiceStat
 ## Running it
 
 ```sh
-bun install
+pnpm install
 cd api && API_PORT=8100 ADMIN_API_KEY=example-admin-key DASH_ORIGIN=http://localhost:5180 bun run start
 cd dash && bun run dev          # reads .env.dev
 ```

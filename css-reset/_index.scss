@@ -41,12 +41,16 @@
         max-width: 100%;
     }
 
-    /* 6. Inherit fonts for form controls */
+    /* 6. Form controls take their font and text colour from where they sit. The
+       native colours (buttontext, fieldtext) are meant for the native background,
+       which is removed here: kept without it, they read as near-black on whatever
+       the page puts behind the control. */
     input,
     button,
     textarea,
     select {
         font: inherit;
+        color: inherit;
         border: none;
         outline: none;
         background: none;

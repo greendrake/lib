@@ -1,0 +1,69 @@
+packages: 
+  - app-store-connect
+  - apps/ipcam-app/web
+  - css-reset
+  - dash
+  - dev-config
+  - domains
+  - e2e
+  - eslint-config
+  - examples/service-pair/api
+  - examples/service-pair/dash
+  - fonts/inter
+  - google-api
+  - ipcam
+  - mse-video
+  - rpc
+  - rpc-server
+  - scss-kit
+  - server
+  - service-state
+  - theme
+  - ui
+  - ui-data
+  - util
+  - vite-preset
+  - vue-api
+  - vue-app
+  - vue-kit
+permissions: 
+  "@parcel/watcher": 
+    build: true
+  "@swc/core": 
+    build: false
+  dotenv: 
+    skills: false
+  esbuild: 
+    build: false
+  workerd: 
+    build: false
+overrides: 
+  "@greendrake/scss-kit>@greendrake/dev-config": 0.7.0
+  "@greendrake/font-inter>@greendrake/dev-config": 0.7.0
+  "@greendrake/theme>@greendrake/dev-config": 0.7.0
+  "@greendrake/domains>@greendrake/dev-config": 0.7.0
+  "@greendrake/vue-kit>@greendrake/dev-config": 0.7.0
+  "@greendrake/vue-kit>@greendrake/util": ^0.9.0
+  "@greendrake/rpc-server>@greendrake/dev-config": 0.7.0
+  "@greendrake/rpc-server>@greendrake/rpc": ^0.10.1
+  "@greendrake/rpc-server>@greendrake/util": ^0.9.0
+  "@greendrake/service-state>@greendrake/dev-config": 0.7.0
+  "@greendrake/service-state>@greendrake/rpc": ^0.10.1
+  "@greendrake/eslint-config>@greendrake/dev-config": 0.7.0
+  "@greendrake/mse-video>@greendrake/dev-config": 0.7.0
+  "@greendrake/mse-video>@greendrake/util": ^0.9.0
+  "@greendrake/ipcam>@greendrake/dev-config": 0.7.0
+  "@greendrake/ipcam>@greendrake/ui": ^0.9.0
+  "@greendrake/ipcam>@greendrake/rpc": ^0.10.1
+  "@greendrake/ipcam>@greendrake/util": ^0.9.0
+  "@greendrake/ipcam>@greendrake/vue-api": ^0.11.0
+  "@greendrake/server>@greendrake/dev-config": 0.7.0
+  "@greendrake/server>@greendrake/util": ^0.9.0
+  ipcam-app>@greendrake/dash: 0.13.1
+  ipcam-app>@greendrake/ipcam: 0.2.0
+  ipcam-app>@greendrake/rpc: 0.10.1
+  ipcam-app>@greendrake/scss-kit: 0.8.0
+  ipcam-app>@greendrake/vite-preset: 0.8.0
+  ipcam-app>@greendrake/dev-config: 0.7.0
+  ipcam-app>@greendrake/e2e: 0.8.0
+  ipcam-app>@greendrake/mse-video: 0.1.0

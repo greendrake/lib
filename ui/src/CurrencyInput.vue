@@ -88,7 +88,8 @@ const onInput = () => {
                 inp.setSelectionRange(caretPos, caretPos)
             }
         }
-        model.value = inp.value ? ensureDecimals(inp.value.replace(/,/g, ''), props.precision) : null
+        // No digit typed yet — a lone separator — is no amount.
+        model.value = /\d/.test(inp.value) ? ensureDecimals(inp.value.replace(/,/g, ''), props.precision) : null
     } else if (previous !== null && input.value) {
         input.value.value = previous
     }

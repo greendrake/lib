@@ -40,7 +40,7 @@ app.run()
 | `beforeRoute(to, from)` | Runs before every navigation, ahead of the route's data fetch. A returned redirect, `RouteLocation` or `false` short-circuits; `undefined`/`true` proceed. |
 | `ready` | `() => Promise[]` — init work the boot splash must outlast (config fetch, locale load). |
 | `onRouter(router)` | Runs once the router exists, before mount — for a layer that navigates on its own account, such as an error UX's "go home". |
-| `onBootError(error)` | Where a failed boot is reported (see Boot sequence). Without it the failure is rethrown as an unhandled rejection. |
+| `onError(error)` | Where a failure nothing else handles is reported: a failed boot (see Boot sequence) and, as the app's `errorHandler`, every error Vue catches — a component's setup, render, watcher, hook or event handler throwing. Without it a failed boot is rethrown as an unhandled rejection and Vue logs the rest. |
 | `onRouteFetchError(error, to)` | What a route's failed `meta.fetch` makes of its navigation, as `beforeRoute`'s return would: `false` aborts it quietly, for an error UX that has already shown the failure. Without it the error is rethrown and the navigation fails with it (`router.onError`). |
 
 An unknown option is an error. A layer that navigates through `onRouter` holds the router from the moment it exists, so the stores and other non-component modules it serves can navigate without importing the app module.
@@ -55,7 +55,7 @@ The returned `SpaApp`:
 
 ### Boot sequence
 
-The global loading slot (`useAppState` from `@greendrake/vue-kit`) is held from construction. `index.html` ships `<body class="splash">`, so the pre-JS splash is visible before the watcher takes over; while the slot is held the body carries `splash` (first load) or `spinner` (later), and both are removed when it clears. `run()` mounts, awaits `ready()` plus document readiness, waits for the first paint to commit, and releases the slot. A failed `ready` still settles `initDone` — nothing downstream may wait forever behind a splash that never lifts — and hands the error to `onBootError`.
+The global loading slot (`useAppState` from `@greendrake/vue-kit`) is held from construction. `index.html` ships `<body class="splash">`, so the pre-JS splash is visible before the watcher takes over; while the slot is held the body carries `splash` (first load) or `spinner` (later), and both are removed when it clears. `run()` mounts, awaits `ready()` plus document readiness, waits for the first paint to commit, and releases the slot. A failed `ready` still settles `initDone` — nothing downstream may wait forever behind a splash that never lifts — and hands the error to `onError`.
 
 Scroll behaviour: back/forward restores the saved position; a hash scrolls to its element; any other navigation starts at the top.
 

@@ -1,4 +1,4 @@
-import { safeFetch } from '@greendrake/util'
+import { HttpError, NetworkError, safeFetch } from '@greendrake/util'
 import { identityCodec } from './types'
 import type { Codec, HeadersProvider, RpcRequest, RpcResponse, Transport } from './types'
 import { settleResponse } from './protocol'
@@ -28,7 +28,17 @@ export class HttpTransport implements Transport {
             headers: this.#options.headers?.() ?? {},
             body: this.#codec.encode(JSON.stringify(request))
         })
-        const text = this.#codec.decode(await response.text())
-        return settleResponse(JSON.parse(text) as RpcResponse, request.method)
+        // Every server of the format answers an envelope with a 200: anything else
+        // is the answer of something between, a proxy's 502 say.
+        if (!response.ok) {
+            throw new HttpError(response.status, response.statusText)
+        }
+        let body: string
+        try {
+            body = await response.text()
+        } catch (e) {
+            throw new NetworkError(e)
+        }
+        return settleResponse(JSON.parse(this.#codec.decode(body)) as RpcResponse, request.method)
     }
 }

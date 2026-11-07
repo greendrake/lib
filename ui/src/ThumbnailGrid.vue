@@ -23,14 +23,14 @@ const props = withDefaults(
     defineProps<{
         loader: ThumbnailGridLoader
         filters?: Record<string, unknown>
-        thumbnailField?: string
+        /** The URL of the image an item's tile shows; null for none. */
+        thumbnail: (item: ThumbnailGridItem) => string | null
         titleField?: string
         idField?: string
         pageSize?: number
     }>(),
     {
         filters: () => ({}),
-        thumbnailField: 'thumbnail',
         titleField: 'title',
         idField: 'id',
         pageSize: 24
@@ -46,9 +46,8 @@ const loading = ref(false)
 
 // The item fields are addressed by configurable names, so their types are the
 // grid's contract rather than the item type's: id is a string/number key,
-// thumbnail a URL string, title display text.
+// title display text.
 const idOf = (item: ThumbnailGridItem) => item[props.idField] as string | number
-const thumbnailOf = (item: ThumbnailGridItem) => item[props.thumbnailField] as string
 const titleOf = (item: ThumbnailGridItem) => item[props.titleField] as string
 
 async function load() {
@@ -100,7 +99,7 @@ defineExpose({ refresh })
     <div class="ThumbnailGrid" :class="{ spinner: loading }">
         <div class="ThumbnailGrid__tiles">
             <div v-for="item in items" :key="idOf(item)" class="ThumbnailGrid__tile" :class="{ selected: selected.includes(idOf(item)) }" @click="toggle(idOf(item))">
-                <img class="ThumbnailGrid__img" :src="thumbnailOf(item)" :alt="titleOf(item)" />
+                <img class="ThumbnailGrid__img" :src="thumbnail(item) ?? undefined" :alt="titleOf(item)" />
                 <div class="ThumbnailGrid__title">{{ titleOf(item) }}</div>
             </div>
             <div v-if="!items.length" class="ThumbnailGrid__empty">{{ messages.nothingFound }}</div>

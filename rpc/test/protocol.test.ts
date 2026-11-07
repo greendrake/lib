@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ApiError, NotFoundError, makeError, packRequest, tokenAuth } from '../src/main'
+import { ApiError, NotFoundError, makeError, packRequest, settleKickoff, tokenAuth } from '../src/main'
 import type { RpcRequest } from '../src/main'
 
 describe('packRequest', () => {
@@ -43,6 +43,20 @@ describe('makeError', () => {
 
     test("an app's own not-found is NOT_FOUND", () => {
         expect(new NotFoundError().code).toBe('NOT_FOUND')
+    })
+})
+
+describe('settleKickoff', () => {
+    const reissue = (): Promise<string> => Promise.resolve('reissued')
+
+    test("is the data of the envelope the kickoff fetched, or the server's error", async () => {
+        expect(await settleKickoff(Promise.resolve('{"success":true,"data":"kicked"}'), 'app.init', reissue)).toBe('kicked')
+        await expect(settleKickoff(Promise.resolve('{"success":false,"error":"THING_NOT_FOUND"}'), 'app.init', reissue)).rejects.toBeInstanceOf(NotFoundError)
+    })
+
+    test('re-issues a kickoff that failed, or that brought back no envelope', async () => {
+        expect(await settleKickoff(Promise.reject(new TypeError('Failed to fetch')), 'app.init', reissue)).toBe('reissued')
+        expect(await settleKickoff(Promise.resolve('<html>Bad gateway</html>'), 'app.init', reissue)).toBe('reissued')
     })
 })
 
