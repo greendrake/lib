@@ -10,14 +10,16 @@ on:
 # apps and examples that changed and everything built against them — a package
 # left as released is built against what it was released with, so a move
 # outside its published range does not reach it; each job verifies its part of
-# that. A change to what a side is verified with — the
-# lint config, the pinned pnpm, Bun, root dev tooling and install permissions;
-# the Go version — puts that side's every unit in question; a push with nothing
-# to measure against (the first) puts every unit in question.
+# that. A change to what a side is verified with — the lint config, the pinned
+# pnpm, Bun, root dev tooling and install permissions; the Go version — puts
+# that side's every unit in question; a push with nothing to measure against
+# (the first) puts every unit in question.
 #
 # pnpm is the version package.json pins, Bun the one .bun-version pins, Go the
 # one go.work names: what the packages were verified on before they were
-# mirrored. pnpm installs, bun runs.
+# mirrored. pnpm installs, bun runs. The runner is a named image rather than
+# ubuntu-latest, which moves on its own: the browser suites need one the pinned
+# Playwright installs browsers on.
 env:
   BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
 
@@ -25,7 +27,7 @@ jobs:
   # The affected npm packages, examples and apps' web halves: installed over
   # the committed lockfile, type-checked, linted and tested.
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,7 +40,7 @@ jobs:
 
   # The affected Go modules and app servers: formatted, vetted and tested.
   go:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,7 +57,7 @@ jobs:
   # that says the halves still fit together rather than only compiling. An
   # app's suite builds its server first, which takes Go.
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
