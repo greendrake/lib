@@ -37,7 +37,7 @@ func WithLogger(l *slog.Logger) Option {
 }
 
 // Handler serves the streams lookup finds by their keys, each socket until ctx ends. The
-// host mounts it where it chooses, its GET.
+// host — the program that mounts it — chooses where, its GET.
 func Handler(ctx context.Context, lookup Lookup, opts ...Option) http.Handler {
 	h := &handler{ctx: ctx, lookup: lookup, logger: slog.Default()}
 	for _, opt := range opts {

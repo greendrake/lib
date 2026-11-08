@@ -1,5 +1,6 @@
-// Package protocols is the engine's adapters by the names a host's configuration gives
-// their protocols: dvrip, DVRIP (Sofia) cameras' streams and settings (dvripcam); and
+// Package protocols is the engine's adapters by the names the embedding program's
+// configuration gives their protocols: dvrip, DVRIP (Sofia) cameras' streams and settings
+// (dvripcam); and
 // rtsp, streams alone, at /0 and /1 as BITVISION's cameras serve them
 // (rtspcam.BITVISION).
 package protocols

@@ -108,7 +108,7 @@ func (h *wsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.onOpen(ws)
 	}
 
-	h.readLoop(ctx, ws, h.dispatcher.clientIP(r))
+	h.readLoop(ctx, ws, h.dispatcher.handlerContext(ctx, r))
 
 	// Wait for all in-flight request goroutines to finish before closing the
 	// send channel. Without this, a goroutine that completes after readLoop
@@ -123,7 +123,9 @@ func (h *wsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	close(ws.send)
 }
 
-func (h *wsHandler) readLoop(ctx context.Context, ws *WSConn, clientIP string) {
+// readLoop serves the socket's messages. socket is the HandlerContext its
+// handshake makes, which each call is handed a copy of under its own context.
+func (h *wsHandler) readLoop(ctx context.Context, ws *WSConn, socket *HandlerContext) {
 	defer func() {
 		if ws.overflowed.Load() {
 			// The client has stopped reading: a close handshake would only wait it out.
@@ -223,8 +225,9 @@ func (h *wsHandler) readLoop(ctx context.Context, ws *WSConn, clientIP string) {
 				defer ws.untrackRequest(req.Nonce)
 			}
 
-			hc := &HandlerContext{Ctx: reqCtx, ClientIP: clientIP}
-			resp := h.dispatcher.Dispatch(hc, ws.getAuth(), &req)
+			hc := *socket
+			hc.Ctx = reqCtx
+			resp := h.dispatcher.Dispatch(&hc, ws.getAuth(), &req)
 
 			// If the per-request context was cancelled (by an abort or
 			// connection close), silently discard the response. The client

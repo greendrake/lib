@@ -133,14 +133,29 @@ func TestOneOf(t *testing.T) {
 	if got := invalidArgument(t, OneOf("kind", "c", []string{"a", "b"})); len(got) != 1 || got[0] != want {
 		t.Fatalf("details %+v, want %+v", got, want)
 	}
+	// A type's own values.
+	type kind string
+	if got := invalidArgument(t, OneOf("kind", kind("c"), []kind{"a", "b"})); len(got) != 1 || got[0] != want {
+		t.Fatalf("details %+v, want %+v", got, want)
+	}
 }
 
-func TestTrimmedNonempty(t *testing.T) {
-	for input, ok := range map[string]bool{"hello": true, " x ": true, "   ": false, "\t\n": false, "": false} {
-		raw, _ := json.Marshal([]string{input})
-		_, err := ParseAndValidateVar[string](validating(), raw, "trimmed_nonempty")
-		if (err == nil) != ok {
-			t.Errorf("%q: ok %v, got %v", input, ok, err)
+// Every validator has the builtins: each accepts what it names and refuses
+// the rest.
+func TestBuiltins(t *testing.T) {
+	for tag, inputs := range map[string]map[string]bool{
+		"trimmed_nonempty": {"hello": true, " x ": true, "   ": false, "\t\n": false, "": false},
+		"email_safe": {
+			"a@x.io": true, "first.last+suffix@mail.example.io": true, "100%@x-y.example": true,
+			"a@x": false, "a@x.i": false, "a b@x.io": false, "a@x.io\r\nBcc: b@x.io": false, "@x.io": false, "": false,
+		},
+	} {
+		for input, ok := range inputs {
+			raw, _ := json.Marshal([]string{input})
+			_, err := ParseAndValidateVar[string](validating(), raw, tag)
+			if (err == nil) != ok {
+				t.Errorf("%s %q: ok %v, got %v", tag, input, ok, err)
+			}
 		}
 	}
 }
@@ -165,12 +180,16 @@ func TestRule_ReadsTheContext(t *testing.T) {
 }
 
 func TestNewValidator_RuleTwice(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("a tag given twice must panic")
-		}
-	}()
-	NewValidator(Rule{Tag: "trimmed_nonempty", Fn: func(context.Context, validator.FieldLevel) bool { return true }})
+	for _, tag := range []string{"trimmed_nonempty", "email_safe"} {
+		t.Run(tag, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("a tag given twice must panic")
+				}
+			}()
+			NewValidator(Rule{Tag: tag, Fn: func(context.Context, validator.FieldLevel) bool { return true }})
+		})
+	}
 }
 
 func TestNewValidator_BadTag(t *testing.T) {

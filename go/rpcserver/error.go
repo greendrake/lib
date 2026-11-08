@@ -1,8 +1,7 @@
 package rpcserver
 
 // The codes the protocol answers with itself, apart from those of the methods
-// it carries. `@greendrake/rpc`'s README is their specification, which every
-// server of the format implements.
+// it carries.
 const (
 	// CodeInternal answers a handler's fault: any error but an *APIError.
 	CodeInternal = "INTERNAL_ERROR"

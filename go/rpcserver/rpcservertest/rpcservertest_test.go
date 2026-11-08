@@ -88,3 +88,31 @@ func TestKeptFollowsPatchesAndCalls(t *testing.T) {
 	change(func() { state.Rooms["attic"] = room{Lights: map[string]bool{"skylight": true}, Name: "Attic"} })
 	kept.Until(t, func(h house) bool { return h.Rooms["attic"].Lights["skylight"] })
 }
+
+// A socket keeping no document is called on directly: each call's answer, data or code,
+// is the next frame.
+func TestCall(t *testing.T) {
+	server := httptest.NewServer(rpcserver.NewBroadcast().Handler(rpcserver.NewDispatcher(map[string]rpcserver.MethodDef{
+		"echo": {Auth: rpcserver.AuthNone, Handler: func(_ *rpcserver.HandlerContext, raw json.RawMessage) (any, error) {
+			var in struct {
+				Say string `json:"say"`
+			}
+			if err := rpcargs.ParseArguments(raw, &in); err != nil {
+				return nil, err
+			}
+			if in.Say == "" {
+				return nil, rpcserver.NewAPIError("NOTHING_SAID")
+			}
+			return in.Say, nil
+		}},
+	})))
+	defer server.Close()
+
+	conn := rpcservertest.Dial(t, server.URL)
+	if data, code := rpcservertest.Call(t, conn, "echo", map[string]string{"say": "quack"}); code != "" || string(data) != `"quack"` {
+		t.Fatalf("echo answered %s, %q", data, code)
+	}
+	if _, code := rpcservertest.Call(t, conn, "echo", map[string]string{}); code != "NOTHING_SAID" {
+		t.Fatalf("an empty echo answered %q", code)
+	}
+}

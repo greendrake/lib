@@ -24,6 +24,14 @@ func wsConnect(t *testing.T, server *httptest.Server, queryParams string) *webso
 	return rpcservertest.Dial(t, url)
 }
 
+// wsDial opens a socket on server, its handshake carrying header.
+func wsDial(server *httptest.Server, header http.Header) (*websocket.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), &websocket.DialOptions{HTTPHeader: header})
+	return conn, err
+}
+
 func wsRequest(t *testing.T, conn *websocket.Conn, req *Request) Response {
 	t.Helper()
 	sendRequest(t, conn, req)
@@ -889,13 +897,11 @@ func TestWS_ReadLimit(t *testing.T) {
 // browser, and is not checked.
 func TestWS_Origin(t *testing.T) {
 	dial := func(server *httptest.Server, origin string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
 		header := http.Header{}
 		if origin != "" {
 			header.Set("Origin", origin)
 		}
-		conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), &websocket.DialOptions{HTTPHeader: header})
+		conn, err := wsDial(server, header)
 		if err == nil {
 			conn.Close(websocket.StatusNormalClosure, "")
 		}
@@ -978,16 +984,20 @@ func TestWS_QueryTokenUnresolved(t *testing.T) {
 	}
 }
 
-// A socket's calls see the client address the dispatcher derives.
-func TestWS_ClientIP(t *testing.T) {
-	methods := map[string]MethodDef{"ip": {Handler: func(hc *HandlerContext, _ json.RawMessage) (any, error) { return hc.ClientIP, nil }}}
-	server := httptest.NewServer(NewWSHandler(NewDispatcher(methods), NewConnRegistry()))
+// A socket's calls see the client address the dispatcher derives from the
+// handshake, and the handshake's User-Agent.
+func TestWS_Caller(t *testing.T) {
+	server := httptest.NewServer(NewWSHandler(NewDispatcher(testMethods()), NewConnRegistry()))
 	defer server.Close()
-	conn := wsConnect(t, server, "")
+	conn, err := wsDial(server, http.Header{"User-Agent": {testUserAgent}})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
-	if resp := wsRequest(t, conn, &Request{Method: "ip"}); resp.Data != "127.0.0.1" {
-		t.Fatalf("expected the peer's address, got %+v", resp)
+	resp := wsRequest(t, conn, &Request{Method: "caller"})
+	if got, _ := resp.Data.(map[string]any); got["ip"] != "127.0.0.1" || got["user_agent"] != testUserAgent {
+		t.Fatalf("expected the peer's address and the handshake's User-Agent, got %+v", resp)
 	}
 }
 

@@ -100,11 +100,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hc := &HandlerContext{
-		Ctx:      r.Context(),
-		ClientIP: h.dispatcher.clientIP(r),
-	}
-
+	hc := h.dispatcher.handlerContext(r.Context(), r)
 	h.writeResponse(w, h.dispatcher.Dispatch(hc, authInfo, &req), plainTransport)
 }
 

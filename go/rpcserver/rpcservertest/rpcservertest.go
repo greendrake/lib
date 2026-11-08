@@ -122,7 +122,40 @@ func (k *Kept[D]) Until(t *testing.T, done func(D) bool) {
 func (k *Kept[D]) Call(t *testing.T, method string, args any) (data json.RawMessage, code string) {
 	t.Helper()
 	k.calls++
-	id := strconv.Itoa(k.calls)
+	return call(t, k.conn, strconv.Itoa(k.calls), method, args, func(f frame) bool {
+		if f.Type != k.dataType {
+			return false
+		}
+		var state map[string]any
+		if err := json.Unmarshal(f.Data, &state); err != nil {
+			t.Fatalf("rpcservertest: %s is no frame of a document: %v", f.Data, err)
+		}
+		k.patch(t, state)
+		return true
+	})
+}
+
+// Call calls method with args as its named arguments on a socket that keeps no document,
+// and reads its response, which must be the socket's next frame. It returns the
+// response's data, or its error code.
+func Call(t *testing.T, conn *websocket.Conn, method string, args any) (data json.RawMessage, code string) {
+	t.Helper()
+	return call(t, conn, method, method, args, func(frame) bool { return false })
+}
+
+// frame is a frame off the socket: a response, or a frame of something pushed.
+type frame struct {
+	Type  string          `json:"type"`
+	ID    string          `json:"id"`
+	Data  json.RawMessage `json:"data"`
+	Error string          `json:"error"`
+}
+
+// call sends the call of method with args under id, and reads the socket up to its
+// response. Every frame ahead of it is pushed's to take, and the test fails on one it
+// does not.
+func call(t *testing.T, conn *websocket.Conn, id, method string, args any, pushed func(frame) bool) (data json.RawMessage, code string) {
+	t.Helper()
 	arguments, err := json.Marshal(args)
 	if err != nil {
 		t.Fatalf("rpcservertest: arguments %v: %v", args, err)
@@ -133,31 +166,20 @@ func (k *Kept[D]) Call(t *testing.T, method string, args any) (data json.RawMess
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	if err := k.conn.Write(ctx, websocket.MessageText, request); err != nil {
+	if err := conn.Write(ctx, websocket.MessageText, request); err != nil {
 		t.Fatalf("rpcservertest: send %s: %v", method, err)
 	}
 	for {
-		var frame struct {
-			Type  string          `json:"type"`
-			ID    string          `json:"id"`
-			Data  json.RawMessage `json:"data"`
-			Error string          `json:"error"`
-		}
-		Read(t, k.conn, &frame)
-		switch frame.Type {
-		case "response":
-			if frame.ID != id {
-				t.Fatalf("rpcservertest: the response to %q where %q's was due", frame.ID, id)
+		var f frame
+		Read(t, conn, &f)
+		switch {
+		case f.Type == "response":
+			if f.ID != id {
+				t.Fatalf("rpcservertest: the response to %q where %q's was due", f.ID, id)
 			}
-			return frame.Data, frame.Error
-		case k.dataType:
-			var state map[string]any
-			if err := json.Unmarshal(frame.Data, &state); err != nil {
-				t.Fatalf("rpcservertest: %s is no frame of a document: %v", frame.Data, err)
-			}
-			k.patch(t, state)
-		default:
-			t.Fatalf("rpcservertest: a %q frame during %s", frame.Type, method)
+			return f.Data, f.Error
+		case !pushed(f):
+			t.Fatalf("rpcservertest: a %q frame during %s", f.Type, method)
 		}
 	}
 }

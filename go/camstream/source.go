@@ -267,7 +267,7 @@ func (s *Source) run(ctx context.Context) {
 			}
 			if opening != nil {
 				// Its context is the source's, so it is ending too.
-				if r := <-opening.result; r.monitor != nil {
+				if r := <-opening.result; r.err == nil {
 					closing = read(r.monitor).shutDown()
 				}
 			}

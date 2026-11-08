@@ -47,6 +47,9 @@ func (m *mockAuthResolver) ResolveToken(_ context.Context, token string) (*AuthI
 	return nil, NewAPIError(CodeUnauthenticated)
 }
 
+// testUserAgent is the User-Agent the transport tests' callers send.
+const testUserAgent = "Mozilla/5.0 (rpcserver test)"
+
 func testMethods() map[string]MethodDef {
 	return map[string]MethodDef{
 		"app.ping": {
@@ -105,6 +108,13 @@ func testMethods() map[string]MethodDef {
 		"context.read": {
 			Handler: func(hc *HandlerContext, args json.RawMessage) (any, error) {
 				return map[string]any{"locale": LocaleFrom(hc.Ctx), "validator": ValidatorFrom(hc.Ctx) != nil}, nil
+			},
+			Auth: AuthNone,
+		},
+		// Answers what the request's HandlerContext tells of the caller.
+		"caller": {
+			Handler: func(hc *HandlerContext, args json.RawMessage) (any, error) {
+				return map[string]any{"ip": hc.ClientIP, "user_agent": hc.UserAgent}, nil
 			},
 			Auth: AuthNone,
 		},

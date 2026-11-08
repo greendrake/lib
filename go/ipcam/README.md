@@ -3,9 +3,7 @@
 The camera engine: IP cameras by name, each logged in to once for its settings and every
 stream, the streams fanned out to whatever subscribes to them (`greendrake.nz/go/camstream`)
 and recorded to MKV, and the settings read and written in terms of the engine's own rather
-than any protocol's. `greendrake.nz/go/ipcamrpc` serves a fleet to a browser app;
-`ipcam-app` (in this repository at `apps/ipcam-app`) runs it on one camera, and
-`@greendrake/ipcam` is the browser end.
+than any protocol's.
 
 ```sh
 go get greendrake.nz/go/ipcam
@@ -18,7 +16,7 @@ go get greendrake.nz/go/ipcam
 | `ipcam` | The core: the ports, and the settings catalogue |
 | `ipcam/dvripcam` | DVRIP (Sofia) cameras, over `greendrake.nz/go/dvrip`: streams and settings, the XMEye vendor's among them |
 | `ipcam/rtspcam` | RTSP cameras, over `greendrake.nz/go/rtsp`: streams alone, at paths of their own (`BITVISION`'s at `/0` and `/1`) |
-| `ipcam/protocols` | The adapters by the names a host's configuration gives their protocols: `dvrip`, and `rtsp` for `BITVISION`'s |
+| `ipcam/protocols` | The adapters by the names a host — the program embedding the engine — gives their protocols in its configuration: `dvrip`, and `rtsp` for `BITVISION`'s |
 | `ipcam/connection` | One camera's login, kept up |
 | `ipcam/fleet` | Cameras by name: their connections, and a source of each stream |
 | `ipcam/record` | A stream recorded to MKV files, written by `record/mkv` |
@@ -44,10 +42,9 @@ means), a label and a tip. `Check` makes a written value, as `encoding/json` dec
 what the setting's kind takes before any adapter sees it.
 
 The core's groups are `general`, `encode`, `network`, `ntp`, `camera`, `overlay` and
-`maintenance`. Two of them are named by the browser end as well, so their IDs stay as they
-are: `encode`, where a stream's codec is set (`@greendrake/ipcam`'s `ENCODE_GROUP`), and
-`maintenance`, which shows the camera's clock and its reboot beside its settings
-(`MAINTENANCE_GROUP`).
+`maintenance`. Two of them are part of the wire contract, so their IDs stay as they are:
+`encode`, where a stream's codec is set, and `maintenance`, beside whose settings a client
+shows the camera's clock and its reboot.
 
 The core's catalogue (`catalogue.go`) has the settings any IP camera has. An adapter adds
 its protocol's cameras' own as an `Extension`: settings in the core's groups, or in groups
@@ -68,15 +65,18 @@ and a binding in each adapter whose cameras have it (`dvripcam/bindings.go`); a 
 as an adapter implementing the ports.
 
 `rtspcam`'s `Driver` says where its cameras serve each stream, how their packets come (UDP
-or TCP) and how often a login is probed. Its login is an RTSP control connection: it
-describes every stream, which authenticates it (a refused password is a 401) and tells
-each stream's codec, and is probed with `OPTIONS`, a probe that fails ending it. A stream
-plays on a connection of its own, its video alone, with the parameter sets its description
-carries ahead of its random access units until the stream sends its own.
+or TCP) and how often a login is probed. Its login is one RTSP connection, which carries
+everything: it describes every stream, which authenticates it (a refused password is a
+401) and tells each stream's codec, and is probed with `OPTIONS`, a probe that fails
+ending it; and every stream plays on it, as a session of its own, its video alone, with
+the parameter sets its description carries ahead of its random access units until the
+stream sends its own. One connection is what cameras that serve one at a time (some of
+BITVISION's) take; a stream shut down leaves the login and the other stream on it.
 
 `rtspcam/fakecam` runs a camera `BITVISION` logs in to, for developing and testing a host
 end to end without the hardware: both its streams play a recorded camera's H.265 at its
-frame rate, over and over (`greendrake.nz/go/rtsp`'s `rtsptest`).
+frame rate, over and over, and it serves one connection at a time
+(`greendrake.nz/go/rtsp`'s `rtsptest`).
 
 ```
 go install greendrake.nz/go/ipcam/rtspcam/fakecam@latest
@@ -108,7 +108,7 @@ the fleet.
   the camera being offline. An open that fails is logged (`WithLogger`, `slog.Default()`
   unless given), once for as long as it keeps failing for the same reason.
 - A camera can take its streams from elsewhere instead (`StreamsFrom`, an attempt at
-  opening one: another host relaying them, `ipcamrpc.Upstream`), which pulls each stream
+  opening one: another host relaying them, say), which pulls each stream
   off its camera once for every host that wants it. The camera is still logged in to
   here, for its state, its settings and the codec wait below. `Source` says whether a
   camera's streams are relayed so, which a host serving them uses to keep a relay from

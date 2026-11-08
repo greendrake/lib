@@ -2,7 +2,7 @@
 
 A `greendrake.nz/go/ipcam` fleet over the wire, to a browser app: its methods
 (`greendrake.nz/go/rpcserver`), the state it pushes, and its streams
-(`greendrake.nz/go/webcast`). `@greendrake/ipcam` is the browser end.
+(`greendrake.nz/go/webcast`).
 
 ```sh
 go get greendrake.nz/go/ipcamrpc
@@ -12,14 +12,15 @@ go get greendrake.nz/go/ipcamrpc
 
 `Methods(fleet, access)` is the dispatch table. Each method is on the camera its
 arguments' `Camera` names, and asks of its caller what `access` says, `Auth` and `Access`
-as `rpcserver.MethodDef` has them: the host decides who may call. The zero `Access` lets
+as `rpcserver.MethodDef` has them: the host — the program serving the fleet — decides who
+may call. The zero `Access` lets
 anyone.
 
 - `settings.groups {Camera}`: the groups the camera has settings of.
 - `settings.get {Camera, Group}`: the group's settings, described, read from the camera as
   they alone need.
 - `settings.set {Camera, Key, Value}`: one setting written, its value as the wire has it,
-  checked by the core; answering `{Restart, Changed}`, whether the camera applies it once
+  checked by `ipcam.Check`; answering `{Restart, Changed}`, whether the camera applies it once
   restarted and every setting the write can have changed, as the camera has them.
 - `camera.time {Camera}`, `camera.setTime {Camera, Time}` (`time.DateTime`, in no zone)
   and `camera.reboot {Camera}`.

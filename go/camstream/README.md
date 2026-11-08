@@ -1,9 +1,8 @@
 # greendrake.nz/go/camstream
 
 A camera's stream, whatever brings it and wherever it goes: its frames, a connected
-stream, and a stream fanned out to its subscribers while it has any. Protocol adapters
-produce it (`greendrake.nz/go/ipcam`'s, over DVRIP and RTSP); `greendrake.nz/go/webcast`
-casts it to browsers, and `ipcam`'s recorder writes it to files.
+stream, and a stream fanned out to its subscribers — viewers, recorders, relays — while it
+has any.
 
 ```sh
 go get greendrake.nz/go/camstream
@@ -57,6 +56,4 @@ down.
 
 `camstreamtest.Recording` is 4.2 s of an XM530 camera's extra stream, 800×448 H.265 at
 15 frames a second with 8 kHz A-law audio, embedded in the package in a framing of its
-own. `greendrake.nz/go/ipcam` writes it from the DVRIP recording `greendrake.nz/go/dvrip`'s
-`dvriptest` plays (its `dvripcam/internal/genrecording`), and its tests check that the two
-agree.
+own (`WriteRecording` writes it).

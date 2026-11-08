@@ -1,18 +1,20 @@
-// Package rpcserver is the server end of the `@greendrake/rpc` wire format:
-// a method dispatch table with per-method authentication, served over HTTP
-// (one POST endpoint) and over WebSocket (the same envelope plus a correlation
-// id and server push). The format — request and response envelopes, error
-// codes, the WebSocket framing — is defined in the `@greendrake/rpc` README;
-// it is deliberately not JSON-RPC. Argument parsing is rpcserver/rpcargs.
+// Package rpcserver is a method dispatch table with per-method authentication,
+// served over HTTP (one POST endpoint) and over WebSocket (the same envelope
+// plus a correlation id and server push). The wire format — the request and
+// response envelopes, the Code* constants, the frames an Emitter, a Broadcast
+// and a Document send — is the README's; it is deliberately not JSON-RPC.
+// Argument parsing is rpcserver/rpcargs.
 package rpcserver
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 )
 
 // Dispatcher is the central dispatch engine shared by HTTP and WS transports.
@@ -64,7 +66,7 @@ func WithValidator(v Validator) DispatcherOption {
 
 // WithClientIP derives a request's client address, for both transports. The
 // default is the socket's peer (PeerIP); a host behind a proxy it trusts
-// derives it from what the proxy forwards.
+// derives it from what the proxy forwards — ForwardedIP behind one.
 func WithClientIP(fn func(*http.Request) string) DispatcherOption {
 	return func(d *Dispatcher) { d.clientIP = fn }
 }
@@ -202,6 +204,13 @@ func (d *Dispatcher) principal(r *http.Request, token string) *AuthInfo {
 	return authInfo
 }
 
+// handlerContext is the HandlerContext of a call r carries, under ctx. Over
+// WebSocket r is the handshake, and every call on its socket is told the same
+// of its caller.
+func (d *Dispatcher) handlerContext(ctx context.Context, r *http.Request) *HandlerContext {
+	return &HandlerContext{Ctx: ctx, ClientIP: d.clientIP(r), UserAgent: r.UserAgent()}
+}
+
 // PeerIP is the address of a request's socket peer: a request's client
 // address unless the dispatcher is told otherwise (WithClientIP).
 func PeerIP(r *http.Request) string {
@@ -210,4 +219,19 @@ func PeerIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// ForwardedIP is the client address of a host behind exactly one reverse
+// proxy, which appends the address it took the request from to
+// X-Forwarded-For: the header's last entry, whatever the client wrote ahead of
+// it. A request without the header reached the host directly, and its peer
+// (PeerIP) is the client. Pass it to WithClientIP; behind more proxies than
+// one, the last entry is the nearest proxy's peer, not the client.
+func ForwardedIP(r *http.Request) string {
+	forwarded := r.Header.Values("X-Forwarded-For")
+	if len(forwarded) == 0 {
+		return PeerIP(r)
+	}
+	entries := strings.Split(forwarded[len(forwarded)-1], ",")
+	return strings.TrimSpace(entries[len(entries)-1])
 }

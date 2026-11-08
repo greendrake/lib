@@ -1,8 +1,11 @@
 package spa
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -76,6 +79,87 @@ func TestDataRefuses(t *testing.T) {
 				t.Fatalf("got %v, want an error containing %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// A value that cannot be the index's JSON is the binary's bug.
+func TestDataPanicsOnAValueThatDoesNotMarshal(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "spa: data env") {
+			t.Fatalf("recovered %v", r)
+		}
+	}()
+	Data("env", func() {})
+}
+
+// build writes a build of the app into dir/name: its index, and a file only it has.
+func build(t *testing.T, dir, name, index string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, name, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for file, data := range map[string]string{"index.html": index, "assets/" + name + ".js": name + "()"} {
+		if err := os.WriteFile(filepath.Join(dir, name, file), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// point makes dir/dist the build name, as a deploy does: a symlink put over it.
+func point(t *testing.T, dir, name string) {
+	t.Helper()
+	if err := os.Symlink(name, filepath.Join(dir, "dist.next")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(dir, "dist.next"), filepath.Join(dir, Dir)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A build on disk is served as it is when asked for: the next request after the
+// deploy points dist at another build gets that build, with no new handler.
+func TestABuildReplacedUnderTheHandler(t *testing.T) {
+	dir := t.TempDir()
+	build(t, dir, "one", `<title>one</title><script type="application/json" id="env"></script>`)
+	build(t, dir, "two", `<title>two</title><script type="application/json" id="env"></script>`)
+	point(t, dir, "one")
+	h, err := Handler(os.DirFS(dir), Data("env", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, served := range []string{"one", "two"} {
+		point(t, dir, served)
+		want := `<title>` + served + `</title><script type="application/json" id="env">1</script>`
+		if got := get(h, "/route"); got.Code != 200 || got.Body.String() != want {
+			t.Fatalf("GET /route on %s: %d %q", served, got.Code, got.Body)
+		}
+		if got := get(h, "/assets/"+served+".js"); got.Code != 200 || got.Body.String() != served+"()" {
+			t.Fatalf("GET its file on %s: %d %q", served, got.Code, got.Body)
+		}
+	}
+
+	// A build whose index has lost the element is not served without the data.
+	build(t, dir, "three", `<title>three</title>`)
+	point(t, dir, "three")
+	if got := get(h, "/"); got.Code != 500 {
+		t.Fatalf("GET / on an index without the element: %d %q", got.Code, got.Body)
+	}
+}
+
+// Nothing deployed yet is no build: the pages 404 until one is.
+func TestNoBuildOnDisk(t *testing.T) {
+	dir := t.TempDir()
+	h, err := Handler(os.DirFS(dir), Data("env", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := get(h, "/"); got.Code != 404 {
+		t.Fatalf("GET / before a build: %d", got.Code)
+	}
+	build(t, dir, "one", `<script type="application/json" id="env"></script>`)
+	point(t, dir, "one")
+	if got := get(h, "/"); got.Code != 200 {
+		t.Fatalf("GET / once built: %d", got.Code)
 	}
 }
 

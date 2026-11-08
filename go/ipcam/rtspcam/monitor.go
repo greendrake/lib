@@ -18,11 +18,12 @@ import (
 // dead.
 const frameTimeout = 5 * time.Second
 
-// monitor is a stream played on a connection of its own: its video alone.
+// monitor is a stream played as a session of its own on the login's connection: its video
+// alone.
 type monitor struct {
-	conn  *rtsp.Conn
-	units rtsp.H265
-	clock rtsp.Clock
+	session *rtsp.Session
+	units   rtsp.H265
+	clock   rtsp.Clock
 	// The parameter sets by type, which every random access unit goes out with: the
 	// description's, and then the stream's own.
 	sets map[mediah265.NALUType][][]byte
@@ -31,35 +32,27 @@ type monitor struct {
 	held *camstream.Frame
 }
 
-// play plays the H.265 stream at path, on the camera at address, its packets coming over
-// transport. ctx bounds the opening alone.
-func play(ctx context.Context, address, path, user, password string, transport rtsp.Transport) (*monitor, error) {
-	conn, err := rtsp.Dial(ctx, address, user, password)
+// play plays the H.265 stream at path on conn, its packets coming over transport. ctx
+// bounds the opening alone.
+func play(ctx context.Context, conn *rtsp.Conn, path string, transport rtsp.Transport) (*monitor, error) {
+	description, err := conn.Describe(ctx, path)
 	if err != nil {
 		return nil, err
 	}
-	m, err := func() (*monitor, error) {
-		description, err := conn.Describe(ctx, path)
-		if err != nil {
-			return nil, err
-		}
-		media, has := description.Video()
-		if !has || media.Encoding != "H265" {
-			return nil, errors.New("rtspcam: the stream has no H.265 video")
-		}
-		sets, err := rtsp.ParameterSets(media)
-		if err != nil {
-			return nil, err
-		}
-		m := &monitor{conn: conn, clock: media.Clock(), sets: map[mediah265.NALUType][][]byte{}}
-		m.keep(sets)
-		return m, conn.Play(ctx, description, media, transport)
-	}()
+	media, has := description.Video()
+	if !has || media.Encoding != "H265" {
+		return nil, errors.New("rtspcam: the stream has no H.265 video")
+	}
+	sets, err := rtsp.ParameterSets(media)
 	if err != nil {
-		// The connection is the camera's to hand back, whatever failed on it.
-		conn.Close()
 		return nil, err
 	}
+	session, err := conn.Play(ctx, description, media, transport)
+	if err != nil {
+		return nil, err
+	}
+	m := &monitor{session: session, clock: media.Clock(), sets: map[mediah265.NALUType][][]byte{}}
+	m.keep(sets)
 	return m, nil
 }
 
@@ -72,9 +65,10 @@ func (m *monitor) keep(sets [][]byte) {
 	maps.Copy(m.sets, fresh)
 }
 
-// ShutDown closes the connection, which is also what unblocks a Next waiting on it.
+// ShutDown tears the session down, leaving the connection to the login and the other
+// stream, which is also what unblocks a Next waiting on it.
 func (m *monitor) ShutDown() {
-	m.conn.Close()
+	m.session.Close()
 }
 
 // HasAudio is false: the video alone is set up.
@@ -87,9 +81,9 @@ func (m *monitor) Next() (*camstream.Frame, error) {
 	defer quiet.Stop()
 	for {
 		select {
-		case p, live := <-m.conn.Packets():
+		case p, live := <-m.session.Packets():
 			if !live {
-				return nil, m.conn.Err()
+				return nil, m.session.Err()
 			}
 			nalus, timestamp := m.units.Push(p)
 			if nalus == nil {

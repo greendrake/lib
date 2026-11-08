@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -28,7 +29,7 @@ var units = []rtsptest.Unit{
 }
 
 func serve(t *testing.T, timeout int) *rtsptest.Camera {
-	return rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Timeout: timeout, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", units)}})
+	return rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Timeout: timeout, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", units), "/1": rtsptest.Video("H265", units)}})
 }
 
 func dial(t *testing.T, address, password string) *Conn {
@@ -44,19 +45,64 @@ func dial(t *testing.T, address, password string) *Conn {
 // transports are the transports a stream plays by, by name.
 var transports = map[string]Transport{"UDP": UDP, "TCP": TCP}
 
-// playing is a connection playing the camera's stream by transport.
-func playing(t *testing.T, camera *rtsptest.Camera, transport Transport) *Conn {
+// play plays the camera's stream at path on c by transport.
+func play(t *testing.T, c *Conn, path string, transport Transport) *Session {
 	t.Helper()
-	c := dial(t, camera.Address(), password)
 	ctx := context.Background()
-	d, err := c.Describe(ctx, "/0")
+	d, err := c.Describe(ctx, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Play(ctx, d, d.Medias[0], transport); err != nil {
+	s, err := c.Play(ctx, d, d.Medias[0], transport)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return c
+	return s
+}
+
+// playing is a connection playing the camera's stream at /0 by transport, and its session.
+func playing(t *testing.T, camera *rtsptest.Camera, transport Transport) (*Conn, *Session) {
+	t.Helper()
+	c := dial(t, camera.Address(), password)
+	return c, play(t, c, "/0", transport)
+}
+
+// unitsArrive fails t unless the session's next units are the stream's, whole and timed.
+func unitsArrive(t *testing.T, s *Session) {
+	t.Helper()
+	var h H265
+	clock := Media{ClockRate: 90000}.Clock()
+	for _, want := range units {
+		var got [][]byte
+		var timestamp uint32
+		for got == nil {
+			select {
+			case p := <-s.Packets():
+				got, timestamp = h.Push(p)
+			case <-time.After(2 * time.Second):
+				t.Fatal("no packet came")
+			}
+		}
+		if at, err := clock.Time(timestamp); err != nil || !equal(got, want.NALUs) || at != want.PTS {
+			t.Fatalf("unit at %v (%v) of %d NAL units, want at %v", at, err, len(got), want.PTS)
+		}
+	}
+}
+
+// stillPlaying fails t unless a packet comes to s once those it holds are read.
+func stillPlaying(t *testing.T, s *Session) {
+	t.Helper()
+	for len(s.Packets()) > 0 {
+		<-s.Packets()
+	}
+	select {
+	case _, live := <-s.Packets():
+		if !live {
+			t.Fatalf("the session ended: %v", s.Err())
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no packet came")
+	}
 }
 
 // A stream is described, set up and played as the camera asks to be authenticated, and its
@@ -65,32 +111,61 @@ func TestPlay(t *testing.T) {
 	for name, transport := range transports {
 		t.Run(name, func(t *testing.T) {
 			camera := serve(t, 0)
-			c := playing(t, camera, transport)
+			_, s := playing(t, camera, transport)
 			// Every request after the first answers the challenge the first was refused with.
 			for method, want := range map[string]int{"DESCRIBE": 2, "SETUP": 1, "PLAY": 1} {
 				if got := camera.Requests(method); got != want {
 					t.Fatalf("%s asked %d times", method, got)
 				}
 			}
-			var h H265
-			clock := Media{ClockRate: 90000}.Clock()
-			for _, want := range units {
-				var got [][]byte
-				var timestamp uint32
-				for got == nil {
-					select {
-					case p := <-c.Packets():
-						got, timestamp = h.Push(p)
-					case <-time.After(2 * time.Second):
-						t.Fatal("no packet came")
-					}
-				}
-				if at, err := clock.Time(timestamp); err != nil || !equal(got, want.NALUs) || at != want.PTS {
-					t.Fatalf("unit at %v (%v) of %d NAL units, want at %v", at, err, len(got), want.PTS)
-				}
+			unitsArrive(t, s)
+		})
+	}
+}
+
+// Streams play at once on one connection, each a session of its own: closing one tears it
+// down alone, and leaves the other playing.
+func TestSessionsOnOneConnection(t *testing.T) {
+	for name, transport := range transports {
+		t.Run(name, func(t *testing.T) {
+			camera := serve(t, 0)
+			c := dial(t, camera.Address(), password)
+			main, extra := play(t, c, "/0", transport), play(t, c, "/1", transport)
+			unitsArrive(t, main)
+			unitsArrive(t, extra)
+			main.Close()
+			for range main.Packets() {
+			}
+			if !errors.Is(main.Err(), ErrClosed) {
+				t.Fatalf("ended for %v", main.Err())
+			}
+			tornDown(t, camera)
+			stillPlaying(t, extra)
+			if got := camera.Requests("TEARDOWN"); got != 1 {
+				t.Fatalf("%d teardowns", got)
+			}
+			select {
+			case <-c.Done():
+				t.Fatalf("the connection ended with the session: %v", c.Err())
+			default:
 			}
 		})
 	}
+}
+
+// A camera that serves one connection at a time leaves a second unanswered, which is why
+// every stream plays on the one connection.
+func TestSerialCamera(t *testing.T) {
+	camera := rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Serial: true, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", units), "/1": rtsptest.Video("H265", units)}})
+	first := dial(t, camera.Address(), password)
+	if err := first.Options(context.Background(), "/0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := dial(t, camera.Address(), password).Options(context.Background(), "/0"); !errors.Is(err, ErrNoAnswer) {
+		t.Fatalf("a second connection got %v", err)
+	}
+	unitsArrive(t, play(t, first, "/0", UDP))
+	unitsArrive(t, play(t, first, "/1", UDP))
 }
 
 // A stream played over UDP is let in by a NAT between: a packet goes from each of the
@@ -143,6 +218,44 @@ func TestKeepAlive(t *testing.T) {
 	eventually(t, 3*time.Second, "the session was not kept alive", func() bool { return camera.Requests("OPTIONS") >= 2 })
 }
 
+// A request abandoned with its context leaves the connection to the next, its answer
+// dropped when it comes.
+func TestRequestAbandonedWithItsContext(t *testing.T) {
+	received := make(chan struct{})
+	address := server(t, func(conn net.Conn) {
+		r := bufio.NewReader(conn)
+		abandoned, err := wire.Read(r)
+		if err != nil {
+			return
+		}
+		close(received)
+		next, err := wire.Read(r)
+		if err != nil {
+			return
+		}
+		conn.Write((&wire.Message{Status: 404, Reason: "Not Found", Header: wire.Header{{"CSeq", abandoned.Header.Get("CSeq")}}}).Bytes())
+		conn.Write((&wire.Message{Status: 200, Reason: "OK", Header: wire.Header{{"CSeq", next.Header.Get("CSeq")}}}).Bytes())
+		bufio.NewReader(conn).ReadByte()
+	})
+	c := dial(t, address, password)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-received
+		cancel()
+	}()
+	if err := c.Options(ctx, "/0"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v", err)
+	}
+	select {
+	case <-c.Done():
+		t.Fatalf("the connection ended: %v", c.Err())
+	default:
+	}
+	if err := c.Options(context.Background(), "/0"); err != nil {
+		t.Fatalf("the next request got %v", err)
+	}
+}
+
 // A request the server leaves unanswered ends the connection.
 func TestNoAnswer(t *testing.T) {
 	camera := serve(t, 0)
@@ -154,55 +267,59 @@ func TestNoAnswer(t *testing.T) {
 	<-c.Done()
 }
 
-// A request abandoned with its context ends the connection.
-func TestRequestEndsWithItsContext(t *testing.T) {
-	camera := serve(t, 0)
-	c := dial(t, camera.Address(), password)
-	camera.Hold()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	if _, err := c.Describe(ctx, "/0"); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("got %v", err)
-	}
-	<-c.Done()
-}
-
 // tornDown fails t unless the camera is asked to tear its stream down.
 func tornDown(t *testing.T, camera *rtsptest.Camera) {
 	t.Helper()
 	eventually(t, 2*time.Second, "no teardown", func() bool { return camera.Requests("TEARDOWN") > 0 })
 }
 
-// Closing a connection playing tears its stream down.
+// Closing a connection playing tears its stream down, and ends its session.
 func TestClose(t *testing.T) {
 	for name, transport := range transports {
 		t.Run(name, func(t *testing.T) {
 			camera := serve(t, 0)
-			c := playing(t, camera, transport)
+			c, s := playing(t, camera, transport)
 			c.Close()
-			for range c.Packets() {
+			for range s.Packets() {
 			}
-			if !errors.Is(c.Err(), ErrClosed) {
-				t.Fatalf("ended for %v", c.Err())
+			if !errors.Is(c.Err(), ErrClosed) || !errors.Is(s.Err(), ErrClosed) {
+				t.Fatalf("ended for %v, the session for %v", c.Err(), s.Err())
 			}
 			tornDown(t, camera)
 		})
 	}
 }
 
-// A connection whose reader has fallen behind tears its stream down all the same.
+// A session whose reader has fallen behind is torn down all the same, with the connection
+// or on its own.
 func TestCloseBehind(t *testing.T) {
-	// One unit of more packets than the connection holds for its reader.
+	// One unit of more packets than a session holds for its reader.
 	big := append([]byte{19 << 1, 1}, make([]byte, 2*packetBuffer*1400)...)
 	for name, transport := range transports {
-		t.Run(name, func(t *testing.T) {
-			camera := rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", []rtsptest.Unit{{NALUs: [][]byte{big}}})}})
-			c := playing(t, camera, transport)
-			eventually(t, 5*time.Second, "the connection did not fall behind", func() bool { return len(c.Packets()) == packetBuffer })
-			c.Close()
-			tornDown(t, camera)
-		})
+		for closing, close := range map[string]func(*Conn, *Session){"the connection": func(c *Conn, _ *Session) { c.Close() }, "the session": func(_ *Conn, s *Session) { s.Close() }} {
+			t.Run(name+", "+closing, func(t *testing.T) {
+				camera := rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", []rtsptest.Unit{{NALUs: [][]byte{big}}})}})
+				c, s := playing(t, camera, transport)
+				eventually(t, 5*time.Second, "the session did not fall behind", func() bool { return len(s.Packets()) == packetBuffer })
+				close(c, s)
+				tornDown(t, camera)
+			})
+		}
 	}
+}
+
+// An interleaved session a buffer behind holds up neither the connection's answers nor
+// its other sessions.
+func TestBehindHoldsUpNothing(t *testing.T) {
+	big := append([]byte{19 << 1, 1}, make([]byte, 2*packetBuffer*1400)...)
+	camera := rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", []rtsptest.Unit{{NALUs: [][]byte{big}}}), "/1": rtsptest.Video("H265", units)}})
+	c := dial(t, camera.Address(), password)
+	behind, other := play(t, c, "/0", TCP), play(t, c, "/1", TCP)
+	eventually(t, 5*time.Second, "the session did not fall behind", func() bool { return len(behind.Packets()) == packetBuffer })
+	if err := c.Options(context.Background(), "/0"); err != nil {
+		t.Fatalf("the connection's answer was held up: %v", err)
+	}
+	stillPlaying(t, other)
 }
 
 // A connection that has ended plays nothing, and holds no ports for it.
@@ -215,11 +332,11 @@ func TestPlayEnded(t *testing.T) {
 	}
 	camera.Close()
 	<-c.Done()
-	if err := c.Play(context.Background(), d, d.Medias[0], UDP); err == nil || err != c.Err() {
-		t.Fatalf("got %v", err)
+	if s, err := c.Play(context.Background(), d, d.Medias[0], UDP); s != nil || err == nil || err != c.Err() {
+		t.Fatalf("got %v, %v", s, err)
 	}
-	if c.rtp != nil {
-		t.Fatal("the ports were kept")
+	if len(c.sessions) != 0 {
+		t.Fatal("a session was kept")
 	}
 }
 
@@ -289,8 +406,78 @@ func TestSetupRefused(t *testing.T) {
 	}
 	media := d.Medias[0]
 	media.Control = "rtsp://" + camera.Address() + "/9/trackID=0"
-	err = c.Play(context.Background(), d, media, UDP)
+	_, err = c.Play(context.Background(), d, media, UDP)
 	if err == nil || err.Error() != "rtsp: SETUP refused: 404 Not Found" {
+		t.Fatalf("got %v", err)
+	}
+	if len(c.sessions) != 0 {
+		t.Fatal("a session refused was kept")
+	}
+}
+
+// A play abandoned with its context while its setup is out still takes the setup's answer,
+// which alone names the session, and tears the session down.
+func TestAbandonedSetupIsTornDown(t *testing.T) {
+	received, cancelled := make(chan struct{}), make(chan struct{})
+	teardown := make(chan *wire.Message, 1)
+	address := server(t, func(conn net.Conn) {
+		r := bufio.NewReader(conn)
+		setup, err := wire.Read(r)
+		if err != nil {
+			return
+		}
+		close(received)
+		<-cancelled
+		conn.Write((&wire.Message{Status: 200, Reason: "OK", Header: wire.Header{{"CSeq", setup.Header.Get("CSeq")}, {"Session", "s1"}, {"Transport", "RTP/AVP/TCP;unicast;interleaved=0-1"}}}).Bytes())
+		if m, err := wire.Read(r); err == nil {
+			teardown <- m
+		}
+	})
+	c := dial(t, address, password)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-received
+		cancel()
+		close(cancelled)
+	}()
+	uri := "rtsp://" + address + "/0"
+	if _, err := c.Play(ctx, &Description{Control: uri}, Media{Control: uri}, TCP); !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v", err)
+	}
+	select {
+	case m := <-teardown:
+		if m.Method != "TEARDOWN" || m.Header.Get("Session") != "s1" {
+			t.Fatalf("sent %s in session %q", m.Method, m.Header.Get("Session"))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the session set up was left to the server")
+	}
+}
+
+// A server that puts a session on another's interleaved channel fails its play, rather
+// than mix their packets.
+func TestInterleavedChannelTaken(t *testing.T) {
+	address := server(t, func(conn net.Conn) {
+		r := bufio.NewReader(conn)
+		for setups := 0; ; {
+			req, err := wire.Read(r)
+			if err != nil {
+				return
+			}
+			header := wire.Header{{"CSeq", req.Header.Get("CSeq")}}
+			if req.Method == "SETUP" {
+				setups++
+				header = append(header, [2]string{"Session", fmt.Sprintf("s%d", setups)}, [2]string{"Transport", "RTP/AVP/TCP;unicast;interleaved=0-1"})
+			}
+			conn.Write((&wire.Message{Status: 200, Reason: "OK", Header: header}).Bytes())
+		}
+	})
+	c := dial(t, address, password)
+	uri := "rtsp://" + address + "/0"
+	if _, err := c.Play(context.Background(), &Description{Control: uri}, Media{Control: uri}, TCP); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Play(context.Background(), &Description{Control: uri}, Media{Control: uri}, TCP); err == nil || err.Error() != "rtsp: the server put the session on interleaved channel 0, another session's" {
 		t.Fatalf("got %v", err)
 	}
 }
@@ -313,7 +500,7 @@ func TestSetupAnsweredAmiss(t *testing.T) {
 		})
 		c := dial(t, address, password)
 		uri := "rtsp://" + address + "/0"
-		if err := c.Play(context.Background(), &Description{Control: uri}, Media{Control: uri}, transport); err == nil || err.Error() != want {
+		if _, err := c.Play(context.Background(), &Description{Control: uri}, Media{Control: uri}, transport); err == nil || err.Error() != want {
 			t.Errorf("got %v, want %s", err, want)
 		}
 	}
@@ -339,11 +526,11 @@ func server(t *testing.T, serve func(conn net.Conn)) string {
 	return listener.Addr().String()
 }
 
-// passedOn fails t unless the next packet c passes on is sent.
-func passedOn(t *testing.T, c *Conn, sent wire.Packet) {
+// passedOn fails t unless the next packet s passes on is sent.
+func passedOn(t *testing.T, s *Session, sent wire.Packet) {
 	t.Helper()
 	select {
-	case p := <-c.Packets():
+	case p := <-s.Packets():
 		if p.Sequence != sent.Sequence || !bytes.Equal(p.Payload, sent.Payload) {
 			t.Fatalf("passed on %+v", p)
 		}
@@ -352,37 +539,45 @@ func passedOn(t *testing.T, c *Conn, sent wire.Packet) {
 	}
 }
 
-// Of what arrives interleaved, the RTP packets of the stream played alone are passed on:
-// not RTCP, and not what is no RTP packet.
+// opened is a session readied on c to receive by transport, as a play readies it.
+func opened(t *testing.T, c *Conn, transport Transport) *Session {
+	t.Helper()
+	s := &Session{conn: c, packets: make(chan Packet, packetBuffer), ended: make(chan struct{})}
+	if _, err := c.open(s, transport); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// Of what arrives interleaved, the RTP packets of a session's channel alone are passed on
+// to it: not RTCP, not what is no RTP packet, and not another session's.
 func TestOnlyTheStreamsPackets(t *testing.T) {
 	sent := wire.Packet{PayloadType: 96, Sequence: 1, Payload: []byte{1}}
-	// Closed once the connection plays on channel 0.
+	other := wire.Packet{PayloadType: 96, Sequence: 2, Payload: []byte{2}}
+	// Closed once the sessions are on channels 0 and 2.
 	set := make(chan struct{})
 	c := dial(t, server(t, func(conn net.Conn) {
 		<-set
 		var b []byte
 		b = wire.AppendInterleaved(b, 1, []byte{0x80, 200, 0, 1})
 		b = wire.AppendInterleaved(b, 0, []byte{1, 2, 3})
+		b = wire.AppendInterleaved(b, 2, wire.AppendPacket(nil, other, 1))
 		b = wire.AppendInterleaved(b, 0, wire.AppendPacket(nil, sent, 1))
 		conn.Write(b)
 		bufio.NewReader(conn).ReadByte()
 	}), password)
-	c.channel.Store(1)
+	first, second := opened(t, c, TCP), opened(t, c, TCP)
 	close(set)
-	passedOn(t, c, sent)
+	passedOn(t, first, sent)
+	passedOn(t, second, other)
 }
 
-// Of what arrives at the RTP port, the server's RTP packets alone are passed on: not what
-// comes from elsewhere, and not what is no RTP packet.
+// Of what arrives at a session's RTP port, the server's RTP packets alone are passed on:
+// not what comes from elsewhere, and not what is no RTP packet.
 func TestOnlyTheServersPackets(t *testing.T) {
 	c := dial(t, server(t, func(conn net.Conn) { bufio.NewReader(conn).ReadByte() }), password)
-	rtp, rtcp, err := wire.ListenPair(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := c.receive(rtp, rtcp); err != nil {
-		t.Fatal(err)
-	}
+	s := opened(t, c, UDP)
+	rtp := s.rtp
 	sent := wire.Packet{PayloadType: 96, Sequence: 1, Payload: []byte{1}}
 	for _, packet := range []struct {
 		from string
@@ -399,7 +594,7 @@ func TestOnlyTheServersPackets(t *testing.T) {
 		conn.Write(packet.b)
 		conn.Close()
 	}
-	passedOn(t, c, sent)
+	passedOn(t, s, sent)
 }
 
 func TestSessionField(t *testing.T) {

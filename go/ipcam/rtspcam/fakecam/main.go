@@ -1,7 +1,7 @@
 // Command fakecam runs an RTSP camera whose main and extra streams are where BITVISION's
 // cameras serve theirs (rtspcam.BITVISION), each playing a recorded camera's stream at its
 // frame rate over and over, for a client to be developed and tested against without the
-// hardware.
+// hardware. Like some of BITVISION's cameras, it serves one connection at a time.
 package main
 
 import (
@@ -30,7 +30,7 @@ func main() {
 	for _, path := range rtspcam.BITVISION.Paths {
 		streams[path] = rtsptest.Video("H265", units)
 	}
-	camera, err := rtsptest.Listen(*listen, rtsptest.Options{User: *user, Password: *password, Streams: streams})
+	camera, err := rtsptest.Listen(*listen, rtsptest.Options{User: *user, Password: *password, Streams: streams, Serial: true})
 	if err != nil {
 		log.Fatal(err)
 	}

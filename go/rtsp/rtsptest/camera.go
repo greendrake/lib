@@ -1,6 +1,6 @@
 // Package rtsptest is an RTSP camera for tests and fake cameras: its streams described,
-// set up and played, to the client's UDP ports or interleaved on the connection, to a user
-// it authenticates with Digest.
+// set up and played, each in a session of its own, to the client's UDP ports or
+// interleaved on the connection, to a user it authenticates with Digest.
 package rtsptest
 
 import (
@@ -25,6 +25,9 @@ type Options struct {
 	Streams map[string]Stream
 	// The session timeout it hands out, in seconds; 60 if 0.
 	Timeout int
+	// Set to serve one connection at a time, as some BITVISION cameras do: every other
+	// one is accepted and left unanswered until those before it have closed.
+	Serial bool
 }
 
 // Stream is a stream of one media.
@@ -72,14 +75,18 @@ type Camera struct {
 	listener net.Listener
 	ctx      context.Context
 	cancel   context.CancelFunc
-	// Its connections' sessions, and what accepts them.
+	// Its connections, and what accepts them.
 	serving sync.WaitGroup
+	// The one connection served at a time, held by it, where Serial is set.
+	serial chan struct{}
 
 	mu sync.Mutex
 	// The requests it has received, by method.
 	requests map[string]int
 	// The packets its UDP ports have received from the client's, by kind: "RTP", "RTCP".
 	heard map[string]int
+	// How many sessions it has set up: the last one's id.
+	sessions int
 	// Set once it no longer answers.
 	held  bool
 	conns map[net.Conn]struct{}
@@ -94,7 +101,7 @@ func Listen(address string, options Options) (*Camera, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &Camera{options: options, listener: listener, ctx: ctx, cancel: cancel, requests: map[string]int{}, heard: map[string]int{}, conns: map[net.Conn]struct{}{}}
+	c := &Camera{options: options, listener: listener, ctx: ctx, cancel: cancel, serial: make(chan struct{}, 1), requests: map[string]int{}, heard: map[string]int{}, conns: map[net.Conn]struct{}{}}
 	c.serving.Go(c.accept)
 	return c, nil
 }
@@ -170,48 +177,53 @@ func (c *Camera) accept() {
 			continue
 		}
 		c.serving.Go(func() {
-			(&session{camera: c, conn: conn}).serve()
+			(&connection{camera: c, conn: conn, sessions: map[string]*session{}}).serve()
 		})
 	}
 }
 
-// session is a connection's: what it has set up, and the stream it plays.
+// connection is a client's connection: the sessions set up on it.
+type connection struct {
+	camera   *Camera
+	conn     net.Conn
+	writes   sync.Mutex
+	sessions map[string]*session
+}
+
+// session is a stream set up on a connection, and played.
 type session struct {
-	camera *Camera
-	conn   net.Conn
-	writes sync.Mutex
-	id     string
+	conn   *connection
 	stream Stream
 	// Where RTP goes: over UDP, from the RTP port to the client's; or interleaved on the
 	// channel.
 	rtp, rtcp *net.UDPConn
 	client    *net.UDPAddr
 	channel   byte
-	// Ends the stream played.
+	// Ends the stream played, once it is.
 	stop context.CancelFunc
 }
 
-func (s *session) serve() {
-	defer func() {
-		if s.stop != nil {
-			s.stop()
+// serve answers the connection's requests until it closes, which ends its sessions: once
+// it holds the one connection served, where the camera is Serial.
+func (cn *connection) serve() {
+	c := cn.camera
+	if c.options.Serial {
+		select {
+		case c.serial <- struct{}{}:
+			// Given up once the connection is closed, which the deferral below does first.
+			defer func() { <-c.serial }()
+		case <-c.ctx.Done():
+			cn.close()
+			return
 		}
-		if s.rtp != nil {
-			s.rtp.Close()
-			s.rtcp.Close()
-		}
-		s.conn.Close()
-		s.camera.mu.Lock()
-		delete(s.camera.conns, s.conn)
-		s.camera.mu.Unlock()
-	}()
-	r := bufio.NewReader(s.conn)
+	}
+	defer cn.close()
+	r := bufio.NewReader(cn.conn)
 	for {
 		req, err := wire.Read(r)
 		if err != nil {
 			return
 		}
-		c := s.camera
 		c.mu.Lock()
 		c.requests[req.Method]++
 		held := c.held
@@ -219,46 +231,46 @@ func (s *session) serve() {
 		if held {
 			continue
 		}
-		res := s.answer(req)
+		res, played := cn.answer(req)
 		res.Header = append(wire.Header{{"CSeq", req.Header.Get("CSeq")}}, res.Header...)
-		if err := s.write(res.Bytes()); err != nil {
+		if err := cn.write(res.Bytes()); err != nil {
 			return
 		}
-		if req.Method == "PLAY" && res.Status == 200 {
+		if played != nil {
 			ctx, stop := context.WithCancel(c.ctx)
-			s.stop = stop
-			go s.play(ctx)
+			played.stop = stop
+			go played.play(ctx)
 		}
 	}
 }
 
-func (s *session) write(b []byte) error {
-	s.writes.Lock()
-	defer s.writes.Unlock()
-	_, err := s.conn.Write(b)
+func (cn *connection) write(b []byte) error {
+	cn.writes.Lock()
+	defer cn.writes.Unlock()
+	_, err := cn.conn.Write(b)
 	return err
 }
 
 // authorised says whether req carries the camera's user's Digest response.
-func (s *session) authorised(req *wire.Message) bool {
+func (cn *connection) authorised(req *wire.Message) bool {
 	scheme, rest, _ := strings.Cut(req.Header.Get("Authorization"), " ")
 	if scheme != "Digest" {
 		return false
 	}
 	fields := wire.Params(rest)
-	o := s.camera.options
+	o := cn.camera.options
 	return fields["username"] == o.User && fields["response"] == wire.Digest(o.User, realm, o.Password, req.Method, fields["uri"], nonce, "", "", "")
 }
 
 // streamOf is the stream a request's URL names, by its path: a setup's names its media
 // under it.
-func (s *session) streamOf(uri string) (Stream, bool) {
+func (cn *connection) streamOf(uri string) (Stream, bool) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return Stream{}, false
 	}
 	path, _, _ := strings.Cut(u.Path, "/trackID=")
-	stream, served := s.camera.options.Streams[strings.TrimSuffix(path, "/")]
+	stream, served := cn.camera.options.Streams[strings.TrimSuffix(path, "/")]
 	return stream, served
 }
 
@@ -266,18 +278,19 @@ func response(status int, reason string, header wire.Header) *wire.Message {
 	return &wire.Message{Status: status, Reason: reason, Header: header}
 }
 
-func (s *session) answer(req *wire.Message) *wire.Message {
+// answer answers req, and names the session it has the camera start playing, if any.
+func (cn *connection) answer(req *wire.Message) (*wire.Message, *session) {
 	if req.Method == "OPTIONS" {
-		return response(200, "OK", wire.Header{{"Public", "OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN"}})
+		return response(200, "OK", wire.Header{{"Public", "OPTIONS, DESCRIBE, SETUP, PLAY, TEARDOWN"}}), nil
 	}
-	if !s.authorised(req) {
-		return response(401, "Unauthorized", wire.Header{{"WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s"`, realm, nonce)}})
+	if !cn.authorised(req) {
+		return response(401, "Unauthorized", wire.Header{{"WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s"`, realm, nonce)}}), nil
 	}
 	switch req.Method {
 	case "DESCRIBE":
-		stream, served := s.streamOf(req.URI)
+		stream, served := cn.streamOf(req.URI)
 		if !served {
-			return response(404, "Not Found", nil)
+			return response(404, "Not Found", nil), nil
 		}
 		sdp := fmt.Sprintf("v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=rtsptest\r\nt=0 0\r\nm=%s 0 RTP/AVP %d\r\na=rtpmap:%d %s/%d\r\n",
 			stream.Type, payloadType, payloadType, stream.Encoding, stream.ClockRate)
@@ -289,33 +302,55 @@ func (s *session) answer(req *wire.Message) *wire.Message {
 		}
 		res := response(200, "OK", wire.Header{{"Content-Base", strings.TrimSuffix(req.URI, "/") + "/"}, {"Content-Type", "application/sdp"}})
 		res.Body = []byte(sdp + "a=control:trackID=0\r\n")
-		return res
+		return res, nil
 	case "SETUP":
-		stream, served := s.streamOf(req.URI)
-		transport := req.Header.Get("Transport")
+		// Each setup a session of its own, alongside any other on the connection.
+		stream, served := cn.streamOf(req.URI)
 		if !served {
-			return response(404, "Not Found", nil)
+			return response(404, "Not Found", nil), nil
 		}
-		answer, err := s.setUp(transport)
+		s := &session{conn: cn, stream: stream}
+		answer, err := s.setUp(req.Header.Get("Transport"))
 		if err != nil {
-			return response(461, "Unsupported Transport", nil)
+			return response(461, "Unsupported Transport", nil), nil
 		}
-		s.stream, s.id = stream, "rtsptest1"
-		timeout := s.camera.options.Timeout
+		c := cn.camera
+		c.mu.Lock()
+		c.sessions++
+		id := fmt.Sprintf("rtsptest%d", c.sessions)
+		c.mu.Unlock()
+		cn.sessions[id] = s
+		timeout := c.options.Timeout
 		if timeout == 0 {
 			timeout = 60
 		}
-		return response(200, "OK", wire.Header{{"Transport", answer}, {"Session", fmt.Sprintf("%s;timeout=%d", s.id, timeout)}})
+		return response(200, "OK", wire.Header{{"Transport", answer}, {"Session", fmt.Sprintf("%s;timeout=%d", id, timeout)}}), nil
 	case "PLAY", "TEARDOWN":
-		if req.Header.Get("Session") != s.id || s.id == "" {
-			return response(454, "Session Not Found", nil)
+		id := req.Header.Get("Session")
+		s, set := cn.sessions[id]
+		if !set {
+			return response(454, "Session Not Found", nil), nil
 		}
-		if req.Method == "TEARDOWN" && s.stop != nil {
-			s.stop()
+		if req.Method == "PLAY" {
+			return response(200, "OK", nil), s
 		}
-		return response(200, "OK", nil)
+		s.end()
+		delete(cn.sessions, id)
+		return response(200, "OK", nil), nil
 	}
-	return response(501, "Not Implemented", nil)
+	return response(501, "Not Implemented", nil), nil
+}
+
+// close ends the connection's sessions and closes it.
+func (cn *connection) close() {
+	for _, s := range cn.sessions {
+		s.end()
+	}
+	cn.conn.Close()
+	c := cn.camera
+	c.mu.Lock()
+	delete(c.conns, cn.conn)
+	c.mu.Unlock()
 }
 
 // setUp sets the session's transport up as the client asks it, and answers what it set up:
@@ -330,10 +365,11 @@ func (s *session) setUp(transport string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if s.rtp, s.rtcp, err = wire.ListenPair(s.conn.LocalAddr().(*net.TCPAddr).IP); err != nil {
+	conn := s.conn.conn
+	if s.rtp, s.rtcp, err = wire.ListenPair(conn.LocalAddr().(*net.TCPAddr).IP); err != nil {
 		return "", err
 	}
-	client := s.conn.RemoteAddr().(*net.TCPAddr).IP
+	client := conn.RemoteAddr().(*net.TCPAddr).IP
 	s.client = &net.UDPAddr{IP: client, Port: rtpPort}
 	go s.hear(s.rtp, s.client, "RTP")
 	go s.hear(s.rtcp, &net.UDPAddr{IP: client, Port: rtcpPort}, "RTCP")
@@ -341,14 +377,26 @@ func (s *session) setUp(transport string) (string, error) {
 	return fmt.Sprintf("%s;server_port=%d-%d", transport, own, own+1), nil
 }
 
+// end stops the session playing, if it is, and closes its ports.
+func (s *session) end() {
+	if s.stop != nil {
+		s.stop()
+	}
+	if s.rtp != nil {
+		s.rtp.Close()
+		s.rtcp.Close()
+	}
+}
+
 // hear counts the packets port receives from the client's port of kind, from, until it
 // closes.
 func (s *session) hear(port *net.UDPConn, from *net.UDPAddr, kind string) {
+	c := s.conn.camera
 	wire.Receive(port, func(_ []byte, sender *net.UDPAddr) bool {
 		if sender.IP.Equal(from.IP) && sender.Port == from.Port {
-			s.camera.mu.Lock()
-			s.camera.heard[kind]++
-			s.camera.mu.Unlock()
+			c.mu.Lock()
+			c.heard[kind]++
+			c.mu.Unlock()
 		}
 		return true
 	})
@@ -368,7 +416,7 @@ func (s *session) send(packets [][]byte) error {
 	for _, packet := range packets {
 		b = wire.AppendInterleaved(b, s.channel, packet)
 	}
-	return s.write(b)
+	return s.conn.write(b)
 }
 
 // play sends the stream's units over and over, each at its time, as RTP packets as the

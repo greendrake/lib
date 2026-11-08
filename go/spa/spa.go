@@ -1,6 +1,7 @@
-// Package spa ships a single-page app inside a Go binary: the binary's main
-// package embeds the app's build from its dist/ directory, which the bake
-// command fills before compiling the binary, and Handler serves it.
+// Package spa serves a single-page app's build from its dist/ directory:
+// embedded in a Go binary, whose main package embeds it and which the bake
+// command fills before compiling the binary, or on disk, where a deploy
+// replaces it under the running binary.
 //
 // The convention, in the binary's main package:
 //
@@ -12,7 +13,8 @@
 //	mux.Handle("/", app)
 //
 // with dist/.gitkeep tracked (and the rest of dist/ ignored), so the package
-// compiles before the app has been built.
+// compiles before the app has been built. On disk, the handler is over the
+// directory holding dist: spa.Handler(os.DirFS(dir)).
 package spa
 
 import (
@@ -21,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"slices"
 	"time"
@@ -37,9 +40,10 @@ type options struct {
 	data []datum
 }
 
+// datum is a value for the index, as its JSON.
 type datum struct {
 	id    string
-	value any
+	value []byte
 }
 
 // Data hands the app a value of the binary's own at runtime — what the binary
@@ -48,16 +52,28 @@ type datum struct {
 // exactly this form for the binary to fill:
 //
 //	<script type="application/json" id="<id>"></script>
+//
+// A value that does not marshal is the binary's bug, and panics.
 func Data(id string, v any) Option {
-	return func(o *options) { o.data = append(o.data, datum{id, v}) }
+	value, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("spa: data %s: %v", id, err))
+	}
+	return func(o *options) { o.data = append(o.data, datum{id, value}) }
 }
 
 // Handler serves the app in fsys's Dir to GET and HEAD (any other method is
 // 405): a regular file that exists as itself, and any other path — a
 // directory's among them, which is never listed — the app's index.html, so
-// that the app's own routes work on a full page load. A build
-// without an index.html — the binary compiled before the app was baked in —
-// serves 404s; an index.html without an element some Data fills is an error.
+// that the app's own routes work on a full page load.
+//
+// Everything is read through fsys as it is asked for, so a build replaced
+// under the handler — dist a symlink a deploy points at another build — is
+// served from the next request on. A build without an index.html — the
+// binary compiled before the app was baked in, or nothing deployed yet —
+// serves 404s. An index.html without an element some Data fills is an error
+// when Handler is called, and a 500, logged, on a request that finds one
+// after: the app is never served without what it was meant to be handed.
 func Handler(fsys fs.FS, opts ...Option) (http.Handler, error) {
 	var o options
 	for _, opt := range opts {
@@ -67,18 +83,8 @@ func Handler(fsys fs.FS, opts ...Option) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	index, err := fs.ReadFile(app, "index.html")
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		index = nil
-	case err != nil:
+	if _, err := o.index(app); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
-	default:
-		for _, d := range o.data {
-			if index, err = fill(index, d); err != nil {
-				return nil, err
-			}
-		}
 	}
 	files := http.FileServer(http.FS(app))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -93,12 +99,31 @@ func Handler(fsys fs.FS, opts ...Option) (http.Handler, error) {
 				return
 			}
 		}
-		if index == nil {
+		index, err := o.index(app)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
 			http.NotFound(w, r)
-			return
+		case err != nil:
+			slog.Error("spa: serving the index", "err", err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		default:
+			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
 		}
-		http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
 	}), nil
+}
+
+// index is the app's index.html as it is now, every Data value written in.
+func (o *options) index(app fs.FS) ([]byte, error) {
+	index, err := fs.ReadFile(app, "index.html")
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range o.data {
+		if index, err = fill(index, d); err != nil {
+			return nil, err
+		}
+	}
+	return index, nil
 }
 
 // fill writes d's JSON into its element of index. JSON escapes <, > and &,
@@ -114,9 +139,5 @@ func fill(index []byte, d datum) ([]byte, error) {
 	if end < 0 {
 		return nil, fmt.Errorf("spa: index.html's %s element is not closed", open)
 	}
-	value, err := json.Marshal(d.value)
-	if err != nil {
-		return nil, fmt.Errorf("spa: data %s: %w", d.id, err)
-	}
-	return slices.Concat(index[:start], value, index[start+end:]), nil
+	return slices.Concat(index[:start], d.value, index[start+end:]), nil
 }

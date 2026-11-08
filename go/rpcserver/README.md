@@ -1,22 +1,51 @@
 # greendrake.nz/go/rpcserver
 
-The server end of the `@greendrake/rpc` wire format (its README defines the
-envelopes, error codes and WebSocket framing; it is not JSON-RPC): a method
-table with per-method authentication, served over one HTTP POST endpoint and
-over WebSocket with server push.
+A method table with per-method authentication, served over one HTTP POST
+endpoint and over WebSocket with server push, speaking the wire format below —
+not JSON-RPC.
 
 ```sh
 go get greendrake.nz/go/rpcserver
 ```
+
+## Wire format
+
+A request is one JSON object:
+
+| Field | |
+|---|---|
+| `method` | the method's name |
+| `arguments` | what the method takes: an object of named arguments, an array of positional ones, or absent |
+| `nonce` | optional, a string unique to the request: what deduplication refuses a second time (`DUPLICATE_REQUEST`), and what `abort` names |
+| `locale` | optional, the caller's language tag, resolved against the languages the server ships |
+| `id` | WebSocket only: the correlation id its response carries back |
+| `abort` | WebSocket only: the nonce of an earlier request to cancel, alone or beside a new request |
+
+A response is `{success: true, data}`, or `{success: false, error,
+error_details}` — `error` one of the `Code*` constants or a code of the
+method's own, and `error_details` what the method attached, a
+`[]rpcargs.FieldError` for `INVALID_ARGUMENT`.
+
+Over HTTP the request is the POST body and the response the body answered,
+status 200 whatever the outcome. Over WebSocket every frame the server sends
+carries a `type`: `response`, with the request's `id`; `event`, a push
+addressed to a user, `{type: "event", event, data}`; or a Broadcast's own
+types, `{type, data}` for a signal and `{type, data: {doc}}` then
+`{type, data: {patch}}` for a document (below). Two methods are the socket's
+own: `auth.token`, whose one positional argument is a bearer token binding the
+socket to its principal (`UNAUTHENTICATED` when it names none,
+`AUTH_NOT_CONFIGURED` on a dispatcher with no `AuthResolver`), and
+`auth.logout`. An `abort` is answered by nothing, and the response of the
+request it cancelled is dropped.
 
 ## Dispatch
 
 `NewDispatcher(methods, opts...)` over a `map[string]MethodDef` — each a
 `HandlerFunc(hc, args) (result, error)` with its `Auth` (`AuthNone`,
 `AuthRequired`), its `Access` (what it asks of its principal, in the terms of
-the host's gate) and `AllowPlain` (accepted as plain JSON where requests must
-be encoded). Libraries ship their methods as such maps; the host merges them.
-A request runs:
+the host's gate — the host being the server binary, which merges the method
+maps its libraries ship into this one table) and `AllowPlain` (accepted as
+plain JSON where requests must be encoded). A request runs:
 
 1. the locale its envelope asks for, through the host's `LocaleResolver`
    (`WithLocaleResolver`; handlers read `LocaleFrom(ctx)`), and the
@@ -41,9 +70,13 @@ A request runs:
    sentinels to codes.
 
 `GetAuth(ctx)` is the principal; `UserID[T](hc)` its id as the host's type.
-`hc.ClientIP` is the caller's address: the socket peer's, unless the host
-derives it from a proxy it trusts (`WithClientIP`). `WithLogger` is where
-faults go, `slog.Default()` unless given.
+`hc.ClientIP` is the caller's address: the socket peer's (`PeerIP`), unless
+the host derives it from a proxy it trusts (`WithClientIP`) — `ForwardedIP`
+behind exactly one, the last `X-Forwarded-For` entry, which that proxy
+appended, or the peer for a request without one. `hc.UserAgent` is its
+`User-Agent` header. Over WebSocket both are read off the handshake, alike for
+every call on the socket. `WithLogger` is where faults go, `slog.Default()`
+unless given.
 
 The codes the protocol answers with itself are the `Code*` constants; the
 WebSocket's reserved methods and token parameter are `MethodAuthToken`,
@@ -59,11 +92,15 @@ client sends for a call it gives none — has none: the targets keep their zero
 values, which `ParseAndValidate` validates like any other.
 
 The validator is the request's dispatcher's: `rpcargs.NewValidator(rules...)` is
-go-playground's, with the built-in `trimmed_nonempty` tag and the host's
-`Rule`s, each living with the code it validates. Code parsing arguments
+go-playground's, with the built-in tags and the host's `Rule`s, each living
+with the code it validates. The built-in tags are `trimmed_nonempty`, a string
+not empty once trimmed, and `email_safe`, an email address of a shape safe in
+a mail header — more permissive than go-playground's `email`, which refuses
+legal addresses such as `+suffix@example.io`, and admitting no line break. Code parsing arguments
 outside a dispatcher (a test) puts one on its context with
 `ContextWithValidator`. `OneOf` refuses a value outside a set known only at run
-time; `Maybe[T]` tells a field absent from one sent as null.
+time, or a string type's own values; `Maybe[T]` tells a field absent from one
+sent as null.
 
 ## Transports
 
@@ -82,8 +119,8 @@ WithWSOnOpen(fn), WithWSOnClose(fn), WithWSReadLimit(n))`.
   Any other is refused at the handshake. HTTP's origin policy is CORS, the
   host's.
 - Without an `Encoding` the wire carries plain JSON. An `Encoding` puts a
-  `Codec` on it — the server end of `@greendrake/rpc`'s, for a wire that is
-  obscured or encrypted: a request that is structurally JSON is taken as it is
+  `Codec` on it, for a wire that is obscured or encrypted: a request that is
+  structurally JSON is taken as it is
   and any other is decoded; `EncodeResponse` encodes every response, and
   `RequireEncodedRequest` refuses a plain request as a malformed one. A
   principal marked `PlainTransport` is exempt both ways.
@@ -94,8 +131,8 @@ A `ConnRegistry` holds each user's live connections and is an `Emitter`:
 Nothing pushed is ever dropped. A socket whose 64-frame send buffer fills has a client
 that has stopped keeping up, and a frame lost would leave that client silently wrong.
 So the socket is closed instead, at once and without a close handshake. The client
-reconnects, and its re-read on reconnect (`@greendrake/rpc`'s `liveBinding`) or the
-documents it is greeted with put it right. A push that does not marshal is its
+reconnects, and its re-read on reconnect or the documents it is greeted with put
+it right. A push that does not marshal is its
 producer's bug, and panics.
 
 ## Broadcast
@@ -131,6 +168,7 @@ A client of a WebSocket endpoint, for tests, which reads it as a browser does.
 
 - `Dial(t, url)` opens a socket on an httptest server's `http://` URL, query and all, and closes it when the test ends.
 - `Read(t, conn, &v)` decodes the next message into `v`.
+- `Call(t, conn, method, args)` calls `method` with `args` as its named arguments on a socket that keeps no document and returns the response's `(data, code)`, which must be the next frame.
 - `Data(t, conn, type)` is the next frame's `data`; the frame must be a bare data frame of `type`.
 - `State(t, conn, type)` is the next frame of the document `type`, returned as `(doc, patch)`, exactly one of them non-nil.
 - `Keep[D](t, conn, type)` keeps the document `type` from its greeting on, as a page does, decoded as `D` in its `Doc`:

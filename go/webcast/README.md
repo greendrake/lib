@@ -2,15 +2,14 @@
 
 Live camera streams to browsers: H.265 in fMP4 with the camera's G.711 audio beside it,
 any number of streams over one WebSocket, pulled off the cameras only while someone
-watches. The streams are `greendrake.nz/go/camstream` sources; `@greendrake/mse-video`
-is the browser end.
+watches. The streams are `greendrake.nz/go/camstream` sources.
 
 ```sh
 go get greendrake.nz/go/webcast
 ```
 
-`Handler` serves the socket, the host mounting it where it chooses (a `GET`), over a
-`Lookup` of its sources by key. Its options:
+`Handler` serves the socket, the host — the program that mounts it — choosing where (a
+`GET`), over a `Lookup` of its sources by key. Its options:
 
 | Option | What |
 |---|---|

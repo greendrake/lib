@@ -146,7 +146,7 @@ func toggle[F comparable](on, off F) codec[F] {
 var codecs = map[string]ipcam.Codec{"H.265": ipcam.H265, "H.264": ipcam.H264}
 
 // codecOf is the codec a camera names so; one outside the table keeps the camera's
-// name, a codec the app does not cast.
+// name, a codec the engine does not cast.
 func codecOf(compression string) ipcam.Codec {
 	if codec, known := codecs[compression]; known {
 		return codec

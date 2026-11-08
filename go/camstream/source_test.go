@@ -207,6 +207,24 @@ func TestLeavingAbandonsAnOpenInFlight(t *testing.T) {
 	within(t, "the late monitor to be shut down", late.Shut)
 }
 
+// An open in flight as the source stops is waited out, and what it fails with is not a
+// monitor to shut down, whatever the failure leaves in the interface.
+func TestStoppingWaitsOutAFailingOpen(t *testing.T) {
+	inFlight := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	s := camstream.NewSource(ctx, func(ctx context.Context) (camstream.Monitor, error) {
+		close(inFlight)
+		<-ctx.Done()
+		// A nil pointer, as an opener returning its own monitor type leaves in the interface.
+		var none *camstreamtest.Monitor
+		return none, ctx.Err()
+	})
+	subscribe(t, s)
+	within(t, "the open to be in flight", inFlight)
+	cancel()
+	within(t, "the source to stop", s.Done())
+}
+
 func TestSourceStopsWithItsContext(t *testing.T) {
 	cam := camstreamtest.NewCamera(t)
 	ctx, cancel := context.WithCancel(context.Background())

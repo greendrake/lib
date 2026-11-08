@@ -38,13 +38,13 @@ var BITVISION = Driver{
 }
 
 // Dial logs in: a connection on which every stream is described, which authenticates it
-// and tells each stream's codec.
+// and tells each stream's codec, and on which every stream is played after.
 func (d Driver) Dial(ctx context.Context, address, user, password string) (ipcam.Camera, error) {
 	conn, err := rtsp.Dial(ctx, address, user, password)
 	if err != nil {
 		return nil, failure(err)
 	}
-	l := &login{driver: d, address: address, user: user, password: password, conn: conn, streams: map[ipcam.StreamKey]ipcam.StreamFormat{}, done: make(chan struct{})}
+	l := &login{driver: d, conn: conn, streams: map[ipcam.StreamKey]ipcam.StreamFormat{}, done: make(chan struct{})}
 	for key, path := range d.Paths {
 		description, err := conn.Describe(ctx, path)
 		if err == nil {
@@ -86,16 +86,15 @@ func formatOf(d *rtsp.Description) (ipcam.StreamFormat, error) {
 	return ipcam.StreamFormat{Codec: codec}, nil
 }
 
-// login is an ipcam.Camera on a connection.
+// login is an ipcam.Camera on a connection, which carries its probes and every stream
+// played.
 type login struct {
-	driver         Driver
-	address        string
-	user, password string
-	conn           *rtsp.Conn
-	streams        map[ipcam.StreamKey]ipcam.StreamFormat
-	done           chan struct{}
-	end            sync.Once
-	err            error
+	driver  Driver
+	conn    *rtsp.Conn
+	streams map[ipcam.StreamKey]ipcam.StreamFormat
+	done    chan struct{}
+	end     sync.Once
+	err     error
 }
 
 // watch probes the camera every keep-alive interval, at the main stream's path, and ends
@@ -129,9 +128,15 @@ func (l *login) Streams() map[ipcam.StreamKey]ipcam.StreamFormat {
 	return l.streams
 }
 
-// OpenStream plays the stream on a connection of its own, its video alone.
+// OpenStream plays the stream as a session of its own on the login's connection, its
+// video alone: some cameras serve one connection at a time.
 func (l *login) OpenStream(ctx context.Context, key ipcam.StreamKey) (camstream.Monitor, error) {
-	return play(ctx, l.address, l.driver.Paths[key], l.user, l.password, l.driver.Transport)
+	m, err := play(ctx, l.conn, l.driver.Paths[key], l.driver.Transport)
+	if err != nil {
+		// Not m: a nil *monitor in the interface is not a nil interface.
+		return nil, err
+	}
+	return m, nil
 }
 
 func (l *login) Done() <-chan struct{} {

@@ -8,7 +8,7 @@
 // given stamped into the -version-var string variable, `main.version` unless
 // given.
 //
-//	go run greendrake.nz/go/spa/cmd/bake -app ../web -o ipcam-app ./cmd/ipcam-app
+//	go run greendrake.nz/go/spa/cmd/bake -app ../web -o myapp ./cmd/myapp
 //
 // The target is a flag, not GOOS/GOARCH in the environment: those would have
 // `go run` build bake itself for the target, and fail to run it here.

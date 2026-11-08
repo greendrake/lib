@@ -109,26 +109,27 @@ func TestHTTPHandler_BodyReadFailure(t *testing.T) {
 	}
 }
 
-// A handler sees the socket peer's address, unless the host derives it
-// otherwise — from a proxy it trusts.
-func TestHTTPHandler_ClientIP(t *testing.T) {
-	methods := map[string]MethodDef{"ip": {Handler: func(hc *HandlerContext, _ json.RawMessage) (any, error) { return hc.ClientIP, nil }}}
-	call := func(d *Dispatcher) any {
-		body, _ := json.Marshal(Request{Method: "ip"})
+// A handler sees the request's User-Agent, and the socket peer's address
+// unless the host derives it otherwise — from a proxy it trusts.
+func TestHTTPHandler_Caller(t *testing.T) {
+	call := func(d *Dispatcher) map[string]any {
+		body, _ := json.Marshal(Request{Method: "caller"})
 		req := httptest.NewRequest(http.MethodPost, "/api", bytes.NewReader(body))
 		req.RemoteAddr = "192.0.2.7:4321"
 		req.Header.Set("X-Forwarded-For", "203.0.113.9")
+		req.Header.Set("User-Agent", testUserAgent)
 		w := httptest.NewRecorder()
 		NewHTTPHandler(d).ServeHTTP(w, req)
 		var resp Response
 		json.NewDecoder(w.Body).Decode(&resp)
-		return resp.Data
+		got, _ := resp.Data.(map[string]any)
+		return got
 	}
-	if got := call(NewDispatcher(methods)); got != "192.0.2.7" {
+	if got := call(NewDispatcher(testMethods())); got["ip"] != "192.0.2.7" || got["user_agent"] != testUserAgent {
 		t.Fatalf("the peer: %v", got)
 	}
 	forwarded := WithClientIP(func(r *http.Request) string { return r.Header.Get("X-Forwarded-For") })
-	if got := call(NewDispatcher(methods, forwarded)); got != "203.0.113.9" {
+	if got := call(NewDispatcher(testMethods(), forwarded)); got["ip"] != "203.0.113.9" || got["user_agent"] != testUserAgent {
 		t.Fatalf("as the host derives it: %v", got)
 	}
 }
@@ -137,6 +138,29 @@ func TestPeerIP(t *testing.T) {
 	for addr, want := range map[string]string{"192.0.2.7:4321": "192.0.2.7", "[2001:db8::1]:80": "2001:db8::1", "@": "@"} {
 		if got := PeerIP(&http.Request{RemoteAddr: addr}); got != want {
 			t.Errorf("%s: %s, want %s", addr, got, want)
+		}
+	}
+}
+
+// Behind one proxy the client is the last entry the proxy appended, whatever
+// the client sent ahead of it; a request without the header came directly.
+func TestForwardedIP(t *testing.T) {
+	for name, c := range map[string]struct {
+		forwarded []string
+		want      string
+	}{
+		"direct":                {nil, "192.0.2.1"},
+		"through the proxy":     {[]string{"198.51.100.7"}, "198.51.100.7"},
+		"a client's own header": {[]string{"203.0.113.9, 198.51.100.7"}, "198.51.100.7"},
+		"several headers":       {[]string{"203.0.113.9", "198.51.100.7"}, "198.51.100.7"},
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.RemoteAddr = "192.0.2.1:4321"
+		for _, value := range c.forwarded {
+			req.Header.Add("X-Forwarded-For", value)
+		}
+		if got := ForwardedIP(req); got != c.want {
+			t.Errorf("%s: %s, want %s", name, got, c.want)
 		}
 	}
 }
@@ -531,7 +555,8 @@ func TestHTTPHandler_LenientMode_EncodedBody(t *testing.T) {
 
 // Lenient mode also accepts a plain body for ANY method — AllowPlain is
 // irrelevant when encoding isn't required. Pairs with the encoded-body case
-// above to assert the "either form" guarantee under the prod config.
+// above to assert the "either form" guarantee under an Encoding that encodes
+// responses without requiring encoded requests.
 func TestHTTPHandler_LenientMode_PlainBody(t *testing.T) {
 	d := NewDispatcher(testMethods())
 	handler := NewHTTPHandler(d, WithHTTPEncoding(Encoding{Codec: testCodec{}, EncodeResponse: true}))

@@ -12,7 +12,7 @@ var baseAllowHeaders = []string{
 	"accept", "origin", "Cache-Control", "X-Requested-With",
 }
 
-// CORSOptions is a host's cross-origin policy.
+// CORSOptions is an API's cross-origin policy.
 type CORSOptions struct {
 	// AllowOrigin lists the origins whose pages may call the API, as browsers
 	// send them ("https://app.example.com", "app://localhost"); a request
@@ -27,7 +27,7 @@ type CORSOptions struct {
 	Credentials bool
 }
 
-// CORS wraps next with the host's cross-origin policy, short-circuiting
+// CORS wraps next with the API's cross-origin policy, short-circuiting
 // OPTIONS preflights with 204 before they reach next. Apply it at the
 // http.Server handler so preflights bypass the app's routes entirely. A
 // request from an origin the policy does not admit gets no CORS headers, and

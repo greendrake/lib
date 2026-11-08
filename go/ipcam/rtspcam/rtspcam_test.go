@@ -175,6 +175,80 @@ func TestStreamPlays(t *testing.T) {
 	}
 }
 
+// A stream that fails to open leaves no monitor: none in the interface either.
+func TestOpenStreamFails(t *testing.T) {
+	c := serve(t, map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", nil), "/1": rtsptest.Video("H265", nil)})
+	l, err := dial(t, BITVISION, c.Address(), password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The camera gone, the login's connection, which the stream would play on, ends.
+	c.Close()
+	opened, err := l.OpenStream(context.Background(), ipcam.Extra)
+	if err == nil || opened != nil {
+		t.Fatalf("%v, %v", opened, err)
+	}
+}
+
+// Both streams play at once beside the login's probes on a camera that serves one
+// connection at a time, each on the login's connection; one shut down leaves the other
+// playing, and the login up.
+func TestStreamsShareTheLoginsConnection(t *testing.T) {
+	units := recorded(t)
+	c := rtsptest.Serve(t, rtsptest.Options{User: user, Password: password, Serial: true, Streams: map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", units), "/1": rtsptest.Video("H265", units)}})
+	driver := BITVISION
+	driver.KeepAlive = 50 * time.Millisecond
+	l, err := dial(t, driver, c.Address(), password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var monitors []*monitor
+	for _, key := range []ipcam.StreamKey{ipcam.Main, ipcam.Extra} {
+		opened, err := l.OpenStream(context.Background(), key)
+		if err != nil {
+			t.Fatalf("%s: %v", key, err)
+		}
+		monitors = append(monitors, opened.(*monitor))
+	}
+	main, extra := monitors[0], monitors[1]
+	for range 5 {
+		next(t, main)
+		next(t, extra)
+	}
+	main.ShutDown()
+	for range 5 {
+		next(t, extra)
+	}
+	probed(t, c, l, c.Requests("OPTIONS")+2)
+	extra.ShutDown()
+}
+
+// probed fails t unless the camera has had n probes, OPTIONS, in all, with the login up.
+func probed(t *testing.T, c *rtsptest.Camera, l *login, n int) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); c.Requests("OPTIONS") < n; time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the login was not probed")
+		}
+	}
+	select {
+	case <-l.Done():
+		t.Fatalf("a login the camera answers ended: %v", l.Err())
+	default:
+	}
+}
+
+// connected is a connection to the camera, closed as t ends.
+func connected(t *testing.T, c *rtsptest.Camera) *rtsp.Conn {
+	t.Helper()
+	conn, err := rtsp.Dial(context.Background(), c.Address(), user, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(conn.Close)
+	return conn
+}
+
 // The parameter sets a stream's description carries go ahead of its random access
 // units where the stream itself sends none.
 func TestParameterSetsOfTheDescription(t *testing.T) {
@@ -195,7 +269,7 @@ func TestParameterSetsOfTheDescription(t *testing.T) {
 	stream := rtsptest.Video("H265", units)
 	stream.Params = "sprop-vps=" + sprop(mediah265.NALUType_VPS_NUT) + ";sprop-sps=" + sprop(mediah265.NALUType_SPS_NUT) + ";sprop-pps=" + sprop(mediah265.NALUType_PPS_NUT)
 	c := serve(t, map[string]rtsptest.Stream{"/0": stream})
-	m, err := play(context.Background(), c.Address(), "/0", user, password, rtsp.UDP)
+	m, err := play(context.Background(), connected(t, c), "/0", rtsp.UDP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +292,8 @@ func TestStillTimestamps(t *testing.T) {
 	untimed := timed
 	untimed.FrameRate = 0
 	c := serve(t, map[string]rtsptest.Stream{"/0": timed, "/1": untimed})
-	m, err := play(context.Background(), c.Address(), "/0", user, password, rtsp.UDP)
+	conn := connected(t, c)
+	m, err := play(context.Background(), conn, "/0", rtsp.UDP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +303,7 @@ func TestStillTimestamps(t *testing.T) {
 			t.Fatalf("a frame of %v", f.Duration)
 		}
 	}
-	m, err = play(context.Background(), c.Address(), "/1", user, password, rtsp.UDP)
+	m, err = play(context.Background(), conn, "/1", rtsp.UDP)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,12 +316,13 @@ func TestStillTimestamps(t *testing.T) {
 // An open is bounded by its context, and fails on a stream of no H.265.
 func TestOpenFails(t *testing.T) {
 	c := serve(t, map[string]rtsptest.Stream{"/0": rtsptest.Video("H265", nil), "/1": rtsptest.Video("H264", nil)})
+	conn := connected(t, c)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := play(ctx, c.Address(), "/0", user, password, rtsp.UDP); err == nil {
+	if _, err := play(ctx, conn, "/0", rtsp.UDP); err == nil {
 		t.Fatal("an open went on past its context")
 	}
-	if _, err := play(context.Background(), c.Address(), "/1", user, password, rtsp.UDP); err == nil {
+	if _, err := play(context.Background(), conn, "/1", rtsp.UDP); err == nil {
 		t.Fatal("an H.264 stream was opened")
 	}
 }
@@ -261,16 +337,7 @@ func TestLoginEndsWithAFailedProbe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(5 * time.Second); c.Requests("OPTIONS") < 3; time.Sleep(10 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("the login was not probed")
-		}
-	}
-	select {
-	case <-l.Done():
-		t.Fatalf("a login the camera answers ended: %v", l.Err())
-	default:
-	}
+	probed(t, c, l, 3)
 	c.Hold()
 	select {
 	case <-l.Done():

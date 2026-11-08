@@ -76,8 +76,8 @@ func TestCORS_ShortCircuitsPreflight(t *testing.T) {
 	assertHeaders(t, rec, map[string]string{"Access-Control-Allow-Origin": app})
 }
 
-// A host with no headers of its own gets the base allow list and no expose
-// header; credentials are offered where the host asks.
+// A policy with no headers of its own gets the base allow list and no expose
+// header; credentials are offered where it asks.
 func TestCORS_BaseOnlyWithCredentials(t *testing.T) {
 	handler := CORS(CORSOptions{AllowOrigin: []string{app}, Credentials: true}, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	assertHeaders(t, request(handler, http.MethodPost, app), map[string]string{

@@ -36,7 +36,7 @@ completion.
 `ProbeMux(draining, checks, timeout)` serves `GET /healthz` — 200 unless
 draining — and `GET /readyz`, which runs every `DependencyCheck` in parallel
 under `timeout` and answers 200 only when all pass and the process is not
-draining; its body maps each probe to `ok` or `fail: <reason>`. The host
+draining; its body maps each probe to `ok` or `fail: <reason>`. The binary
 mounts its own routes on the mux.
 
 ## CORS
@@ -54,3 +54,12 @@ routes.
 `WriteJSON(w, status, body)` answers a plain-HTTP endpoint with `body` as JSON
 (`application/json; charset=utf-8`); a body that does not encode is logged and
 answered 500.
+
+## Webhooks
+
+`Webhook(name, rejected, handle)` is the handler of a provider's callback whose
+body is only a trigger: `handle(r, body)` authenticates and acts on it, and its
+error decides the answer the provider redelivers on — `rejected` (`errors.Is`)
+a 401 saying nothing of why, any other error a 500, none a 200. A body past
+`MaxWebhookBody` (1 MiB) is a 413, one that cannot be read a 400. Each is logged
+under `name`.

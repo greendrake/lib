@@ -2,8 +2,8 @@ package rpcserver
 
 import "bytes"
 
-// Codec is what a payload's JSON becomes on the wire, and back: the server end
-// of `@greendrake/rpc`'s Codec, for a wire that is obscured or encrypted.
+// Codec is what a payload's JSON becomes on the wire, and back — the server end
+// of whatever the client encodes with, for a wire that is obscured or encrypted.
 type Codec interface {
 	Encode(body []byte) []byte
 	Decode(body []byte) ([]byte, error)

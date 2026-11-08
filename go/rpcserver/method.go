@@ -14,11 +14,16 @@ const (
 )
 
 // HandlerContext carries transport-agnostic information to method handlers.
+// What it tells of the caller is read off the HTTP request carrying the call
+// or, over WebSocket, off the handshake that opened the socket, alike for every
+// call on it.
 type HandlerContext struct {
 	Ctx context.Context
 	// ClientIP is the caller's address, as the dispatcher's WithClientIP
 	// derives it.
 	ClientIP string
+	// UserAgent is the caller's User-Agent header, empty for none.
+	UserAgent string
 }
 
 // HandlerFunc is the signature for method implementations.

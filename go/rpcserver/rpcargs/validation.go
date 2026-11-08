@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -21,17 +22,30 @@ type Rule struct {
 	Fn  validator.FuncCtx
 }
 
-// trimmedNonempty is the one tag beyond validator's own that every validator
-// has: a string that is not empty once strings.TrimSpace has had it.
-var trimmedNonempty = Rule{Tag: "trimmed_nonempty", Fn: func(_ context.Context, fl validator.FieldLevel) bool {
-	return strings.TrimSpace(fl.Field().String()) != ""
-}}
+// emailShape is the address shape email_safe accepts. It is more permissive
+// than validator's `email`, which rejects legal addresses like
+// "+suffix@example.io", and admits no CR/LF, so an address accepted is safe
+// in a mail header.
+var emailShape = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+// builtins are the tags beyond validator's own that every validator has:
+//
+//	trimmed_nonempty  a string that is not empty once strings.TrimSpace has had it
+//	email_safe        an email address in emailShape, safe in a mail header
+var builtins = []Rule{
+	{Tag: "trimmed_nonempty", Fn: func(_ context.Context, fl validator.FieldLevel) bool {
+		return strings.TrimSpace(fl.Field().String()) != ""
+	}},
+	{Tag: "email_safe", Fn: func(_ context.Context, fl validator.FieldLevel) bool {
+		return emailShape.MatchString(fl.Field().String())
+	}},
+}
 
 // NewValidator is go-playground/validator's, as a dispatcher takes it
-// (rpcserver.WithValidator): validator's own tags, trimmed_nonempty, and
-// rules. Its failures are INVALID_ARGUMENT answers whose details name each
-// field (as the client sent it), its rule and the rule's parameter. A tag
-// given twice is a mistake in the program, and panics.
+// (rpcserver.WithValidator): validator's own tags, the builtins, and rules.
+// Its failures are INVALID_ARGUMENT answers whose details name each field
+// (as the client sent it), its rule and the rule's parameter. A tag given
+// twice is a mistake in the program, and panics.
 func NewValidator(rules ...Rule) rpcserver.Validator {
 	v := validator.New(validator.WithRequiredStructEnabled())
 	// Surface json-tag names (not Go struct field names) in FieldError
@@ -47,7 +61,7 @@ func NewValidator(rules ...Rule) rpcserver.Validator {
 		return name
 	})
 	registered := map[string]bool{}
-	for _, r := range append([]Rule{trimmedNonempty}, rules...) {
+	for _, r := range slices.Concat(builtins, rules) {
 		if registered[r.Tag] {
 			panic(fmt.Sprintf("rpcargs: rule %s given twice", r.Tag))
 		}
@@ -140,12 +154,17 @@ func validatorOf(ctx context.Context) (rpcserver.Validator, error) {
 }
 
 // OneOf refuses value, an argument's field, outside allowed — a set known only
-// at run time, which a `oneof` tag cannot name — as the tag would.
-func OneOf(field, value string, allowed []string) error {
+// at run time, or a type's own values, which a `oneof` tag cannot name — as
+// the tag would.
+func OneOf[S ~string](field string, value S, allowed []S) error {
 	if slices.Contains(allowed, value) {
 		return nil
 	}
-	return rpcserver.NewAPIErrorWithDetails(rpcserver.CodeInvalidArgument, []FieldError{{Field: field, Rule: "oneof", Param: strings.Join(allowed, " ")}})
+	names := make([]string, len(allowed))
+	for i, a := range allowed {
+		names[i] = string(a)
+	}
+	return rpcserver.NewAPIErrorWithDetails(rpcserver.CodeInvalidArgument, []FieldError{{Field: field, Rule: "oneof", Param: strings.Join(names, " ")}})
 }
 
 // embedded names an anonymous struct field with no JSON name of its own:

@@ -43,7 +43,7 @@ func readyz(checks []DependencyCheck, timeout time.Duration, draining *atomic.Bo
 }
 
 // ProbeMux returns a mux serving GET /healthz and GET /readyz over the
-// process's draining flag and its dependency checks; the host mounts its
+// process's draining flag and its dependency checks; the binary mounts its
 // own routes on it.
 func ProbeMux(draining *atomic.Bool, checks []DependencyCheck, timeout time.Duration) *http.ServeMux {
 	mux := http.NewServeMux()

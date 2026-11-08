@@ -1,7 +1,8 @@
 # greendrake.nz/go/spa
 
-Ships a single-page app inside a Go binary: one file to deploy, the app and
-the API it talks to on one origin.
+Serves a single-page app from a Go binary, the app and the API it talks to on
+one origin: baked into the binary, one file to deploy, or from a directory
+beside it, which a deploy replaces without restarting the binary.
 
 ```sh
 go get greendrake.nz/go/spa
@@ -27,6 +28,20 @@ routes work on a full page load. `dist/.gitkeep`
 is tracked and the rest of `dist/` ignored, so the package compiles before the
 app has been built (its pages then 404).
 
+## A build on disk
+
+`Handler` reads everything through the file system it is given as it is asked
+for, so over a directory it serves whatever build is there at the time:
+
+```go
+app, err := spa.Handler(os.DirFS(dir))
+```
+
+serves `dir/dist`. A deploy that uploads the new build beside the old one and
+points a `dist` symlink at it atomically (`ln -sfn` to a temporary name, then
+`mv -T` over `dist`) has it served from the next request on, with no restart.
+Until a build is there, the pages 404.
+
 ## Runtime data
 
 What the app can only learn once the binary runs — the binary's own
@@ -43,15 +58,18 @@ and the binary fills it:
 app, err := spa.Handler(dist, spa.Data("env", settings))
 ```
 
-`Handler` writes `settings`' JSON into the element once, when it starts. An
-`index.html` without the element is an error then, not a broken page later.
+`Handler` writes `settings`' JSON into the element of every index it serves.
+An `index.html` without the element is an error when `Handler` is called, not
+a broken page later; a build put under it since, whose index has lost the
+element, is answered 500 and logged rather than served without the data. A
+value that does not marshal panics in `Data`.
 
 ## The build
 
 `cmd/bake` is the whole build, run from the binary's module:
 
 ```sh
-go run greendrake.nz/go/spa/cmd/bake -app ../web -o ipcam-app ./cmd/ipcam-app
+go run greendrake.nz/go/spa/cmd/bake -app ../web -o myapp ./cmd/myapp
 ```
 
 1. The app's build in its directory — `bun run build`, or the command

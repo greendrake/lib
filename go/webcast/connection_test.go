@@ -209,7 +209,7 @@ func TestSubscriptionsEndOnShutDown(t *testing.T) {
 	monitor := camstreamtest.NewMonitor()
 	cam.Opens(monitor)
 	cancel()
-	within(t, "every subscription to end with the app", monitor.Shut)
+	within(t, "every subscription to end with the handler's context", monitor.Shut)
 }
 
 func TestRefusesStreamItCannotServe(t *testing.T) {

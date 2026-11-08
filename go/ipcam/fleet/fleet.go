@@ -1,7 +1,8 @@
-// Package fleet is a host's cameras by name: each one's connection, and a source of each
-// of its streams, which its viewers, its recorders and whatever else the host has
-// subscribe to. A stream is opened on the camera's login, or where its StreamsFrom says,
-// while it has subscribers, waiting out the camera being offline.
+// Package fleet is the cameras of a host — the program the fleet runs in — by name: each
+// one's connection, and a source of each of its streams, which its viewers, its recorders
+// and whatever else the host has subscribe to. A stream is opened on the camera's login,
+// or where its StreamsFrom says, while it has subscribers, waiting out the camera being
+// offline.
 //
 // A stop the camera leaves unanswered ends the login, and with it every stream on that
 // camera: a camera in that state is in no shape to stream, and the connection's redial

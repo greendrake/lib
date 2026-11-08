@@ -38,10 +38,10 @@ const (
 	writeTimeout = 5 * time.Second
 	// How far behind a viewer may fall before it is dropped. Every channel feeds this
 	// one queue, so it also bounds the memory one browser can make the server hold:
-	// roughly a second of a full grid.
+	// roughly a second of every channel streaming.
 	outboundQueueSize = 256
 	// One byte carries the channel, so this is how many streams a single socket can
-	// serve at once. The grid needs one per tile.
+	// serve at once. A page of tiles needs one per tile.
 	maxChannels = 256
 )
 

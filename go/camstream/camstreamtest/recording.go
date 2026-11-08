@@ -12,8 +12,7 @@ import (
 )
 
 // recording is a camera's stream, in this package's own framing: its frames,
-// gob-encoded as a []camstream.Frame. greendrake.nz/go/ipcam's dvripcam writes it, with
-// WriteRecording, from the recording greendrake.nz/go/dvrip's dvriptest plays.
+// gob-encoded as a []camstream.Frame, as WriteRecording writes them.
 //
 //go:embed recording.gob
 var recording []byte
