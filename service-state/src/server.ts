@@ -119,11 +119,11 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
     // reports what the service was before it, so its answer is dropped rather
     // than adopted over the transition's.
     let transitions = 0
-    // The read under way and the transition count it began under. A refresh,
-    // re-read or command asked while it is out joins it rather than asking the
-    // service again — unless a transition has begun since, which makes it a
-    // reading of the past: then a fresh read goes out, and the old one is
-    // dropped when it settles.
+    // The read under way, until the service has answered it, and the
+    // transition count it began under. A refresh, re-read or command asked
+    // while it is out joins it rather than asking the service again — unless a
+    // transition has begun since, which makes it a reading of the past: then a
+    // fresh read goes out, and the old one is dropped when it settles.
     let reading: { promise: Promise<void>; under: number } | undefined
     // For when the latest reading turns `maxAgeMs` old.
     let ageing: ReturnType<typeof setTimeout> | undefined
@@ -186,24 +186,27 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
             return reading.promise
         }
         const under = transitions
-        // A transition begun since the read went out has the last word — its
-        // own landing is the next reading — and the read's answer, from before
-        // it, is dropped.
-        const land = (next: ServiceCondition): void => {
-            if (under === transitions) {
-                failed = false
-                reached(next)
-            }
-        }
         const promise = service
             .check()
             .then(
-                state => land({ state }),
-                (e: Error) => land({ state: 'ERROR', error: e.message })
+                (state): ServiceCondition => ({ state }),
+                (e: Error): ServiceCondition => ({ state: 'ERROR', error: e.message })
             )
-            .finally(() => {
+            .then(next => {
+                // No longer under way once it has its answer, and so before
+                // that lands: the landing times the next re-read, and one
+                // already due — the reading turned `maxAgeMs` old while it was
+                // being published — is a read of its own, not this one joined
+                // as it ends.
                 if (reading?.promise === promise) {
                     reading = undefined
+                }
+                // A transition begun since the read went out has the last word
+                // — its own landing is the next reading — and the read's
+                // answer, from before it, is dropped.
+                if (under === transitions) {
+                    failed = false
+                    reached(next)
                 }
             })
         reading = { promise, under }

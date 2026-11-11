@@ -21,6 +21,9 @@ type Publisher = DocumentPublisher & {
     // sequence an operator's screen would go through rather than only where it
     // ended up.
     seen: (name: string) => (ServiceState | null)[]
+    // The next publish takes this long on the fake clock, as one to many
+    // sockets over a busy process can.
+    lag: (ms: number) => void
 }
 
 // A publisher as a registry is one, each document kept by the members of its
@@ -29,6 +32,7 @@ type Publisher = DocumentPublisher & {
 const publisher = (): Publisher => {
     const kept = new Map<string, { doc: JsonObject; published: JsonObject[] }>()
     const members = new Map<string, number>()
+    let lagMs = 0
     const listeners = new Map<string, Set<(present: boolean) => void>>()
     const join = (topic: string): void => {
         const joined = (members.get(topic) ?? 0) + 1
@@ -49,6 +53,12 @@ const publisher = (): Publisher => {
         kept.set(type, entry)
         return {
             refresh: () => {
+                // Only a test on the fake clock lags, and only then is the
+                // clock moved: set on the real one, it would stop there.
+                if (lagMs > 0) {
+                    jest.setSystemTime(Date.now() + lagMs)
+                    lagMs = 0
+                }
                 const next = documentOf(type, produce())
                 if (mergePatchBetween(entry.doc, next)) {
                     entry.doc = next
@@ -75,7 +85,10 @@ const publisher = (): Publisher => {
         unwatch: name => leave(serviceStateDocument(name)),
         topics: { join, leave },
         doc: name => docOf(kept.get(serviceStateDocument(name))?.doc ?? {}),
-        seen: name => (kept.get(serviceStateDocument(name))?.published ?? []).map(doc => docOf(doc).status?.state ?? null).filter((state, i, all) => i === 0 || state !== all[i - 1])
+        seen: name => (kept.get(serviceStateDocument(name))?.published ?? []).map(doc => docOf(doc).status?.state ?? null).filter((state, i, all) => i === 0 || state !== all[i - 1]),
+        lag: ms => {
+            lagMs = ms
+        }
     }
 }
 
@@ -130,10 +143,10 @@ const holdCheck = (service: ReturnType<typeof controllable>): PromiseWithResolve
 }
 
 // Lets the machine's promise chains run to their end. Each is a few microtasks
-// deep — a check or transition settling, its handler, its `finally`, the
-// command waiting on it — and the microtask queue drains in order whatever the
-// clock, so this needs no timer: under bun's fake timers, a timer-based wait
-// (even setImmediate) can hang.
+// deep — a check or transition settling, its handlers, the command waiting on
+// it — and the microtask queue drains in order whatever the clock, so this
+// needs no timer: under bun's fake timers, a timer-based wait (even
+// setImmediate) can hang.
 const settled = async (): Promise<void> => {
     for (let tick = 0; tick < 20; tick++) {
         await Promise.resolve()
@@ -603,6 +616,17 @@ describe('keeping the state current while somebody watches', () => {
         service.observed = 'ON'
         await elapse(AGE_MS)
         expect(p.seen('web')).toEqual(['STARTING', 'ON'])
+    })
+
+    test('a reading already the age old by the time it is published is taken again at once, and the re-reads carry on', async () => {
+        await ready(service, board)
+        service.observed = 'ON'
+        p.lag(AGE_MS)
+        await elapse(AGE_MS)
+        expect(service.reads).toBe(3)
+        expect(p.seen('web')).toEqual(['OFF', 'ON'])
+        await elapse(AGE_MS)
+        expect(service.reads).toBe(4)
     })
 
     test('a refresh is a reading: the next re-read is timed from it', async () => {
