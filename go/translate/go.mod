@@ -1,14 +1,14 @@
 module greendrake.nz/go/translate
 
-go 1.25.0
+go 1.27.0
 
 require (
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.21.0
 	golang.org/x/text v0.37.0
 	gopkg.in/yaml.v3 v3.0.1
-	greendrake.nz/go/i18n v0.1.0
-	greendrake.nz/go/llm v0.1.0
+	greendrake.nz/go/i18n v0.2.0
+	greendrake.nz/go/llm v0.2.0
 )
 
 require (
@@ -26,5 +26,4 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
-	mvdan.cc/xurls/v2 v2.6.0 // indirect
 )

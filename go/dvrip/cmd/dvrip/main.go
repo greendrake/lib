@@ -238,7 +238,7 @@ func monitor(ctx context.Context, s *dvrip.Session, args []string) error {
 		defer cancel()
 	}
 	var streams []*stream
-	for _, spec := range strings.Split(*names, ",") {
+	for spec := range strings.SplitSeq(*names, ",") {
 		name, after, timed := strings.Cut(spec, ":")
 		typ, known := streamTypes[name]
 		if !known {

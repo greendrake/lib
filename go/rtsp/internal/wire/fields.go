@@ -40,7 +40,7 @@ func Params(s string) map[string]string {
 // RTP's and RTCP's ports, or interleaved channels. An RTCP one left out is the one after
 // RTP's (RFC 3550 11).
 func Pair(transport, name string) (int, int, error) {
-	for _, param := range strings.Split(transport, ";") {
+	for param := range strings.SplitSeq(transport, ";") {
 		if value, found := strings.CutPrefix(strings.TrimSpace(param), name+"="); found {
 			first, second, paired := strings.Cut(value, "-")
 			rtp, err := strconv.ParseUint(first, 10, 16)

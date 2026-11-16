@@ -189,7 +189,7 @@ func TestModelFor_UnknownTierErrs(t *testing.T) {
 // schema as structured outputs (output_config.format), and return the text
 // block verbatim.
 func TestAnthropicAdapter_RequestShapeAndResponse(t *testing.T) {
-	var captured map[string]interface{}
+	var captured map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/messages", r.URL.Path)
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
@@ -212,13 +212,13 @@ func TestAnthropicAdapter_RequestShapeAndResponse(t *testing.T) {
 	assert.Equal(t, Usage{InputTokens: 1, OutputTokens: 1}, out.Usage)
 
 	assert.Equal(t, "fast-model", captured["model"])
-	system := captured["system"].([]interface{})[0].(map[string]interface{})
+	system := captured["system"].([]any)[0].(map[string]any)
 	assert.Equal(t, "sys", system["text"])
-	message := captured["messages"].([]interface{})[0].(map[string]interface{})
+	message := captured["messages"].([]any)[0].(map[string]any)
 	assert.Equal(t, "user", message["role"])
-	format := captured["output_config"].(map[string]interface{})["format"].(map[string]interface{})
+	format := captured["output_config"].(map[string]any)["format"].(map[string]any)
 	assert.Equal(t, "json_schema", format["type"])
-	assert.Equal(t, "object", format["schema"].(map[string]interface{})["type"])
+	assert.Equal(t, "object", format["schema"].(map[string]any)["type"])
 }
 
 // The Anthropic API requires a cap, so the adapter always sends one: the
@@ -328,7 +328,7 @@ func TestAdapters_ReportACompletionCutOffAtTheCap(t *testing.T) {
 func TestAnthropicAdapter_StrongTierUsesStrongModel(t *testing.T) {
 	var model string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]interface{}
+		var body map[string]any
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		model = body["model"].(string)
 		w.Header().Set("Content-Type", "application/json")
@@ -350,7 +350,7 @@ func TestAnthropicAdapter_StrongTierUsesStrongModel(t *testing.T) {
 // The openai_compat adapter must POST the chat-completions shape with
 // response_format json_schema and return the choice content verbatim.
 func TestOpenAICompatAdapter_RequestShapeAndResponse(t *testing.T) {
-	var captured map[string]interface{}
+	var captured map[string]any
 	var authHeader string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/v1/chat/completions", r.URL.Path)
@@ -370,22 +370,22 @@ func TestOpenAICompatAdapter_RequestShapeAndResponse(t *testing.T) {
 
 	assert.Equal(t, "Bearer local-key", authHeader)
 	assert.Equal(t, "local-model", captured["model"])
-	messages := captured["messages"].([]interface{})
+	messages := captured["messages"].([]any)
 	require.Len(t, messages, 2)
-	assert.Equal(t, "system", messages[0].(map[string]interface{})["role"])
-	assert.Equal(t, "user", messages[1].(map[string]interface{})["role"])
-	rf := captured["response_format"].(map[string]interface{})
+	assert.Equal(t, "system", messages[0].(map[string]any)["role"])
+	assert.Equal(t, "user", messages[1].(map[string]any)["role"])
+	rf := captured["response_format"].(map[string]any)
 	assert.Equal(t, "json_schema", rf["type"])
-	js := rf["json_schema"].(map[string]interface{})
+	js := rf["json_schema"].(map[string]any)
 	assert.Equal(t, true, js["strict"])
-	assert.Equal(t, "object", js["schema"].(map[string]interface{})["type"])
+	assert.Equal(t, "object", js["schema"].(map[string]any)["type"])
 }
 
 // On a vLLM endpoint the schema goes as the grammar it compiles to, in place
 // of response_format; a schema the grammar cannot express fails the request
 // before anything is sent.
 func TestOpenAICompatAdapter_GrammarInPlaceOfTheSchema(t *testing.T) {
-	var captured map[string]interface{}
+	var captured map[string]any
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
@@ -401,7 +401,7 @@ func TestOpenAICompatAdapter_GrammarInPlaceOfTheSchema(t *testing.T) {
 	require.NoError(t, err)
 	grammar, err := grammarOf(boolSchema)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]interface{}{"grammar": grammar}, captured["structured_outputs"], "the adapter's own constraint wins")
+	assert.Equal(t, map[string]any{"grammar": grammar}, captured["structured_outputs"], "the adapter's own constraint wins")
 	assert.NotContains(t, captured, "response_format")
 
 	open := boolRequest(TierFast)
@@ -414,7 +414,7 @@ func TestOpenAICompatAdapter_GrammarInPlaceOfTheSchema(t *testing.T) {
 // What REQUEST_EXTRA carries reaches the wire beside the adapter's own fields,
 // never in place of them.
 func TestOpenAICompatAdapter_ExtraFieldsReachTheWire(t *testing.T) {
-	var captured map[string]interface{}
+	var captured map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
 		w.Header().Set("Content-Type", "application/json")
@@ -430,7 +430,7 @@ func TestOpenAICompatAdapter_ExtraFieldsReachTheWire(t *testing.T) {
 	_, err := client.Complete(context.Background(), boolRequest(TierFast))
 	require.NoError(t, err)
 	assert.Equal(t, 0.2, captured["temperature"])
-	assert.Equal(t, map[string]interface{}{"enable_thinking": false}, captured["chat_template_kwargs"])
+	assert.Equal(t, map[string]any{"enable_thinking": false}, captured["chat_template_kwargs"])
 	assert.Equal(t, "local-model", captured["model"], "the adapter's own fields win")
 	assert.NotNil(t, captured["response_format"])
 	assert.NotContains(t, captured, "structured_outputs", "no grammar where the deployment does not take one")
@@ -442,7 +442,7 @@ func TestOpenAICompatAdapter_ExtraFieldsReachTheWire(t *testing.T) {
 func TestOpenAICompatAdapter_SendsTheCap(t *testing.T) {
 	var caps []float64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]interface{}
+		var body map[string]any
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		require.NotContains(t, body, "max_tokens")
 		caps = append(caps, body["max_completion_tokens"].(float64))

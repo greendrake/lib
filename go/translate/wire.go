@@ -608,11 +608,11 @@ func assemble(unit format.Unit, rendered answer, target writing) (string, error)
 				return "", err
 			}
 			token := opaque(src.arg)
-			at := strings.Index(sentence, token)
-			if at < 0 {
+			before0, after0, ok := strings.Cut(sentence, token)
+			if !ok {
 				return "", fmt.Errorf("no %s in your answer: it stands for the number and the words that agree with it, and must appear exactly as written", token)
 			}
-			before, after = sentence[:at], sentence[at+len(token):]
+			before, after = before0, after0
 		}
 		cases := make([]string, 0, len(target.categories))
 		for _, category := range target.categories {

@@ -276,7 +276,7 @@ func TestSlowViewerIsDroppedRatherThanBlocking(t *testing.T) {
 	go func() {
 		defer close(written)
 		payload := make([]byte, 64)
-		for i := 0; i < outboundQueueSize+10; i++ {
+		for range outboundQueueSize + 10 {
 			c.write(0, kindVideo, payload)
 		}
 	}()

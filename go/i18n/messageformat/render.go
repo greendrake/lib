@@ -38,7 +38,7 @@ var keywordForm = map[string]plural.Form{
 	"other": plural.Other,
 }
 
-type node interface{}
+type node any
 
 type textNode string // literal text
 type argNode string  // {name}

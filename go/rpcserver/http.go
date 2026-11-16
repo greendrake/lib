@@ -61,8 +61,7 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(http.MaxBytesReader(w, r.Body, h.bodyLimit))
 	if err != nil {
 		code := CodeInvalidJSON
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			code = CodeRequestTooLarge
 		}
 		h.writeResponse(w, &Response{Success: false, Error: code}, plainTransport)

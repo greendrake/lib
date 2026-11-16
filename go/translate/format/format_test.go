@@ -1,6 +1,7 @@
 package format
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -184,9 +185,7 @@ func TestTree_Units(t *testing.T) {
 // nothing. The sidecar is written from the translations, keyed by code.
 func TestTree_ExistingAndWrite(t *testing.T) {
 	tree := map[string]string{"trees/names/de.yaml": "category:\n    label: Kategorie\n    nodes:\n        cars: Autos\n        gone: Weg\nretired:\n    label: Alt\n"}
-	for rel, body := range treeFiles {
-		tree[rel] = body
-	}
+	maps.Copy(tree, treeFiles)
 	env := fixture(t, tree)
 	store := open(t, "tax", treeSpec, env)
 

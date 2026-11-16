@@ -394,7 +394,7 @@ func replaceInFile(t *testing.T, path, old, new string) {
 
 func lineContaining(t *testing.T, body, needle string) string {
 	t.Helper()
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		if strings.Contains(line, needle) {
 			return line
 		}

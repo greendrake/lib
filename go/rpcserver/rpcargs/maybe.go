@@ -15,7 +15,7 @@ import (
 //
 //	type ItemUpdate struct {
 //	    Title *string        `json:"title,omitempty"`
-//	    Price Maybe[float64] `json:"price,omitempty"`
+//	    Price Maybe[float64] `json:"price,omitzero"`
 //	}
 //
 //	// in handler:
@@ -43,10 +43,14 @@ func (m *Maybe[T]) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &m.Value)
 }
 
-// MarshalJSON returns "null" for cleared fields, the value for set
-// fields, and "null" for unset Maybe values (caller should use
-// `omitempty`-style filtering at the struct boundary if absence
-// matters on the wire).
+// IsZero reports whether the field is absent. encoding/json leaves a
+// field tagged `omitzero` out when IsZero is true, so absence survives
+// encoding.
+func (m Maybe[T]) IsZero() bool { return !m.Set }
+
+// MarshalJSON returns "null" for a cleared field and the value for a set
+// one. An absent field that is encoded anyway returns "null" too, which
+// decodes as cleared: tag the field `omitzero` to leave it out instead.
 func (m Maybe[T]) MarshalJSON() ([]byte, error) {
 	if !m.Set || m.Null {
 		return []byte("null"), nil

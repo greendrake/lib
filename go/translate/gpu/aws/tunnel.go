@@ -82,7 +82,7 @@ func (t *ssmTunnels) ready() error {
 func newerVersion(version, than string) (bool, error) {
 	parse := func(v string) ([]int, error) {
 		var out []int
-		for _, part := range strings.Split(v, ".") {
+		for part := range strings.SplitSeq(v, ".") {
 			n, err := strconv.Atoi(part)
 			if err != nil {
 				return nil, fmt.Errorf("%q is not a version", v)

@@ -212,7 +212,7 @@ func (c *connection) freeChannel() (byte, bool) {
 	if c.closed {
 		return 0, false
 	}
-	for i := 0; i < maxChannels; i++ {
+	for i := range maxChannels {
 		if _, taken := c.views[byte(i)]; !taken {
 			return byte(i), true
 		}

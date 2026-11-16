@@ -197,7 +197,7 @@ func batchPlaceholders(items []wireItem) []string {
 // uncheckedRules are what the validator cannot see: a string's mood, what its
 // id says about it, the host's own rules.
 func (m *Manifest) uncheckedRules(p batchPrompt) []string {
-	example := strings.SplitN(p.items[0].ID, formSeparator, 2)[0]
+	example, _, _ := strings.Cut(p.items[0].ID, formSeparator)
 	rules := []string{
 		`A string's grammatical mood is part of it. An imperative stays an imperative, a question stays a question, a label stays a label — "Save your changes" asks the reader to do something and must still ask it. A label is not a sentence and takes no final full stop the source does not have.`,
 		fmt.Sprintf("Each item's id is <kind>:<path>, and the path is where the string appears in the product — %s, for one. Read it. For a short string it is often the only thing that says what the string is for.", example),

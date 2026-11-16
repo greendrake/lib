@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http/httptest"
 	"reflect"
 	"strings"
@@ -127,9 +128,7 @@ func apiError(err error) *rpcserver.APIError {
 // porch is the arguments of a call on the camera "porch", with more.
 func porch(more map[string]any) map[string]any {
 	args := map[string]any{"Camera": "porch"}
-	for key, value := range more {
-		args[key] = value
-	}
+	maps.Copy(args, more)
 	return args
 }
 

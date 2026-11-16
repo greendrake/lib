@@ -29,7 +29,7 @@ func NALType(nalu []byte) byte {
 func ParameterSets(media Media) ([][]byte, error) {
 	var sets [][]byte
 	for _, key := range []string{"sprop-vps", "sprop-sps", "sprop-pps"} {
-		for _, encoded := range strings.Split(media.Params[key], ",") {
+		for encoded := range strings.SplitSeq(media.Params[key], ",") {
 			if encoded == "" {
 				continue
 			}

@@ -40,7 +40,7 @@ func (s *Scope) Options() translate.Options {
 // dropped.
 func Split(list string) []string {
 	var out []string
-	for _, value := range strings.Split(list, ",") {
+	for value := range strings.SplitSeq(list, ",") {
 		if value = strings.TrimSpace(value); value != "" {
 			out = append(out, value)
 		}

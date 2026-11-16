@@ -392,7 +392,7 @@ func leaseWith(ec2 map[string]*fakeEC2, quotas map[string]*fakeQuotas, tunnels *
 	iam.document = url.PathEscape(operatorPolicy(account, "acme-translate", slices.Sorted(maps.Keys(ec2)), []string{"g7e.2xlarge"}).document())
 	return &Lease{
 		names: "acme-translate", profile: builtins["gemma4-31b"], log: log.log,
-		global: global{iam: iam, sts: fakeSTS{account: account}, pricing: fakePricing{"eu-north-1": onDemandProduct, "us-west-2": westOnDemandProduct}},
+		iam: iam, sts: fakeSTS{account: account}, pricing: fakePricing{"eu-north-1": onDemandProduct, "us-west-2": westOnDemandProduct},
 		regional: func(region string) regional {
 			return regional{ec2: ec2[region], ssm: fakeSSM{}, quotas: quotas[region]}
 		},

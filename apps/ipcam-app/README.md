@@ -83,7 +83,7 @@ On one listener:
 
 ## Build
 
-Building takes Go and bun. In a clone of this repository, `bun install` at its root
+Building takes Go, pnpm and bun. In a clone of this repository, `pnpm install` at its root
 installs the web half's dependencies; its `go.work` puts the Go modules beside the server.
 
 ```

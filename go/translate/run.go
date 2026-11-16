@@ -157,9 +157,7 @@ func (m *Manifest) existing(master *Master, locale string, state *State) (map[st
 		if err != nil {
 			return nil, err
 		}
-		for id, text := range held {
-			out[id] = text
-		}
+		maps.Copy(out, held)
 	}
 	return out, nil
 }
@@ -526,9 +524,7 @@ func (r *localeRun) adopt() (localeOutcome, error) {
 		moved:   r.m.moved(r.master, r.state, r.policy),
 		removed: len(removedIDs(r.master.Units, r.state)),
 	}
-	for pass, digest := range r.policy {
-		r.state.Policy[pass] = digest
-	}
+	maps.Copy(r.state.Policy, r.policy)
 	staleVocabulary, staleOther := r.stale(r.split())
 	outcome.stale = len(staleVocabulary) + len(staleOther)
 	written, err := r.m.saveState(r.locale, r.master, r.translations, r.state)
@@ -954,8 +950,7 @@ func (r *localeRun) ask(ctx context.Context, glossary Glossary, b batch, units [
 	<-r.slots
 	// An answer cut off at the cap — a model looping inside one string, as a
 	// rule — keeps every item it finished.
-	var truncated *llm.TruncatedError
-	if errors.As(err, &truncated) {
+	if truncated, ok := errors.AsType[*llm.TruncatedError](err); ok {
 		rendered, kept, err := cutAnswerOf(truncated.Completion.JSON)
 		if err != nil {
 			return answer{}, "", fmt.Errorf("translate %s: completion is not the agreed shape: %w", r.locale, err)

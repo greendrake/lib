@@ -196,8 +196,7 @@ func (l *login) selected(ctx context.Context) (selection, error) {
 // refusal is the camera's refusal err reports, as the core has it; any other failure
 // passes through.
 func refusal(err error) error {
-	var refused *dvrip.RetError
-	if errors.As(err, &refused) {
+	if refused, ok := errors.AsType[*dvrip.RetError](err); ok {
 		return &ipcam.Refused{Message: refused.Error()}
 	}
 	return err

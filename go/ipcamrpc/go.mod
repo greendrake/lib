@@ -1,14 +1,14 @@
 module greendrake.nz/go/ipcamrpc
 
-go 1.25.0
+go 1.27.0
 
 require (
 	github.com/coder/websocket v1.8.15
-	greendrake.nz/go/camstream v0.1.1
-	greendrake.nz/go/dvrip v0.1.0
-	greendrake.nz/go/ipcam v0.2.0
-	greendrake.nz/go/rpcserver v0.2.0
-	greendrake.nz/go/webcast v0.1.1
+	greendrake.nz/go/camstream v0.2.0
+	greendrake.nz/go/dvrip v0.2.0
+	greendrake.nz/go/ipcam v0.3.0
+	greendrake.nz/go/rpcserver v0.3.0
+	greendrake.nz/go/webcast v0.2.0
 )
 
 require (

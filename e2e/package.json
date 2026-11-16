@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/e2e",
-    "version": "0.9.0",
+    "version": "0.10.0",
     "description": "Playwright kit for single-page apps: config factories, a same-origin crawler, a clipped-content detector, a polling helper and a layout checker",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
@@ -42,7 +42,7 @@
     },
     "prettier": "@greendrake/dev-config/prettier",
     "peerDependencies": {
-        "@playwright/test": ">=1.49.0"
+        "@playwright/test": ">=1.51.0"
     },
     "devDependencies": {
         "@greendrake/dev-config": "workspace:*",

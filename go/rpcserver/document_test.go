@@ -1,6 +1,7 @@
 package rpcserver
 
 import (
+	"maps"
 	"net/http/httptest"
 	"reflect"
 	"sync"
@@ -34,9 +35,7 @@ func (s *state) produce() any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	clone := make(map[string]any, len(s.values))
-	for key, value := range s.values {
-		clone[key] = value
-	}
+	maps.Copy(clone, s.values)
 	return clone
 }
 

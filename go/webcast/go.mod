@@ -1,9 +1,9 @@
 module greendrake.nz/go/webcast
 
-go 1.25.0
+go 1.27.0
 
 require (
 	github.com/bluenviron/mediacommon v1.14.0
 	github.com/coder/websocket v1.8.15
-	greendrake.nz/go/camstream v0.1.1
+	greendrake.nz/go/camstream v0.2.0
 )

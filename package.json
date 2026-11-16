@@ -6,7 +6,7 @@
     "scripts": {
         "check": "pnpm -r --no-bail run check",
         "lint": "eslint .",
-        "test": "bun test ./util/test ./rpc/test ./domains/test ./vite-preset/test ./vue-api/test ./rpc-server/test ./service-state/test ./dash/test ./mse-video/test ./ui-data/test ./ipcam/test ./server/test ./app-store-connect/test ./google-api/test ./examples/service-pair/api/test",
+        "test": "bun test ./util/test ./rpc/test ./domains/test ./vite-preset/test ./vue-api/test ./rpc-server/test ./service-state/test ./dash/test ./mse-video/test ./ui-data/test ./upload/test ./ipcam/test ./rpckit/test ./server/test ./app-store-connect/test ./google-api/test ./examples/service-pair/api/test",
         "e2e": "bun e2e.ts"
     },
     "devDependencies": {

@@ -350,9 +350,7 @@ func readsAs(body string, want map[string]string) error {
 		if err != nil {
 			return err
 		}
-		for key, text := range texts {
-			got[key] = text
-		}
+		maps.Copy(got, texts)
 	}
 	for key, text := range want {
 		if got[key] != text {

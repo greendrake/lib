@@ -32,7 +32,7 @@ var regions = []string{"eu-north-1", "eu-south-2"}
 func setupOf(iam *fakeIAM, ec2 map[string]*fakeEC2, quotas *fakeQuotas, log *lines) *Setup {
 	return &Setup{
 		names: "acme-translate", regions: regions, types: []string{"g7e.2xlarge"}, log: log.log,
-		global:   global{iam: iam, sts: fakeSTS{account: account}},
+		iam: iam, sts: fakeSTS{account: account},
 		regional: func(region string) regional { return regional{ec2: ec2[region], quotas: quotas} },
 	}
 }

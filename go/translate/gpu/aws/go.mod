@@ -1,6 +1,6 @@
 module greendrake.nz/go/translate/gpu/aws
 
-go 1.25.0
+go 1.27.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.11
@@ -14,8 +14,8 @@ require (
 	github.com/aws/smithy-go v1.27.0
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v3 v3.0.1
-	greendrake.nz/go/llm v0.1.0
-	greendrake.nz/go/translate v0.1.0
+	greendrake.nz/go/llm v0.2.0
+	greendrake.nz/go/translate v0.2.0
 )
 
 require (
@@ -45,5 +45,5 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	greendrake.nz/go/i18n v0.1.0 // indirect
+	greendrake.nz/go/i18n v0.2.0 // indirect
 )

@@ -170,7 +170,7 @@ func SplitBlocks(prose string) []string {
 			current = nil
 		}
 	}
-	for _, line := range strings.Split(strings.ReplaceAll(prose, "\r\n", "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.ReplaceAll(prose, "\r\n", "\n"), "\n") {
 		if strings.TrimSpace(line) == "" {
 			flush()
 			continue

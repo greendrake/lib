@@ -41,7 +41,7 @@ type Sink func(path, body string) ([]string, error)
 // instead of a parse error on somebody's next run.
 func WriteYAML(sink Sink, path, header string, value any) ([]string, error) {
 	var out strings.Builder
-	for _, line := range strings.Split(header, "\n") {
+	for line := range strings.SplitSeq(header, "\n") {
 		out.WriteString("# " + line + "\n")
 	}
 	encoder := yaml.NewEncoder(&out)

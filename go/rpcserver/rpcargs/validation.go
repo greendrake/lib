@@ -51,7 +51,7 @@ func NewValidator(rules ...Rule) rpcserver.Validator {
 	// Surface json-tag names (not Go struct field names) in FieldError
 	// payloads, so the client's error display matches what it sent.
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
-		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		name, _, _ := strings.Cut(fld.Tag.Get("json"), ",")
 		switch {
 		case name == "" && fld.Anonymous:
 			return embedded

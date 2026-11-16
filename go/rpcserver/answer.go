@@ -17,8 +17,7 @@ type ErrorCode struct {
 // else is a fault, returned annotated with method for the dispatcher to log
 // and answer CodeInternal.
 func Answer(method string, err error, codes []ErrorCode) error {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return apiErr
 	}
 	if i := slices.IndexFunc(codes, func(c ErrorCode) bool { return errors.Is(err, c.Err) }); i >= 0 {

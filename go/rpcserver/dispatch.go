@@ -164,8 +164,7 @@ func failure(req *Request, code string) *Response {
 // errorResponse answers a failed step of a request: an *APIError by its
 // code, anything else as CodeInternal, logged under step.
 func (d *Dispatcher) errorResponse(hc *HandlerContext, req *Request, step string, err error) *Response {
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*APIError](err); ok {
 		return &Response{ID: req.ID, Success: false, Error: apiErr.Code, ErrorDetails: apiErr.Details}
 	}
 	// Context cancellation is expected when a WS client aborts an in-flight

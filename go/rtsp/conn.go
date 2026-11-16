@@ -443,7 +443,7 @@ func parseSession(field string) (string, time.Duration, error) {
 		return "", 0, fmt.Errorf("rtsp: no session in %q", field)
 	}
 	timeout := defaultSessionTimeout
-	for _, param := range strings.Split(params, ";") {
+	for param := range strings.SplitSeq(params, ";") {
 		if value, found := strings.CutPrefix(strings.TrimSpace(param), "timeout="); found {
 			seconds, err := strconv.Atoi(value)
 			if err != nil || seconds <= 0 {

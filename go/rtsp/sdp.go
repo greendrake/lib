@@ -122,7 +122,7 @@ func parseDescription(sdp []byte, base string) (*Description, error) {
 			if pt != strconv.Itoa(int(media.PayloadType)) {
 				continue
 			}
-			for _, param := range strings.Split(params, ";") {
+			for param := range strings.SplitSeq(params, ";") {
 				key, value, _ := strings.Cut(strings.TrimSpace(param), "=")
 				media.Params[key] = value
 			}

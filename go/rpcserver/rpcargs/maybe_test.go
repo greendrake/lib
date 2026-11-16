@@ -7,7 +7,7 @@ import (
 
 func TestMaybe_Absent(t *testing.T) {
 	type doc struct {
-		Price Maybe[float64] `json:"price,omitempty"`
+		Price Maybe[float64] `json:"price,omitzero"`
 	}
 	var d doc
 	if err := json.Unmarshal([]byte(`{}`), &d); err != nil {
@@ -61,5 +61,28 @@ func TestMaybe_Marshal(t *testing.T) {
 	}
 	if got, _ := json.Marshal(Maybe[float64]{Set: true, Null: true, Value: 1}); string(got) != "null" {
 		t.Errorf("a cleared field: %s", got)
+	}
+}
+
+// A field tagged omitzero keeps each of the three states through an encode
+// and a decode: absent is left out, cleared is null, set is the value.
+func TestMaybe_OmitZeroRoundTrip(t *testing.T) {
+	type doc struct {
+		Price Maybe[float64] `json:"price,omitzero"`
+	}
+	for want, m := range map[string]Maybe[float64]{
+		`{}`:             {},
+		`{"price":null}`: {Set: true, Null: true},
+		`{"price":12.5}`: {Set: true, Value: 12.5},
+	} {
+		got, err := json.Marshal(doc{Price: m})
+		if err != nil || string(got) != want {
+			t.Errorf("%+v: %s, %v, want %s", m, got, err, want)
+			continue
+		}
+		var back doc
+		if err := json.Unmarshal(got, &back); err != nil || back.Price != m {
+			t.Errorf("%s decodes as %+v, %v, want %+v", got, back.Price, err, m)
+		}
 	}
 }

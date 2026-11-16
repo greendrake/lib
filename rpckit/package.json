@@ -1,0 +1,49 @@
+{
+    "name": "@greendrake/rpckit",
+    "version": "0.1.0",
+    "description": "The client half of the Go greendrake.nz/go/rpckit paged-list convention: its list arguments, and the adapter feeding them from @greendrake/ui-data's tables",
+    "license": "MIT",
+    "author": "Eugene Greendrake <eugene@greendrake.nz>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/greendrake/lib.git",
+        "directory": "rpckit"
+    },
+    "homepage": "https://github.com/greendrake/lib/tree/main/rpckit#readme",
+    "bugs": {
+        "url": "https://github.com/greendrake/lib/issues"
+    },
+    "type": "module",
+    "main": "src/main.ts",
+    "types": "src/main.ts",
+    "exports": {
+        ".": {
+            "types": "./src/main.ts",
+            "default": "./src/main.ts"
+        }
+    },
+    "files": [
+        "src"
+    ],
+    "sideEffects": false,
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "check": "vue-tsc --noEmit"
+    },
+    "prettier": "@greendrake/dev-config/prettier",
+    "dependencies": {
+        "@greendrake/ui-data": "workspace:^"
+    },
+    "peerDependencies": {
+        "vue": "^3.5.34"
+    },
+    "devDependencies": {
+        "@greendrake/dev-config": "workspace:*",
+        "@types/bun": "^1.3.5",
+        "typescript": "6.0.3",
+        "vue": "^3.5.34",
+        "vue-tsc": "^2.2.0"
+    }
+}

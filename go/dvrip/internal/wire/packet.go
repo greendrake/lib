@@ -73,14 +73,12 @@ func ReadPacket(r io.Reader) (Packet, error) {
 		return Packet{}, fmt.Errorf("dvrip: packet announces %d bytes", n)
 	}
 	p := Packet{
-		Header: Header{
-			Session:  binary.LittleEndian.Uint32(h[4:]),
-			Sequence: binary.LittleEndian.Uint32(h[8:]),
-			Total:    h[12],
-			Current:  h[13],
-			Code:     Code(binary.LittleEndian.Uint16(h[14:])),
-		},
-		Data: make([]byte, n),
+		Session:  binary.LittleEndian.Uint32(h[4:]),
+		Sequence: binary.LittleEndian.Uint32(h[8:]),
+		Total:    h[12],
+		Current:  h[13],
+		Code:     Code(binary.LittleEndian.Uint16(h[14:])),
+		Data:     make([]byte, n),
 	}
 	if _, err := io.ReadFull(r, p.Data); err != nil {
 		return Packet{}, err

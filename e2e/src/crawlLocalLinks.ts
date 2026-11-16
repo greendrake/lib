@@ -1,22 +1,24 @@
 import { expect, type Page } from '@playwright/test'
 
 // Crawl every same-origin page link reachable from '/': verify each page
-// renders content, exercise SPA navigation by clicking through links, and
-// fail on any uncaught page error. Returns the visited paths for reporting.
+// renders content, exercise SPA navigation by clicking each distinct link
+// once, and fail on any uncaught page error or a click that does not reach a
+// rendered page. Returns the visited paths for reporting.
 
-const hasFileExtension = (url: string): boolean => {
-    const pathname = url.replace(/[?#].*/, '')
+// A path whose last segment carries a file extension names a file, not a page.
+const namesFile = (pathname: string): boolean => {
     const lastSegment = pathname.split('/').pop()
     return !!lastSegment && lastSegment.includes('.') && !lastSegment.startsWith('.')
 }
 
-const isPageLink = (href: string | null): href is string => {
-    if (!href) return false
-    if (href.startsWith('#')) return false
-    if (href.startsWith('mailto:')) return false
-    if (href.startsWith('tel:')) return false
-    if (hasFileExtension(href)) return false
-    return true
+// A URL's path as the crawl keys pages: with its query string, without its
+// fragment.
+const pathOf = (url: URL): string => url.pathname + url.search
+
+// The links of exactly this href that navigate in place, as a CSS selector.
+const linksTo = (href: string): string => {
+    const link = `a[href="${href.replace(/["\\]/g, '\\$&')}"]`
+    return `${link}:not([target]), ${link}[target="_self"]`
 }
 
 export const crawlLocalLinks = async (page: Page, origin: string): Promise<string[]> => {
@@ -39,7 +41,7 @@ export const crawlLocalLinks = async (page: Page, origin: string): Promise<strin
         const url = request.url()
         const reason = request.failure()?.errorText ?? 'unknown'
         // Only warn about real failures of HTTP(S) requests. Aborted requests
-        // are normal when the test navigates away mid-load (e.g. via goBack()).
+        // are normal when a navigation cuts a load short.
         if ((url.startsWith('http://') || url.startsWith('https://')) && reason !== 'net::ERR_ABORTED') {
             console.warn(`Request failed: ${url} (${reason})`)
         }
@@ -57,6 +59,34 @@ export const crawlLocalLinks = async (page: Page, origin: string): Promise<strin
         pageErrors.push(error.message)
     })
 
+    // Waits for the page to render real content — more than 100 characters of
+    // text, other than `unlike`, the text of the page a click left — and
+    // answers its text. networkidle is unreliable with keepalive/analytics
+    // requests. The wait outlives a navigation landing meanwhile, such as a
+    // route's redirect to another site.
+    const rendered = async (unlike = ''): Promise<string> => {
+        try {
+            await page.waitForFunction(
+                previous => {
+                    const text = document.body?.innerText.trim() ?? ''
+                    return text.length > 100 && text !== previous
+                },
+                unlike,
+                { timeout: 10000 }
+            )
+        } catch (error) {
+            console.error(`Pending requests: ${Array.from(pendingRequests).join(', ')}`)
+            throw error
+        }
+        return (await page.locator('body').innerText()).trim()
+    }
+
+    // Loads the path and answers its text once rendered.
+    const load = async (path: string): Promise<string> => {
+        await page.goto(`${origin}${path}`, { waitUntil: 'domcontentloaded' })
+        return rendered()
+    }
+
     while (urlsToVisit.length > 0) {
         const currentPath = urlsToVisit.shift()!
         if (visitedUrls.has(currentPath)) {
@@ -65,105 +95,63 @@ export const crawlLocalLinks = async (page: Page, origin: string): Promise<strin
 
         console.log(`Visiting: ${currentPath}`)
         visitedUrls.add(currentPath)
-
-        await page.goto(`${origin}${currentPath}`, { waitUntil: 'domcontentloaded' })
-
-        // Wait for real content to render (networkidle is unreliable with
-        // keepalive/analytics requests).
-        try {
-            await page.waitForFunction(() => {
-                const body = document.body
-                return !!body && !!body.textContent && body.textContent.trim().length > 100
-            }, { timeout: 10000 })
-        } catch (error) {
-            console.error(`Pending requests: ${Array.from(pendingRequests).join(', ')}`)
-            throw error
-        }
+        let text = await load(currentPath)
 
         // Routes may deliberately leave the site (external-redirect stubs like
         // /store → a marketplace). Once off-origin, nothing on the page belongs
         // to the app: harvesting there would queue the FOREIGN site's paths
         // onto the origin under test. Reaching the redirect without a page
-        // error is the
-        // assertion. Checked after the content wait — the guard's replace can
-        // land any time during boot.
-        if (new URL(page.url()).origin !== new URL(origin).origin) {
+        // error is the assertion. Checked after the content wait — the guard's
+        // replace can land any time during boot.
+        const here = new URL(page.url())
+        if (here.origin !== new URL(origin).origin) {
             console.log(`  → left origin (${page.url()}), skipping harvest`)
             expect(pageErrors).toEqual([])
             continue
         }
-
-        const bodyText = await page.textContent('body')
-        expect(bodyText).toBeTruthy()
         expect(pageErrors).toEqual([])
 
-        // Collect same-origin page links for the crawl queue.
-        const links = await page.evaluate(() => {
-            const fileExt = (url: string): boolean => {
-                const pathname = url.replace(/[?#].*/, '')
-                const lastSegment = pathname.split('/').pop()
-                return !!lastSegment && lastSegment.includes('.') && !lastSegment.startsWith('.')
+        // The page's links to the site's pages, by href: each one's path joins
+        // the queue.
+        const hrefs = await page.locator('a[href]').evaluateAll(links => links.map(a => a.getAttribute('href')!))
+        const pages = new Map<string, URL>()
+        for (const href of hrefs) {
+            const url = new URL(href, here)
+            if (url.origin === here.origin && !namesFile(url.pathname)) {
+                pages.set(href, url)
             }
-            return Array.from(document.querySelectorAll('a[href]'))
-                .map(a => {
-                    const href = a.getAttribute('href')
-                    if (!href) return null
-                    if (href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return null
-                    if (fileExt(href)) return null
-                    if (href.startsWith('http://') || href.startsWith('https://')) {
-                        try {
-                            const url = new URL(href)
-                            if (url.origin !== window.location.origin) return null
-                            if (fileExt(url.pathname)) return null
-                            return url.pathname
-                        } catch {
-                            return null
-                        }
-                    }
-                    return href.startsWith('/') ? href : null
-                })
-                .filter((href): href is string => href !== null)
-        })
-        for (const link of links) {
-            if (!visitedUrls.has(link) && !urlsToVisit.includes(link)) {
-                urlsToVisit.push(link)
+        }
+        for (const url of pages.values()) {
+            const path = pathOf(url)
+            if (!visitedUrls.has(path) && !urlsToVisit.includes(path)) {
+                urlsToVisit.push(path)
             }
         }
 
-        // Click through the links on this page to exercise SPA navigation.
-        // Locators are re-resolved by index each iteration: goBack() rebuilds
-        // the DOM, so a locator captured before the click can go stale.
-        const linkCount = await page.locator('a[href]').count()
-        for (let i = 0; i < linkCount; i++) {
-            // A previous click may have landed on an external-redirect route;
-            // goBack() cannot always recover (location.replace rewrites the
-            // entry). Re-anchor on the page under test before continuing.
-            if (new URL(page.url()).origin !== new URL(origin).origin) {
-                await page.goto(`${origin}${currentPath}`, { waitUntil: 'domcontentloaded' })
-                await page.waitForTimeout(500)
+        // Click through the links to other pages, to exercise SPA navigation.
+        // Each click starts from the page freshly loaded, and must change the
+        // URL and render text other than this page's. A link this page shows
+        // no visible copy of navigating in place (one in a collapsed menu, or
+        // opening a new tab) is left for a page that shows one.
+        let away = false
+        for (const [href, url] of pages) {
+            if (clickedHrefs.has(href) || pathOf(url) === pathOf(here)) {
+                continue
             }
-            const link = page.locator('a[href]').nth(i)
-            try {
-                const href = await link.getAttribute('href', { timeout: 2000 })
-                if (!isPageLink(href) || clickedHrefs.has(href)) {
-                    continue
-                }
-                if (href.startsWith('http://') || href.startsWith('https://')) {
-                    if (new URL(href).origin !== new URL(origin).origin) continue
-                }
-                if ((await link.isVisible()) && (await link.isEnabled())) {
-                    clickedHrefs.add(href)
-                    await link.click()
-                    // Brief settle for the router transition; content asserted below.
-                    await page.waitForTimeout(500)
-                    const postClickBody = await page.textContent('body')
-                    expect(postClickBody).toBeTruthy()
-                    await page.goBack()
-                    await page.waitForTimeout(500)
-                }
-            } catch (error) {
-                console.warn(`Warning: link #${i} click-through failed: ${(error as Error).message}`)
+            if (away) {
+                text = await load(currentPath)
+                away = false
             }
+            const link = page.locator(linksTo(href)).filter({ visible: true }).first()
+            if ((await link.count()) === 0) {
+                continue
+            }
+            clickedHrefs.add(href)
+            await link.click()
+            away = true
+            await page.waitForURL(at => at.href !== here.href)
+            await rendered(text)
+            expect(pageErrors, `after clicking ${href} on ${currentPath}`).toEqual([])
         }
     }
 

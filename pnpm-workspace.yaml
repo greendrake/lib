@@ -15,12 +15,14 @@ packages:
   - mse-video
   - rpc
   - rpc-server
+  - rpckit
   - scss-kit
   - server
   - service-state
   - theme
   - ui
   - ui-data
+  - upload
   - util
   - vite-preset
   - vue-api
@@ -43,11 +45,3 @@ overrides:
   "@greendrake/theme>@greendrake/dev-config": 0.7.0
   "@greendrake/domains>@greendrake/dev-config": 0.7.0
   "@greendrake/eslint-config>@greendrake/dev-config": 0.7.0
-  ipcam-app>@greendrake/dash: 0.13.1
-  ipcam-app>@greendrake/ipcam: 0.2.0
-  ipcam-app>@greendrake/rpc: 0.10.1
-  ipcam-app>@greendrake/scss-kit: 0.8.0
-  ipcam-app>@greendrake/vite-preset: 0.8.0
-  ipcam-app>@greendrake/dev-config: 0.7.0
-  ipcam-app>@greendrake/e2e: 0.8.0
-  ipcam-app>@greendrake/mse-video: 0.1.0

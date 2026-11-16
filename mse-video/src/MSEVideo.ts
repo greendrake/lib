@@ -2,8 +2,10 @@ import { Emitter } from '@greendrake/util'
 import { AudioPlayer } from './AudioPlayer'
 import { acquireStreamHub, type StreamHub, type StreamHubOptions, type StreamSubscription } from './StreamHub'
 import { Backoff } from './Backoff'
+import { concatArrayBuffers } from './bytes'
 import { canPlay, mediaSourceOf, streamCodec } from './codec'
 import { followLiveEdge } from './liveEdge'
+import { Trimmer } from './trim'
 
 export type MSEVideoState = 'closed' | 'opening' | 'listening' | 'playing' | 'resetting' | 'closing'
 
@@ -40,22 +42,13 @@ const DEFAULT_NO_DATA_TIMEOUT_MS = 3000
 const DEFAULT_START_TIMEOUT_MS = 9000
 const DEFAULT_CONNECT_TIMEOUT_MS = 10000
 
-const concatArrayBuffers = (...bufs: ArrayBuffer[]): ArrayBuffer => {
-    const result = new Uint8Array(bufs.reduce((totalSize, buf) => totalSize + buf.byteLength, 0))
-    bufs.reduce((offset, buf) => {
-        result.set(new Uint8Array(buf), offset)
-        return offset + buf.byteLength
-    }, 0)
-    return result.buffer
-}
-
 // MSE live playback engine, fed by one stream of a StreamHub's shared socket.
 //
 // The server streams an fMP4 initialization segment followed by media segments;
 // each payload the hub routes here is appended to a single SourceBuffer.
 //
-// On Safari the source is a ManagedMediaSource, which leaves buffer eviction to
-// the user agent. Its startstreaming/endstreaming throttling hints are not
+// On Safari the source is a ManagedMediaSource, whose user agent may also evict
+// buffered video of its own accord. Its startstreaming/endstreaming throttling hints are not
 // honoured: this is a live feed with no seekable past, so there is nothing to
 // prefetch and nothing to defer.
 //
@@ -77,7 +70,9 @@ const concatArrayBuffers = (...bufs: ArrayBuffer[]): ArrayBuffer => {
 // re-subscribes, and the 'subscribed' event that follows rebuilds the pipeline here
 // around the fresh initialization segment the server starts with.
 //
-// Playback is kept close to the newest frame by followLiveEdge.
+// Playback is kept close to the newest frame by followLiveEdge, and the video it has
+// played is removed from the SourceBuffer as the packets come, up to the key frame the
+// frame on screen depends on, as a Trimmer reading the segments says.
 //
 // Audio, when on, arrives as frames of its own and plays through an AudioPlayer slaved
 // to the video element's clock.
@@ -102,6 +97,8 @@ export class MSEVideo extends Emitter<MSEVideoEvents> {
     #sourceBuffer?: SourceBuffer
     #bufferAbort?: AbortController
     #pendingBuffer?: ArrayBuffer
+    // A new one with each MediaSource, whose stream starts afresh.
+    #trimmer = new Trimmer()
     #watchdog?: ReturnType<typeof setTimeout>
     #reopenTimer?: ReturnType<typeof setTimeout>
     // Exists while the audio is on.
@@ -117,10 +114,7 @@ export class MSEVideo extends Emitter<MSEVideoEvents> {
         this.#videoEl = videoEl
         this.#hub = acquireStreamHub(hubURL, options.hub)
         this.#key = key
-        this.#backoff = new Backoff(
-            options.reopenDelayMs ?? DEFAULT_REOPEN_DELAY_MS,
-            options.maxReopenDelayMs ?? DEFAULT_MAX_REOPEN_DELAY_MS
-        )
+        this.#backoff = new Backoff(options.reopenDelayMs ?? DEFAULT_REOPEN_DELAY_MS, options.maxReopenDelayMs ?? DEFAULT_MAX_REOPEN_DELAY_MS)
         this.#noDataTimeoutMs = options.noDataTimeoutMs ?? DEFAULT_NO_DATA_TIMEOUT_MS
         this.#startTimeoutMs = options.startTimeoutMs ?? DEFAULT_START_TIMEOUT_MS
         this.#connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
@@ -271,6 +265,7 @@ export class MSEVideo extends Emitter<MSEVideoEvents> {
             // Anything ahead of it belongs to the stream being discarded.
             return
         }
+        this.#trimmer.read(packet)
         // The subscription goes live a turn of the event loop before the SourceBuffer
         // it feeds exists, so packets accumulate whether or not there is one yet.
         this.#pendingBuffer = this.#pendingBuffer ? concatArrayBuffers(this.#pendingBuffer, packet) : packet
@@ -278,8 +273,8 @@ export class MSEVideo extends Emitter<MSEVideoEvents> {
     }
 
     // Append the accumulated bytes to the SourceBuffer once there is one and it is not
-    // busy; until then packets pile up in #pendingBuffer, and the 'updateend' listener
-    // re-enters here to flush them.
+    // busy, first removing the played video the Trimmer says to; until then packets
+    // pile up in #pendingBuffer, and the 'updateend' listener re-enters here to flush them.
     #eatPacket(): void {
         if (!this.#sourceBuffer || !this.#pendingBuffer) {
             return
@@ -290,13 +285,19 @@ export class MSEVideo extends Emitter<MSEVideoEvents> {
         if (this.#sourceBuffer.updating) {
             return
         }
-        this.#armWatchdog(this.#noDataTimeoutMs)
-        const packet = this.#pendingBuffer
-        this.#pendingBuffer = undefined
+        const played = this.#trimmer.range(this.#videoEl)
         try {
-            this.#sourceBuffer.appendBuffer(packet)
+            if (played) {
+                // The packet waits for the removal's updateend, which re-enters here.
+                this.#sourceBuffer.remove(...played)
+            } else {
+                this.#armWatchdog(this.#noDataTimeoutMs)
+                const packet = this.#pendingBuffer
+                this.#pendingBuffer = undefined
+                this.#sourceBuffer.appendBuffer(packet)
+            }
         } catch {
-            this.#reset('Append buffer error')
+            this.#reset(played ? 'Remove buffer error' : 'Append buffer error')
         }
     }
 
@@ -334,6 +335,7 @@ export class MSEVideo extends Emitter<MSEVideoEvents> {
         this.#bufferAbort?.abort()
         this.#bufferAbort = undefined
         this.#pendingBuffer = undefined
+        this.#trimmer = new Trimmer()
         this.#sourceBuffer = undefined
         this.#videoEl.pause()
         if (this.#managed) {

@@ -252,8 +252,7 @@ func securityGroups(ctx context.Context, client ec2API, names Names) ([]ec2types
 
 // errorCode is an AWS error's code, or "" for an error that is no AWS error.
 func errorCode(err error) string {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[smithy.APIError](err); ok {
 		return apiErr.ErrorCode()
 	}
 	return ""
@@ -262,8 +261,7 @@ func errorCode(err error) string {
 // missing reports whether an IAM lookup found nothing; any other failure is
 // its error.
 func missing(err error) (bool, error) {
-	var none *iamtypes.NoSuchEntityException
-	if errors.As(err, &none) {
+	if _, ok := errors.AsType[*iamtypes.NoSuchEntityException](err); ok {
 		return true, nil
 	}
 	return false, err

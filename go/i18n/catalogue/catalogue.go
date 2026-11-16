@@ -121,7 +121,7 @@ func (o Options) read(locale string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, prefix := range o.Prefixes {
 		node := tree
-		for _, segment := range strings.Split(prefix, ".") {
+		for segment := range strings.SplitSeq(prefix, ".") {
 			node, _ = node[segment].(map[string]any)
 		}
 		if len(node) == 0 && locale == o.Locales.Default {

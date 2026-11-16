@@ -65,8 +65,8 @@ func selected(t *testing.T, l *login) selection {
 // lastWritten is the configuration last written under name.
 func lastWritten(fake *dvriptest.Camera, name string) json.RawMessage {
 	commands := fake.Commands(name)
-	for i := len(commands) - 1; i >= 0; i-- {
-		if written, set := commands[i].Body[name]; set {
+	for _, command := range slices.Backward(commands) {
+		if written, set := command.Body[name]; set {
 			return written
 		}
 	}

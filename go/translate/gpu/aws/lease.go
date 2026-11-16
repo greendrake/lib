@@ -299,7 +299,7 @@ func (l *Lease) tail(ctx context.Context, instance placed, read string) (string,
 	if at := strings.LastIndex(output, anchor); anchor != "" && at >= 0 {
 		from = at + len(anchor)
 	}
-	for _, line := range strings.Split(output[from:], "\n") {
+	for line := range strings.SplitSeq(output[from:], "\n") {
 		if text, ok := strings.CutPrefix(line, consoleTag); ok {
 			l.log("   | " + text)
 		}

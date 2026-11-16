@@ -21,7 +21,7 @@ func XMLPreamble(header string) (string, error) {
 	}
 	var out strings.Builder
 	out.WriteString(`<?xml version="1.0" encoding="utf-8"?>` + "\n<!--\n")
-	for _, line := range strings.Split(header, "\n") {
+	for line := range strings.SplitSeq(header, "\n") {
 		out.WriteString("    " + line + "\n")
 	}
 	out.WriteString("-->\n")

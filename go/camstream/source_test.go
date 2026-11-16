@@ -194,8 +194,7 @@ func TestSlowSubscriberIsDropped(t *testing.T) {
 func TestLeavingAbandonsAnOpenInFlight(t *testing.T) {
 	late := camstreamtest.NewMonitor()
 	inFlight := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	s := camstream.NewSource(ctx, func(ctx context.Context) (camstream.Monitor, error) {
 		close(inFlight)
 		<-ctx.Done()

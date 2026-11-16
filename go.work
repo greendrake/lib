@@ -1,6 +1,7 @@
 go 1.27.0
 
 use (
+	./apps/ipcam-app/server
 	./go/apiserver
 	./go/camstream
 	./go/dvrip
@@ -8,22 +9,31 @@ use (
 	./go/ipcam
 	./go/ipcamrpc
 	./go/llm
+	./go/persist
+	./go/rpckit
 	./go/rpcserver
 	./go/rtsp
+	./go/sixid
 	./go/spa
+	./go/transcode
 	./go/translate
 	./go/translate/gpu/aws
 	./go/webcast
 )
 
 replace (
-	greendrake.nz/go/camstream v0.1.1 => ./go/camstream
-	greendrake.nz/go/dvrip v0.1.0 => ./go/dvrip
-	greendrake.nz/go/i18n v0.1.0 => ./go/i18n
-	greendrake.nz/go/ipcam v0.2.0 => ./go/ipcam
-	greendrake.nz/go/llm v0.1.0 => ./go/llm
-	greendrake.nz/go/rpcserver v0.2.0 => ./go/rpcserver
-	greendrake.nz/go/rtsp v0.2.0 => ./go/rtsp
-	greendrake.nz/go/translate v0.1.0 => ./go/translate
-	greendrake.nz/go/webcast v0.1.1 => ./go/webcast
+	greendrake.nz/go/apiserver v0.3.0 => ./go/apiserver
+	greendrake.nz/go/camstream v0.2.0 => ./go/camstream
+	greendrake.nz/go/dvrip v0.2.0 => ./go/dvrip
+	greendrake.nz/go/i18n v0.2.0 => ./go/i18n
+	greendrake.nz/go/ipcam v0.3.0 => ./go/ipcam
+	greendrake.nz/go/ipcamrpc v0.2.0 => ./go/ipcamrpc
+	greendrake.nz/go/llm v0.2.0 => ./go/llm
+	greendrake.nz/go/persist v0.1.0 => ./go/persist
+	greendrake.nz/go/rpcserver v0.3.0 => ./go/rpcserver
+	greendrake.nz/go/rtsp v0.3.0 => ./go/rtsp
+	greendrake.nz/go/sixid v0.1.0 => ./go/sixid
+	greendrake.nz/go/spa v0.3.0 => ./go/spa
+	greendrake.nz/go/translate v0.2.0 => ./go/translate
+	greendrake.nz/go/webcast v0.2.0 => ./go/webcast
 )

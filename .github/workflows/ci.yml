@@ -39,6 +39,7 @@ jobs:
       - run: bun verify.ts --base="$BASE" --only=js
 
   # The affected Go modules and app servers: formatted, vetted and tested.
+  # ffmpeg and ffprobe, which the tests of a module transcoding media run.
   go:
     runs-on: ubuntu-24.04
     steps:
@@ -51,6 +52,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.work
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: bun verify.ts --base="$BASE" --only=go
 
   # The affected examples and apps, driven through a browser: the one check

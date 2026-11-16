@@ -76,7 +76,7 @@ func (c *validatingClient) Complete(ctx context.Context, req Request) (Completio
 }
 
 func validateAgainst(schema *jsonschema.Schema, data json.RawMessage) error {
-	var v interface{}
+	var v any
 	if err := json.Unmarshal(data, &v); err != nil {
 		return fmt.Errorf("completion is not valid JSON: %w", err)
 	}

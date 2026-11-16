@@ -1,14 +1,14 @@
 module github.com/greendrake/lib/apps/ipcam-app/server
 
-go 1.25.0
+go 1.27.0
 
 require (
-	greendrake.nz/go/apiserver v0.1.0
-	greendrake.nz/go/ipcam v0.1.0
-	greendrake.nz/go/ipcamrpc v0.1.0
-	greendrake.nz/go/rpcserver v0.1.0
-	greendrake.nz/go/spa v0.1.0
-	greendrake.nz/go/webcast v0.1.0
+	greendrake.nz/go/apiserver v0.3.0
+	greendrake.nz/go/ipcam v0.3.0
+	greendrake.nz/go/ipcamrpc v0.2.0
+	greendrake.nz/go/rpcserver v0.3.0
+	greendrake.nz/go/spa v0.3.0
+	greendrake.nz/go/webcast v0.2.0
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
-	greendrake.nz/go/camstream v0.1.0 // indirect
-	greendrake.nz/go/dvrip v0.1.0 // indirect
-	greendrake.nz/go/rtsp v0.1.0 // indirect
+	greendrake.nz/go/camstream v0.2.0 // indirect
+	greendrake.nz/go/dvrip v0.2.0 // indirect
+	greendrake.nz/go/rtsp v0.3.0 // indirect
 )
