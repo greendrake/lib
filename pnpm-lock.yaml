@@ -166,10 +166,8 @@ overrides:
   '@greendrake/font-inter>@greendrake/dev-config': 0.7.0
   '@greendrake/theme>@greendrake/dev-config': 0.7.0
   '@greendrake/domains>@greendrake/dev-config': 0.7.0
-  '@greendrake/vue-api>@greendrake/ui': ^0.10.0
+  '@greendrake/dash>@greendrake/vue-api': ^0.13.0
   '@greendrake/eslint-config>@greendrake/dev-config': 0.7.0
-  '@greendrake/ipcam>@greendrake/ui': ^0.10.0
-  '@greendrake/rpckit>@greendrake/ui-data': ^0.10.0
   ipcam-app>@greendrake/dash: 0.15.0
   ipcam-app>@greendrake/ipcam: 0.3.0
   ipcam-app>@greendrake/rpc: 0.11.0
@@ -285,8 +283,8 @@ importers:
         specifier: workspace:^
         version: link:../vite-preset
       '@greendrake/vue-api':
-        specifier: workspace:^
-        version: link:../vue-api
+        specifier: ^0.13.0
+        version: 0.13.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
       '@greendrake/vue-app':
         specifier: workspace:^
         version: link:../vue-app
@@ -495,8 +493,8 @@ importers:
         specifier: workspace:^
         version: link:../theme
       '@greendrake/ui':
-        specifier: ^0.10.0
-        version: 0.10.0(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../ui
       '@greendrake/util':
         specifier: workspace:^
         version: link:../util
@@ -577,8 +575,8 @@ importers:
   rpckit:
     dependencies:
       '@greendrake/ui-data':
-        specifier: ^0.10.0
-        version: 0.10.0(@playwright/test@1.60.0)(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../ui-data
     devDependencies:
       '@greendrake/dev-config':
         specifier: workspace:*
@@ -783,8 +781,8 @@ importers:
         specifier: workspace:^
         version: link:../rpc
       '@greendrake/ui':
-        specifier: ^0.10.0
-        version: 0.10.0(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../ui
       '@greendrake/util':
         specifier: workspace:^
         version: link:../util
@@ -1056,15 +1054,6 @@ packages:
 
   '@greendrake/theme@0.8.0':
     resolution: {integrity: sha512-a+EySTzYzPmG4UuXqlLuJed5Q1oeqDvomXvoj0luljKShK8MmMewN13S18WEk/KMv1WPsMw9Ryl+EQFddW0EsA==}
-
-  '@greendrake/ui-data@0.10.0':
-    resolution: {integrity: sha512-VhExecAjKnuNo2kQFibw7PtEToSxU8tL+iWYTReK5FhPGTqntvk2HJTJnkzMViA4ay623A/pnIRRYvdTBNmGXA==}
-    peerDependencies:
-      '@playwright/test': '>=1.49.0'
-      vue: ^3.5.34
-    peerDependenciesMeta:
-      '@playwright/test':
-        optional: true
 
   '@greendrake/ui@0.10.0':
     resolution: {integrity: sha512-o2gnxrY2OS+c+Pf64SpSzQWT0M0oDKtOffrJUxNACl92ySAr/FXlgsiZqUfPh+N+ygCuMY1E/+XsdLULiFy+yQ==}
@@ -2621,15 +2610,6 @@ snapshots:
     dependencies:
       '@greendrake/css-reset': 0.7.1
       '@greendrake/scss-kit': 0.8.0
-
-  '@greendrake/ui-data@0.10.0(@playwright/test@1.60.0)(vue@3.5.45(typescript@6.0.3))':
-    dependencies:
-      '@greendrake/scss-kit': 0.8.0
-      '@greendrake/ui': 0.10.0(vue@3.5.45(typescript@6.0.3))
-      '@greendrake/util': 0.10.0
-      vue: 3.5.45(typescript@6.0.3)
-    optionalDependencies:
-      '@playwright/test': 1.60.0
 
   '@greendrake/ui@0.10.0(vue@3.5.45(typescript@6.0.3))':
     dependencies:

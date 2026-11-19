@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/rpckit",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "The client half of the Go greendrake.nz/go/rpckit paged-list convention: its list arguments, and the adapter feeding them from @greendrake/ui-data's tables",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
