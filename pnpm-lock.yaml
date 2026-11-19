@@ -166,7 +166,6 @@ overrides:
   '@greendrake/font-inter>@greendrake/dev-config': 0.7.0
   '@greendrake/theme>@greendrake/dev-config': 0.7.0
   '@greendrake/domains>@greendrake/dev-config': 0.7.0
-  '@greendrake/dash>@greendrake/vue-api': ^0.13.0
   '@greendrake/eslint-config>@greendrake/dev-config': 0.7.0
   ipcam-app>@greendrake/dash: 0.15.0
   ipcam-app>@greendrake/ipcam: 0.3.0
@@ -283,8 +282,8 @@ importers:
         specifier: workspace:^
         version: link:../vite-preset
       '@greendrake/vue-api':
-        specifier: ^0.13.0
-        version: 0.13.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+        specifier: workspace:^
+        version: link:../vue-api
       '@greendrake/vue-app':
         specifier: workspace:^
         version: link:../vue-app

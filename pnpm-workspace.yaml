@@ -43,7 +43,6 @@ overrides:
   "@greendrake/font-inter>@greendrake/dev-config": 0.7.0
   "@greendrake/theme>@greendrake/dev-config": 0.7.0
   "@greendrake/domains>@greendrake/dev-config": 0.7.0
-  "@greendrake/dash>@greendrake/vue-api": ^0.13.0
   "@greendrake/eslint-config>@greendrake/dev-config": 0.7.0
   ipcam-app>@greendrake/dash: 0.15.0
   ipcam-app>@greendrake/ipcam: 0.3.0
