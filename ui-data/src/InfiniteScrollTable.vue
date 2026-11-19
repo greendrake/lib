@@ -34,6 +34,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type Ref } from 'vue'
 import { useSelection, useWidthDrag, capturePointer, messages, TOUCH_PAN_SLOP_PX } from '@greendrake/ui'
 import { rowKeyOf, valueAt, type Props, type DropTarget, type RowPosition, type VisibleRange, type InfiniteScrollTableExposed } from './InfiniteScrollTable.types'
 import { latestOnly } from './latestOnly'
+import DataCell from './DataCell.vue'
 
 const props = withDefaults(defineProps<Props<T>>(), {
     rowHeight: 45,
@@ -53,8 +54,8 @@ const props = withDefaults(defineProps<Props<T>>(), {
 const emit = defineEmits<{
     'range-changed': [range: VisibleRange]
     rowactivate: [record: T]
-    rowdragstart: [record: T, event: DragEvent]
-    rowdrop: [event: DragEvent, target: DropTarget<T> | null]
+    rowcontextmenu: [records: T[], event: MouseEvent]
+    rowdragstart: [records: T[], event: DragEvent]
 }>()
 
 // State (`as Ref<…>` on the row-bearing refs: ref()'s UnwrapRef cannot resolve
@@ -107,11 +108,37 @@ function scrollToIndex(index: number): void {
     scrollPosition.value = Math.max(0, Math.min(1, offset / maxScrollOffset.value))
 }
 
+// The row a plain press on a selected draggable row picks on its click rather
+// than at once: a drag the press starts instead carries the whole selection.
+let pickOnClick: string | number | null = null
+
 function onRowPointerDown(record: T, e: PointerEvent): void {
     // Touch/pen select on pointerup instead (see onRowPointerUp), so that
     // starting a scroll pan on a row doesn't change the selection.
     if (!selection || e.pointerType !== 'mouse') return
-    selection.pick(keyOf(record), e)
+    const key = keyOf(record)
+    // A right-click — its row's context menu to follow — focuses its row,
+    // selecting it alone unless it is selected already.
+    if (e.button === 2) {
+        if (selection.selected.has(key)) selection.cursor.value = key
+        else selection.replace(key)
+        return
+    }
+    pickOnClick = props.rowDraggable && selection.selected.has(key) && !e.shiftKey && !e.ctrlKey && !e.metaKey ? key : null
+    if (pickOnClick === null) selection.pick(key, e)
+}
+
+function onRowClicked(record: T): void {
+    if (pickOnClick === keyOf(record)) selection!.replace(pickOnClick)
+    pickOnClick = null
+    props.onRowClick?.(record)
+}
+
+// What a row's context menu or drag acts on: the selection the row is in —
+// the selected rows held, in order — else the row alone.
+function selectionOf(record: T): T[] {
+    const selected = selection?.selected
+    return selected?.has(keyOf(record)) ? filteredSortedData.value.filter(r => selected.has(keyOf(r))) : [record]
 }
 
 // A panning pointer is captured by the wrapper (see onWrapperPointerMove), so
@@ -687,6 +714,7 @@ const addRow = (data: T, position: RowPosition = 'start'): void => {
  */
 const removeRows = (keyValues: (string | number)[]): void => {
     const toRemove = new Set(keyValues)
+    for (const key of toRemove) selection?.selected.delete(key)
 
     if (hasAllRecords.value) {
         fullDataset.value = fullDataset.value.filter(r => !toRemove.has(keyOf(r)))
@@ -709,9 +737,9 @@ const resort = (): void => {
     applyLocalOperations(false)
 }
 
-// Drag-and-drop target tracking
+// Drag-and-drop target tracking, for a bound rowdrop
 const onTableDragOver = (e: DragEvent): void => {
-    if (!props.rowDraggable) return
+    if (!props.onRowdrop) return
     e.preventDefault()
     const wrapper = e.currentTarget as HTMLElement
     const rect = wrapper.getBoundingClientRect()
@@ -729,13 +757,13 @@ const onTableDragOver = (e: DragEvent): void => {
 }
 
 const onTableDrop = (e: DragEvent): void => {
-    if (!props.rowDraggable) return
-    emit('rowdrop', e, dropTarget.value)
+    if (!props.onRowdrop) return
+    props.onRowdrop(e, dropTarget.value)
     dropTarget.value = null
 }
 
 const onTableDragLeave = (e: DragEvent): void => {
-    if (!props.rowDraggable) return
+    if (!props.onRowdrop) return
     const wrapper = e.currentTarget as HTMLElement
     if (!wrapper.contains(e.relatedTarget as Node)) {
         dropTarget.value = null
@@ -786,13 +814,10 @@ defineExpose(exposed)
                         </td>
                     </tr>
                     <template v-else>
-                        <tr v-for="record in displayRecords" :key="keyOf(record)" :style="{ height: `${rowHeight}px` }" :class="{ 'clickable-row': onRowClick, 'selected-row': selection?.selected.has(keyOf(record)), 'drop-before': dropTarget?.record === record && dropTarget.position === 'before', 'drop-after': dropTarget?.record === record && dropTarget.position === 'after' }" :draggable="rowDraggable || undefined" @click="onRowClick?.(record)" @pointerdown="onRowPointerDown(record, $event)" @pointerup="onRowPointerUp(record, $event)" @dblclick="emit('rowactivate', record)" @dragstart="rowDraggable && emit('rowdragstart', record, $event)">
+                        <tr v-for="record in displayRecords" :key="keyOf(record)" :style="{ height: `${rowHeight}px` }" :class="{ 'clickable-row': onRowClick, 'selected-row': selection?.selected.has(keyOf(record)), 'drop-before': dropTarget?.record === record && dropTarget.position === 'before', 'drop-after': dropTarget?.record === record && dropTarget.position === 'after' }" :draggable="rowDraggable || undefined" @click="onRowClicked(record)" @pointerdown="onRowPointerDown(record, $event)" @pointerup="onRowPointerUp(record, $event)" @dblclick="emit('rowactivate', record)" @contextmenu="emit('rowcontextmenu', selectionOf(record), $event)" @dragstart="rowDraggable && emit('rowdragstart', selectionOf(record), $event)">
                             <td v-for="(column, i) in columns" :key="column.field" :class="[column.className, column.cellClass?.(valueAt(record, column.field), record), { clickable: column.onCellClick }]" :style="{ height: `${rowHeight}px`, width: colWidths[i] != null ? colWidths[i] + 'px' : undefined }" @click="column.onCellClick?.(valueAt(record, column.field), record)">
                                 <div :class="['cell-content', { 'cell-wrap': column.wrap }]" :style="{ height: `${rowHeight}px`, lineHeight: column.wrap ? undefined : `${rowHeight}px` }">
-                                    <component :is="column.component" v-if="column.component" v-bind="column.componentProps?.(record)" />
-                                    <template v-else>
-                                        {{ column.formatter ? column.formatter(valueAt(record, column.field), record) : valueAt(record, column.field) }}
-                                    </template>
+                                    <DataCell :column="column" :record="record" />
                                 </div>
                             </td>
                         </tr>

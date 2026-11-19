@@ -26,5 +26,9 @@ const active = defineModel<string>('active')
     flex-direction: column;
     height: 100vh;
     width: 100%;
+    // A flex item of the theme's centred <body>: without this its automatic
+    // minimum (its content's width) would overflow <body> on both sides, the
+    // left out of reach.
+    min-width: 0;
 }
 </style>

@@ -30,24 +30,14 @@ const rows = computed(() => props.items.filter((item): item is DescriptionItem =
     </dl>
 </template>
 <style lang="scss" scoped>
+@use './labelValueGrid' as *;
+
 .DescriptionList {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: var(--space-1) var(--space-3);
-    margin: 0;
+    @include label-value-grid;
 
-    dt {
-        font-weight: 600;
-    }
-
-    dd {
-        margin: 0;
-        word-break: break-word;
-
-        code {
-            background: var(--form-background);
-            padding: 0 var(--space-1);
-        }
+    dd code {
+        background: var(--form-background);
+        padding: 0 var(--space-1);
     }
 }
 </style>

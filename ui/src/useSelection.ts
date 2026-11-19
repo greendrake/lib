@@ -1,9 +1,12 @@
-import { shallowReactive, shallowRef, toValue, type MaybeRefOrGetter, type Ref, type ComputedRef } from 'vue'
+import { shallowReactive, shallowRef, toValue, watch, type MaybeRefOrGetter, type Ref, type ComputedRef } from 'vue'
 
 type Key = string | number
 
 // The arrows' steps through the list.
 const arrowSteps: Record<string, number> = { ArrowUp: -1, ArrowDown: 1 }
+
+// Whether the ids are those the set holds.
+const holdsExactly = <Id>(set: Set<Id>, ids: Id[]): boolean => set.size === ids.length && ids.every(id => set.has(id))
 
 // Flat, index-addressable multi-selection over an ordered item list: single
 // (replace), ctrl-toggle, shift-range from an anchor, keyboard cursor moves,
@@ -11,11 +14,34 @@ const arrowSteps: Record<string, number> = { ArrowUp: -1, ArrowDown: 1 }
 // the anchor and the cursor are rows, addressed by items[i][keyField] — the
 // id itself unless an item shows in several rows (a tree node under two
 // parents), whose keys tell them apart. Without multi, every pick replaces.
-export default function useSelection<Id extends Key>(items: Ref<Record<string, unknown>[]> | ComputedRef<Record<string, unknown>[]>, idField: string, { keyField = idField, multi = true }: { keyField?: string; multi?: MaybeRefOrGetter<boolean> } = {}) {
+// A model array, given, mirrors the selection both ways: seeded from it, each
+// follows the other.
+export default function useSelection<Id extends Key>(items: Ref<Record<string, unknown>[]> | ComputedRef<Record<string, unknown>[]>, idField: string, { keyField = idField, multi = true, model }: { keyField?: string; multi?: MaybeRefOrGetter<boolean>; model?: Ref<Id[]> } = {}) {
     const selected: Set<Id> = shallowReactive(new Set())
     // The row the keyboard moves from; the anchor is the one ranges extend from.
     const cursor = shallowRef<Key | null>(null)
     let anchor: Key | null = null
+
+    /** Selects the ids alone. */
+    function selectOnly(ids: Iterable<Id>): void {
+        selected.clear()
+        for (const id of ids) selected.add(id)
+    }
+
+    // Each mirror watcher does nothing when the two agree already, so the
+    // round-trip ends.
+    if (model) {
+        selectOnly(model.value)
+        watch(
+            () => [...selected],
+            ids => {
+                if (!holdsExactly(new Set(model.value), ids)) model.value = ids
+            }
+        )
+        watch(model, ids => {
+            if (!holdsExactly(selected, ids)) selectOnly(ids)
+        })
+    }
 
     const getId = (index: number): Id => items.value[index][idField] as Id
     const keyAt = (index: number): Key => items.value[index][keyField] as Key
@@ -23,13 +49,12 @@ export default function useSelection<Id extends Key>(items: Ref<Record<string, u
 
     // Selects the rows from index a to index b, either way round, alone.
     function selectRange(a: number, b: number): void {
-        selected.clear()
-        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) selected.add(getId(i))
+        const from = Math.min(a, b)
+        selectOnly(Array.from({ length: Math.max(a, b) - from + 1 }, (_, i) => getId(from + i)))
     }
 
     function replace(key: Key): void {
-        selected.clear()
-        selected.add(getId(indexOf(key)))
+        selectOnly([getId(indexOf(key))])
         anchor = key
         cursor.value = key
     }
@@ -88,6 +113,7 @@ export default function useSelection<Id extends Key>(items: Ref<Record<string, u
         cursor,
         getId,
         replace,
+        selectOnly,
         pick,
         onKeyDown
     }

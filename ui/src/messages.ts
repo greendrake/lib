@@ -35,7 +35,24 @@ const defaults = {
     invalidEmail: 'Not a valid email address',
     selectOption: 'Select an option',
     // The accessible name of InfoTip's mark; what it explains is the tooltip.
-    aboutThis: 'About this'
+    aboutThis: 'About this',
+    // The accessible names of ThumbnailGrid's pager controls: its buttons, its
+    // slider and its field.
+    firstPage: 'First page',
+    previousPage: 'Previous page',
+    nextPage: 'Next page',
+    lastPage: 'Last page',
+    page: 'Page',
+    goToPage: 'Go to page',
+    // The accessible names of ThumbnailGrid's file icons, one per kind of file.
+    fileImage: 'Image',
+    fileVideo: 'Video',
+    fileAudio: 'Audio',
+    fileDocument: 'Document',
+    fileSpreadsheet: 'Spreadsheet',
+    filePresentation: 'Presentation',
+    fileArchive: 'Archive',
+    fileOther: 'File'
 }
 
 export type UiMessages = typeof defaults

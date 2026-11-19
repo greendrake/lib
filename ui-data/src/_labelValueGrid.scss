@@ -1,0 +1,17 @@
+// A <dl> of labels (dt) beside their values (dd): the labels' column as wide
+// as the widest, the values taking the rest and breaking where they must.
+@mixin label-value-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-1) var(--space-3);
+    margin: 0;
+
+    dt {
+        font-weight: 600;
+    }
+
+    dd {
+        margin: 0;
+        word-break: break-word;
+    }
+}

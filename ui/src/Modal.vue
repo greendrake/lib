@@ -116,14 +116,15 @@ onMounted(() => {
 onUnmounted(() => unregister())
 
 // The teleported root element, for hosts that need to attach native listeners
-// to the modal surface (e.g. Gallery's swipe handling).
+// to the modal surface (e.g. Gallery's swipe handling), and the window, for
+// hosts that size it by its content (Gallery).
 const rootEl = ref<HTMLElement | null>(null)
-defineExpose({ rootEl })
+const windowEl = ref<HTMLElement | null>(null)
+defineExpose({ rootEl, windowEl })
 
 // The sheet under the finger. Null whenever no drag owns the current touch —
 // which is every touch outside the sheet presentation, and every one the checks
 // in onTouchStart hand back.
-const windowEl = ref<HTMLElement | null>(null)
 let drag: SheetDrag | null = null
 
 const resetDrag = (): void => {

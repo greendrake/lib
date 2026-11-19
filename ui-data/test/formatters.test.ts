@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { fmtBytes, fmtDate, fmtDateTime, fmtDay, fmtMarkupText, fmtNumber, fmtYesNo, parseInstant } from '../src/formatters'
+import { fmtBytes, fmtDate, fmtDateTime, fmtDay, fmtDuration, fmtMarkupText, fmtNumber, fmtYesNo, parseInstant } from '../src/formatters'
 import { configureUiDataMessages } from '../src/messages'
 import { withDom } from './dom'
 
@@ -28,7 +28,7 @@ test('fmtDate is the instant in UTC', () => {
 })
 
 test('a missing value formats as nothing', () => {
-    for (const format of [fmtDate, fmtNumber, fmtBytes, fmtDateTime('short'), fmtDay('short'), fmtMarkupText]) {
+    for (const format of [fmtDate, fmtNumber, fmtBytes, fmtDuration, fmtDateTime('short'), fmtDay('short'), fmtMarkupText]) {
         for (const missing of [null, undefined, '']) {
             expect(format(missing)).toBe('')
         }
@@ -74,6 +74,23 @@ test('fmtBytes picks the unit an amount reads under 1024 in, rounded to a tenth'
     for (const [bytes, want] of cases) {
         expect(fmtBytes(bytes)).toBe(want)
     }
+})
+
+test('fmtDuration reads seconds as a clock does, rounded to the second', () => {
+    const cases: [number | string, string][] = [
+        [0, '0:00'],
+        [12.5, '0:13'],
+        [59.4, '0:59'],
+        [59.5, '1:00'],
+        ['754', '12:34'],
+        [3599, '59:59'],
+        [3600, '1:00:00'],
+        [37230.2, '10:20:30']
+    ]
+    for (const [seconds, want] of cases) {
+        expect(fmtDuration(seconds)).toBe(want)
+    }
+    expect(() => fmtDuration('long')).toThrow(TypeError)
 })
 
 describe('date styles', () => {

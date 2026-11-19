@@ -88,6 +88,8 @@ export interface Props<T = Record<string, unknown>> {
     rowDraggable?: boolean
     hideHeader?: boolean
     onRowClick?: (record: T) => void
+    /** A drag dropped on the table: the drop, and the row it lands before or after, if over one. Bound, the table tracks drop targets. */
+    onRowdrop?: (event: DragEvent, target: DropTarget<T> | null) => void
     /** Rows fetched per remote request — the offset/limit window held in memory. */
     bufferSize?: number
     /**

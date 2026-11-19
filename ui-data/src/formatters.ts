@@ -67,6 +67,14 @@ export const fmtBytes = blankable(v => {
     return `${byteAmount.format(amount)} ${BYTE_UNITS[unit]}`
 })
 
+/** A count of seconds (a number or numeric string) as a clock reads a span: `H:MM:SS`, or `M:SS` under an hour, rounded to the second. */
+export const fmtDuration = blankable(v => {
+    const total = Math.round(Number(numeric(v)))
+    const [hours, minutes, seconds] = [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
+    const pad = (n: number): string => String(n).padStart(2, '0')
+    return hours ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`
+})
+
 /** An Intl date/time style. */
 export type DateStyle = 'full' | 'long' | 'medium' | 'short'
 

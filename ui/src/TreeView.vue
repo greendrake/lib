@@ -77,9 +77,10 @@ const vSelectOnMount: Directive<HTMLInputElement> = {
 // by its path from the root, while the children cache, expansion and selection
 // stay per node. The cursor's row is the focused occurrence — which node, under
 // which parent. With `draggable`, a row dropped on another emits `move`. With
-// onRename, a double-clicked label turns into an input; with onAddChild,
-// addChild() opens one for a new child.
-import { ref, computed, reactive, watch, onMounted, nextTick } from 'vue'
+// `dropType`, a drag from elsewhere carrying that type drops onto a row,
+// emitting `drop`. With onRename, a double-clicked label turns into an input;
+// with onAddChild, addChild() opens one for a new child.
+import { ref, computed, reactive, onMounted, nextTick } from 'vue'
 import useSelection from './useSelection'
 
 const props = withDefaults(
@@ -91,6 +92,8 @@ const props = withDefaults(
         editField?: string
         multiSelect?: boolean
         draggable?: boolean
+        /** The data type of the drags from elsewhere that drop onto a row. */
+        dropType?: string
         /** Saves a rename; a rejection keeps the input open. */
         onRename?: (node: TreeNodeId, value: string) => Promise<void>
         /** Saves a new child; a rejection keeps the input open. */
@@ -106,6 +109,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     move: [move: TreeMove]
+    /** A drag from elsewhere carrying `dropType` was dropped on a row: the row's node, and the drop. */
+    drop: [node: TreeNode, event: DragEvent]
     /** A row was right-clicked, after it became the focused one, selected. */
     contextmenu: [event: MouseEvent]
 }>()
@@ -179,32 +184,16 @@ const rows = computed(() => {
 
 const nodeRows = computed(() => rows.value.filter((row): row is NodeRow => 'node' in row))
 
-const selection = useSelection<TreeNodeId>(nodeRows, 'id', { keyField: 'key', multi: () => props.multiSelect })
+// Selection is owned by useSelection's Set; the v-model array mirrors it.
+const selection = useSelection<TreeNodeId>(nodeRows, 'id', {
+    keyField: 'key',
+    multi: () => props.multiSelect,
+    model: selected
+})
 
 // The cursor's row and its occurrence, while visible.
 const focusedRow = computed(() => nodeRows.value.find(row => row.key === selection.cursor.value) ?? null)
 const focused = computed<TreeOccurrence | null>(() => focusedRow.value && { node: focusedRow.value.id, parent: focusedRow.value.parent })
-
-// Selection is owned by useSelection's Set; the v-model array is a mirror. Seed
-// the Set from any initial model value, then keep both in sync. Each watcher
-// no-ops when the two already agree, so the round-trip terminates.
-for (const id of selected.value) selection.selected.add(id)
-
-watch(
-    () => [...selection.selected],
-    arr => {
-        if (arr.length !== selected.value.length || arr.some(id => !selected.value.includes(id))) {
-            selected.value = arr
-        }
-    }
-)
-
-watch(selected, val => {
-    const set = selection.selected
-    if (set.size === val.length && val.every(id => set.has(id))) return
-    set.clear()
-    for (const id of val) set.add(id)
-})
 
 async function loadChildren(id: TreeNodeId): Promise<void> {
     childLoading.add(id)
@@ -331,12 +320,15 @@ function onDragStart(row: NodeRow, e: DragEvent): void {
     e.dataTransfer!.setData('text/plain', String(row.id))
 }
 
-// Where over the row the pointer is: its upper third before the row, its
-// lower third after it, the middle inside. A row whose path passes through
-// the dragged node — any occurrence of it, or any row under one — is no
-// target: the drop would put the node under itself.
+// Where a drag over the row drops. A row dragged in the tree drops where over
+// the row the pointer is: its upper third before the row, its lower third
+// after it, the middle inside; a row whose path passes through the dragged
+// node — any occurrence of it, or any row under one — is no target: the drop
+// would put the node under itself. A drag from elsewhere carrying `dropType`
+// drops inside, with the effect its source allows.
 function dropPosition(row: NodeRow, e: DragEvent): DropPosition | null {
-    if (!dragged.value || row.key.split(pathSeparator).includes(String(dragged.value.id))) return null
+    if (!dragged.value) return props.dropType !== undefined && e.dataTransfer!.types.includes(props.dropType) ? 'inside' : null
+    if (row.key.split(pathSeparator).includes(String(dragged.value.id))) return null
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const at = (e.clientY - rect.top) / rect.height
     return at < 1 / 3 ? 'before' : at > 2 / 3 ? 'after' : 'inside'
@@ -349,7 +341,7 @@ function onDragOver(row: NodeRow, e: DragEvent): void {
         return
     }
     e.preventDefault()
-    e.dataTransfer!.dropEffect = 'move'
+    if (dragged.value) e.dataTransfer!.dropEffect = 'move'
     dropTarget.value = { key: row.key, position }
 }
 
@@ -361,8 +353,12 @@ function onDrop(row: NodeRow, e: DragEvent): void {
     const position = dropPosition(row, e)
     const head = dragged.value
     onDragEnd()
-    if (!position || !head) return
+    if (!position) return
     e.preventDefault()
+    if (!head) {
+        emit('drop', row.node, e)
+        return
+    }
     const from = { node: head.id, from: head.parent }
     emit(
         'move',
@@ -438,6 +434,8 @@ onMounted(loadRoots)
     </ul>
 </template>
 <style lang="scss">
+@use '@greendrake/scss-kit' as *;
+
 // One column width, shared by guide cells, the toggle box, and the leaf spacer so
 // connectors line up under their parent's box exactly.
 $indent: 16px;
@@ -473,17 +471,7 @@ $line-color: var(--tree-line-color, var(--border-color-light));
             background-color: var(--row-select-color, rgba(127, 127, 127, 0.32));
         }
 
-        // Drop targets while dragging: a line on the edge the node lands
-        // beside, an outline around the row it lands under.
-        &[data-drop='before'] {
-            box-shadow: inset 0 2px 0 var(--accent-color);
-        }
-        &[data-drop='after'] {
-            box-shadow: inset 0 -2px 0 var(--accent-color);
-        }
-        &[data-drop='inside'] {
-            box-shadow: inset 0 0 0 1px var(--accent-color);
-        }
+        @include drop-marks;
     }
 
     // One indentation column. Lines are centered on the column (left/top 50%, a

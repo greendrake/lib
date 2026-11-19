@@ -19,6 +19,25 @@
     }
 }
 
+// The marks a drag sets on the rows of a list: `data-drop` on the row the
+// dragged item would land beside (`before` or `after` it, a line on that edge)
+// or under (`inside` it, an outline round the row), and `data-dragged` on the
+// row being dragged, faded.
+@mixin drop-marks {
+    &[data-drop='before'] {
+        box-shadow: inset 0 2px 0 var(--accent-color);
+    }
+    &[data-drop='after'] {
+        box-shadow: inset 0 -2px 0 var(--accent-color);
+    }
+    &[data-drop='inside'] {
+        box-shadow: inset 0 0 0 1px var(--accent-color);
+    }
+    &[data-dragged] {
+        opacity: 0.4;
+    }
+}
+
 @mixin apply-props($props) {
     @each $prop, $value in $props {
         #{$prop}: #{$value};
