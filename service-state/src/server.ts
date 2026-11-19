@@ -1,5 +1,5 @@
 import { ApiError, topicsOf } from '@greendrake/rpc-server'
-import type { Audience, Document, DocumentPublisher, HandlerContext, MethodAccess, MethodDef } from '@greendrake/rpc-server'
+import type { Audience, Document, DocumentPublisher, HandlerContext, MethodAccess, MethodDef, MethodDefs } from '@greendrake/rpc-server'
 import { SERVICE_BUSY, SERVICE_NOT_FOUND, TRANSITIONS, serviceStateDocument } from './main'
 import type { ServiceCommand, ServiceCondition, ServiceDocument, ServiceRef, ServiceState, ServiceStateMethods, ServiceStatus } from './main'
 
@@ -273,10 +273,6 @@ export const createServiceStateMachine = (name: string, service: ServiceImplemen
     return machine
 }
 
-// Derived from the client-facing contract rather than restated beside it: a
-// method added there has to be defined here before this compiles.
-export type ServiceStateMethodDefs<P> = { [K in keyof ServiceStateMethods]: MethodDef<Parameters<ServiceStateMethods[K]>[0], ReturnType<ServiceStateMethods[K]>, P> }
-
 // The argument every method takes, checked for its shape. Whether it names a
 // service the board has is the board's to say, as SERVICE_NOT_FOUND. Written
 // against Standard Schema directly, so this package carries no validator.
@@ -300,11 +296,13 @@ export interface ServiceStateAccess<P> {
 
 // The five methods over every machine on the board, ready to merge into a
 // dispatch table: one socket serves them all, each call naming its service.
-export const serviceStateMethods = <P>(board: ServiceStateBoard, access: ServiceStateAccess<P>): ServiceStateMethodDefs<P> => {
+// Typed by the client-facing contract, so a method added there has to be
+// defined here before this compiles.
+export const serviceStateMethods = <P>(board: ServiceStateBoard, access: ServiceStateAccess<P>): MethodDefs<ServiceStateMethods, P> => {
     // Each method is the same three steps — the argument checked, the service
     // it names found, one thing asked of that service's machine — and differs
     // only in what is asked, and under which access.
-    const asking = (allowed: MethodAccess<P>, ask: (machine: ServiceStateMachine, ctx: HandlerContext<P>) => Promise<void> | void): MethodDef<ServiceRef, void, P> => ({
+    const asking = (allowed: MethodAccess<P>, ask: (machine: ServiceStateMachine, ctx: HandlerContext<P>) => Promise<void> | void): MethodDefs<ServiceStateMethods, P>[keyof ServiceStateMethods] => ({
         ...allowed,
         args: SERVICE_REF,
         handler: async (ctx, { service }) => {

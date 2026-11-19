@@ -1,4 +1,4 @@
-export { method, topicsOf, type AuthRequirement, type AuthResolver, type CallContext, type ClientIpResolver, type ClientMethods, type DataFrame, type EventFrame, type HandlerContext, type IncomingFrame, type IncomingRequest, type LocaleResolver, type MethodAccess, type MethodDef, type Methods, type NonceStore, type Topics, type WsResponse } from './types'
+export { method, topicsOf, type AuthRequirement, type AuthResolver, type CallContext, type ClientIpResolver, type DataFrame, type EventFrame, type HandlerContext, type IncomingFrame, type IncomingRequest, type LocaleResolver, type MethodAccess, type MethodDef, type MethodDefs, type Methods, type NonceStore, type Topics, type WsResponse } from './types'
 export { ApiError } from './errors'
 export { unwrapArguments, validateArguments } from './arguments'
 export { createDispatcher, trustProxy, type Dispatcher, type DispatcherOptions } from './dispatcher'

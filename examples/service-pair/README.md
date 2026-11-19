@@ -30,7 +30,8 @@ The API's own test drives the real server with `@greendrake/rpc`'s client — th
 
 ## What to copy from it
 
-- `api/src/methods.ts` — the dispatch table, and `ClientMethods<…>` deriving the client's method map from it so the two sides cannot drift.
+- `api/src/contract.ts` — the contract: the method map a client is typed by, in a module that imports neither side's code.
+- `api/src/methods.ts` — the dispatch table, typed by the contract (`MethodDefs<…>`) so the two sides cannot drift.
 - `api/src/service.ts` — `serve()` with probes and a shutdown deadline around an HTTP endpoint and a WebSocket one.
 - `dash/src/api.ts` — one `WsTransport` carrying both the calls and the documents of the services watched, authenticated at the handshake, and the keeper the controls watch through.
 - `dash/vite.config.ts` — `dashApp` and the `.env.dev` / `.env.prod` convention.

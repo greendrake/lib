@@ -2,8 +2,8 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import type { Server } from 'bun'
 import { ApiError, HttpTransport, RpcClient, WebSocketPipe, WsTransport, tokenAuth } from '@greendrake/rpc'
 import type { Codec, WsAuthStrategy } from '@greendrake/rpc'
-import { ConnRegistry, createDispatcher, httpHandler, keyAuthResolver, method, topicsOf, trustProxy, websocketHandler } from '../src/main'
-import type { Connection, ConnectionData, Methods, RpcWebSocket } from '../src/main'
+import { ConnRegistry, createDispatcher, httpHandler, keyAuthResolver, topicsOf, trustProxy, websocketHandler } from '../src/main'
+import type { Connection, ConnectionData, MethodDefs, RpcWebSocket } from '../src/main'
 import { schema } from './standardSchema'
 
 // The interop test: the server in this package, driven by the very client
@@ -17,7 +17,7 @@ const OPERATOR = 'operator'
 
 interface ApiMethods {
     add: (args: { a: number; b: number }) => number
-    whoami: () => string
+    whoami: () => string | null
     whereFrom: () => string
     hang: (args: { label: string }) => never
     watch: (args: { topic: string }) => void
@@ -63,40 +63,41 @@ const labelled = schema<{ label: string }>(value => {
     return typeof label === 'string' ? { value: { label } } : { issues: [{ message: 'a label, please' }] }
 })
 
-const methods: Methods<string> = {
-    add: method({
+// Typed by the contract the client is typed by, as a real pair is.
+const methods: MethodDefs<ApiMethods, string> = {
+    add: {
         auth: 'none',
         args: addends,
         handler: (_ctx, args) => args.a + args.b
-    }),
+    },
     whoami: { auth: 'required', handler: ctx => ctx.principal },
     whereFrom: { auth: 'none', handler: ctx => ctx.clientIp },
-    hang: method({
+    hang: {
         auth: 'none',
         args: labelled,
         handler: (ctx, { label }) =>
             new Promise<never>(() => {
                 ctx.signal.addEventListener('abort', () => abortWaiters.get(label)?.(), { once: true })
             })
-    }),
-    watch: method({
+    },
+    watch: {
         auth: 'none',
         args: named,
         handler: (ctx, args) => topicsOf(ctx).join(args.topic)
-    }),
-    unwatch: method({
+    },
+    unwatch: {
         auth: 'none',
         args: named,
         handler: (ctx, args) => topicsOf(ctx).leave(args.topic)
-    }),
-    'watch.later': method({
+    },
+    'watch.later': {
         auth: 'none',
         args: named,
         handler: async (ctx, args) => {
             await joinAllowed
             topicsOf(ctx).join(args.topic)
         }
-    })
+    }
 }
 
 const registry = new ConnRegistry<string>()

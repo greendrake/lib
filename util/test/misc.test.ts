@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { arrayRemove, capitalise, configuration, createDeferred, dClone, fileMime, humanFileSize, humanSeconds, isEmpty, randomKey, randomString, recordsEqual } from '../src/misc'
+import { arrayRemove, capitalise, configuration, createDeferred, dClone, fileMime, humanCount, humanFileSize, humanSeconds, isEmpty, randomKey, randomString, recordsEqual } from '../src/misc'
 
 describe('recordsEqual', () => {
     test.each([
@@ -71,6 +71,12 @@ describe('misc', () => {
         expect(humanSeconds(3661)).toBe('1h 1m')
         expect(humanSeconds(59)).toBe('59s')
         expect(humanSeconds(86400 + 3600)).toBe('1d 1h')
+    })
+
+    test('humanCount: the noun plural unless there is one', () => {
+        expect(humanCount(1, 'file')).toBe('1 file')
+        expect(humanCount(0, 'file')).toBe('0 files')
+        expect(humanCount(3, 'file')).toBe('3 files')
     })
 
     test('humanFileSize binary and SI', () => {

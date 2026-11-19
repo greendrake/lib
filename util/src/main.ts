@@ -1,5 +1,5 @@
 export { Emitter, type EventMap } from './Emitter'
-export { randomString, randomKey, dClone, isEmpty, arrayRemove, arraysEqual, recordsEqual, capitalise, humanSeconds, humanFileSize, fileMime, configuration, createDeferred, type Deferred } from './misc'
+export { randomString, randomKey, dClone, isEmpty, arrayRemove, arraysEqual, recordsEqual, capitalise, humanSeconds, humanCount, humanFileSize, fileMime, configuration, createDeferred, type Deferred } from './misc'
 export { TimeOutPromise, Debouncer, Delayed, coalesced } from './timing'
 export { Retrier, RetryStopped, type RetrierOptions, type RetrierEvents } from './Retrier'
 export { StalenessDetector, type StalenessEvents } from './StalenessDetector'

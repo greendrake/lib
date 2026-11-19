@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { SERVICE_NOT_FOUND, serviceStateMethods } from '@greendrake/service-state/server'
 import type { ServiceStateBoard } from '@greendrake/service-state/server'
-import { ApiError, method } from '@greendrake/rpc-server'
-import type { ClientMethods, MethodAccess } from '@greendrake/rpc-server'
+import { ApiError } from '@greendrake/rpc-server'
+import type { MethodAccess, MethodDefs } from '@greendrake/rpc-server'
+import type { ApiMethods } from './contract'
 import type { MockService } from './mock'
 
 // The one principal this API knows: whoever holds the operator key.
@@ -13,12 +14,9 @@ export type Operator = typeof OPERATOR
 // only credential there is, so holding it is all there is to ask.
 const OPERATOR_ONLY: MethodAccess<Operator> = { auth: 'required' }
 
-// The methods beyond the shared service-state contract, each on the mocked
-// service it names. `mock.fail_next` is a hook for reaching ERROR without
-// breaking anything, once the transition's delay is up or at once; it takes
-// arguments, so it is also where argument validation is shown — zod here,
-// though any Standard Schema validator plugs into the same field.
-// `mock.reads` answers how many times the service has been checked.
+// The arguments of the methods beyond the shared service-state contract, each
+// naming the mocked service it acts on: where argument validation is shown —
+// zod here, though any Standard Schema validator plugs into the same field.
 const failNext = z.object({
     service: z.string(),
     command: z.enum(['start', 'stop']),
@@ -26,7 +24,9 @@ const failNext = z.object({
 })
 const named = z.object({ service: z.string() })
 
-export const apiMethods = (board: ServiceStateBoard, mocks: ReadonlyMap<string, MockService>) => {
+// Typed by the contract its clients are typed by: a method declared there has
+// to be defined here, with the argument and the result declared there.
+export const apiMethods = (board: ServiceStateBoard, mocks: ReadonlyMap<string, MockService>): MethodDefs<ApiMethods, Operator> => {
     const mockOf = (service: string): MockService => {
         const mock = mocks.get(service)
         if (!mock) {
@@ -36,20 +36,15 @@ export const apiMethods = (board: ServiceStateBoard, mocks: ReadonlyMap<string, 
     }
     return {
         ...serviceStateMethods(board, { watch: OPERATOR_ONLY, command: OPERATOR_ONLY }),
-        'mock.fail_next': method({
+        'mock.fail_next': {
             ...OPERATOR_ONLY,
             args: failNext,
             handler: (_ctx, args) => mockOf(args.service).failNext(args.command, args.at_once)
-        }),
-        'mock.reads': method({
+        },
+        'mock.reads': {
             ...OPERATOR_ONLY,
             args: named,
             handler: (_ctx, args) => mockOf(args.service).reads()
-        })
+        }
     }
 }
-
-// What a client hands its ApiClient: the whole surface, derived from the
-// definitions rather than restated. A method whose argument shape or result
-// changes here stops compiling in whatever calls it.
-export type ApiMethods = ClientMethods<ReturnType<typeof apiMethods>>

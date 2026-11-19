@@ -48,6 +48,9 @@ export const humanSeconds = (seconds: number): string => {
     return parts.join(' ')
 }
 
+// A count of things in English: the noun plural, by an -s, unless there is one.
+export const humanCount = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
+
 export const humanFileSize = (bytes: number, si = false, dp = 1): string => {
     const thresh = si ? 1000 : 1024
     if (Math.abs(bytes) < thresh) {

@@ -167,7 +167,17 @@ overrides:
   '@greendrake/font-inter>@greendrake/dev-config': 0.7.0
   '@greendrake/theme>@greendrake/dev-config': 0.7.0
   '@greendrake/domains>@greendrake/dev-config': 0.7.0
+  '@greendrake/dash>@greendrake/rpc-server': 0.12.0
+  '@greendrake/dash>@greendrake/service-state': ^0.13.0
   '@greendrake/eslint-config>@greendrake/dev-config': 0.7.0
+  ipcam-app>@greendrake/dash: 0.15.0
+  ipcam-app>@greendrake/ipcam: 0.3.0
+  ipcam-app>@greendrake/rpc: 0.11.0
+  ipcam-app>@greendrake/scss-kit: 0.8.0
+  ipcam-app>@greendrake/vite-preset: 0.9.0
+  ipcam-app>@greendrake/dev-config: 0.8.0
+  ipcam-app>@greendrake/e2e: 0.10.0
+  ipcam-app>@greendrake/mse-video: 0.2.1
 
 importers:
 
@@ -202,20 +212,20 @@ importers:
   apps/ipcam-app/web:
     dependencies:
       '@greendrake/dash':
-        specifier: workspace:*
-        version: link:../../../dash
+        specifier: 0.15.0
+        version: 0.15.0(@greendrake/service-state@0.13.1(@greendrake/rpc-server@0.12.0))(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue-router@4.6.4(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
       '@greendrake/ipcam':
-        specifier: workspace:*
-        version: link:../../../ipcam
+        specifier: 0.3.0
+        version: 0.3.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
       '@greendrake/rpc':
-        specifier: workspace:*
-        version: link:../../../rpc
+        specifier: 0.11.0
+        version: 0.11.0
       '@greendrake/scss-kit':
-        specifier: workspace:*
-        version: link:../../../scss-kit
+        specifier: 0.8.0
+        version: 0.8.0
       '@greendrake/vite-preset':
-        specifier: workspace:*
-        version: link:../../../vite-preset
+        specifier: 0.9.0
+        version: 0.9.0(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue@3.5.45(typescript@6.0.3))
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
@@ -227,14 +237,14 @@ importers:
         version: 4.6.4(vue@3.5.45(typescript@6.0.3))
     devDependencies:
       '@greendrake/dev-config':
-        specifier: workspace:*
-        version: link:../../../dev-config
+        specifier: 0.8.0
+        version: 0.8.0(typescript@6.0.3)
       '@greendrake/e2e':
-        specifier: workspace:*
-        version: link:../../../e2e
+        specifier: 0.10.0
+        version: 0.10.0(@playwright/test@1.60.0)
       '@greendrake/mse-video':
-        specifier: workspace:*
-        version: link:../../../mse-video
+        specifier: 0.2.1
+        version: 0.2.1(vue@3.5.45(typescript@6.0.3))
       '@playwright/test':
         specifier: 1.60.0
         version: 1.60.0
@@ -288,11 +298,11 @@ importers:
         specifier: workspace:*
         version: link:../dev-config
       '@greendrake/rpc-server':
-        specifier: workspace:*
-        version: link:../rpc-server
+        specifier: 0.12.0
+        version: 0.12.0
       '@greendrake/service-state':
-        specifier: workspace:*
-        version: link:../service-state
+        specifier: ^0.13.0
+        version: 0.13.1(@greendrake/rpc-server@0.12.0)
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
@@ -977,10 +987,107 @@ packages:
       '@noble/hashes':
         optional: true
 
+  '@greendrake/css-reset@0.7.1':
+    resolution: {integrity: sha512-HBLrrQkaSggRAhKFxubKFEODeALwtTTFYhPPJoaj7FajOPtztJfrrr412HBQWjIxZ4Wrds9R8RKdVu3UogeL7Q==}
+
+  '@greendrake/dash@0.15.0':
+    resolution: {integrity: sha512-fXrtHeSKZ0yrJQc1L6La9KJTgvn2Ihwx+Ow7/DQWRjWobhLHF9jRGTUyHuloP7bHB4CbemhBR9xlJnrudCBNvA==}
+    peerDependencies:
+      '@greendrake/service-state': ^0.13.0
+      pinia: ^3.0.4
+      vue: ^3.5.34
+      vue-router: ^4.6.4
+    peerDependenciesMeta:
+      '@greendrake/service-state':
+        optional: true
+
   '@greendrake/dev-config@0.7.0':
     resolution: {integrity: sha512-SAdIiil7jRN5igUf1mnjL54T5t5WfGRa5nSVlcxziQ1Hi3acJCwqFP4pcFdkpFshKUpIK5nAgd23Pln7pBtlKQ==}
     peerDependencies:
       typescript: ^6
+
+  '@greendrake/dev-config@0.8.0':
+    resolution: {integrity: sha512-lcsB+la2hk1DlQ8GHdkCnWwfi3Z6jSLxJcfdJyIUBzgWi++qRCc1Vzh42GxHboKRYpN/5s8hEZ9AKZdhDkA6Vg==}
+    peerDependencies:
+      typescript: ^6
+
+  '@greendrake/domains@0.7.0':
+    resolution: {integrity: sha512-3Ij3TXX7AsWL56tzSlxxOAJUVkeHGPpD4JrZBml5iAKYkJbbHi41opS5tG7WUPciaY0xcM4Ngt+d3RdMJN55PQ==}
+
+  '@greendrake/e2e@0.10.0':
+    resolution: {integrity: sha512-dC4MeTsFIZyft1cEok5oCf/KwVS70tbE0RgXxT7ensD+c/MUNopSfIfhLkAYddIyXFYc6NR8cIXfQFTdQ89LCw==}
+    hasBin: true
+    peerDependencies:
+      '@playwright/test': '>=1.51.0'
+
+  '@greendrake/font-inter@0.8.0':
+    resolution: {integrity: sha512-SvUGP8x0/9+htuua4TJogOyGLv2FfqciXyLvXkwBM0ZqSgY20jh6IageJ/72qG3xttYJloweaaRLTJNkqt1Spg==}
+
+  '@greendrake/ipcam@0.3.0':
+    resolution: {integrity: sha512-GwBftgTawAMstyGN2LjKxlmO0RHIRQbtkdmyasuOu7Sh/dzGkXlKA+B2Pdwvv4JL8cHyjJYtjr1y9+qQFAD+JA==}
+    peerDependencies:
+      pinia: ^3.0.4
+      vue: ^3.5.34
+
+  '@greendrake/mse-video@0.2.1':
+    resolution: {integrity: sha512-lFgHltoa+DOECNxhD2yPH8fwSIuAcnZpGg4+jfWZ+XQo9+J0AmFZMjBcXXHfbS0mgsRkwM2Vnh0WB9AS4fh07A==}
+    peerDependencies:
+      vue: ^3.5.34
+    peerDependenciesMeta:
+      vue:
+        optional: true
+
+  '@greendrake/rpc-server@0.12.0':
+    resolution: {integrity: sha512-ri/xnOFK8yi/TvA4QNmZhyi9BZJDn/r1dLUacp0xobvqKP1Q6MLTzYzxr7W2UBNzpy534vTOK5Bqvyf+hj9CBA==}
+
+  '@greendrake/rpc@0.11.0':
+    resolution: {integrity: sha512-N5F9zYF+t59v9lRNCT8Y/l8m9uT10SRY83v0nHenyuvqhK6tphrCiE4u6q8q8i41npMxiw5cd4ouBIpjNk9TNg==}
+
+  '@greendrake/scss-kit@0.8.0':
+    resolution: {integrity: sha512-1tP3zxJwYlBuEBVDBrsEljHlBD9nGCSxvM6HhnpvndTajs7+nngBjvgkGLq6Wh5L1j0C0ZYBDonSJkHNymvPpg==}
+
+  '@greendrake/service-state@0.13.1':
+    resolution: {integrity: sha512-7n0e4x1lgdx/hB0WOQXzW6IKSjzkxBYVPonX0obQn2Ynvhg+TfXOm9gVBTQ9u24USNrtVj+AZJy8CaH32Q0klw==}
+    peerDependencies:
+      '@greendrake/rpc-server': ^0.12.0
+    peerDependenciesMeta:
+      '@greendrake/rpc-server':
+        optional: true
+
+  '@greendrake/theme@0.8.0':
+    resolution: {integrity: sha512-a+EySTzYzPmG4UuXqlLuJed5Q1oeqDvomXvoj0luljKShK8MmMewN13S18WEk/KMv1WPsMw9Ryl+EQFddW0EsA==}
+
+  '@greendrake/ui@0.10.0':
+    resolution: {integrity: sha512-o2gnxrY2OS+c+Pf64SpSzQWT0M0oDKtOffrJUxNACl92ySAr/FXlgsiZqUfPh+N+ygCuMY1E/+XsdLULiFy+yQ==}
+    peerDependencies:
+      vue: ^3.5.34
+
+  '@greendrake/util@0.10.0':
+    resolution: {integrity: sha512-zmCnVSvojcn4n4wMmYOeq+noQIvDOlMcqeiIzyMltVs7iOM/SQcdxGtUz2eGs8+PEOnkCa1n7rgG/XPBQ+HmMQ==}
+
+  '@greendrake/vite-preset@0.9.0':
+    resolution: {integrity: sha512-uvMI9S2nHFLCsr4jScScxlgEI3Y6M8iA0nTCkCkXwNl6n171d9kTcNBCtA9uGNVNx1PbTdvEzJO8ZoKIv1UbTw==}
+    peerDependencies:
+      vite: '>=8'
+
+  '@greendrake/vue-api@0.13.0':
+    resolution: {integrity: sha512-2MR4Xe/nnGM596JtMyhdvr1RHEsQcbvWv/4sX75lx1qB5MgG/V3xC5rHxokWqJ5kTc5oMmPMt4s9QJLYX83y5A==}
+    peerDependencies:
+      pinia: ^3.0.4
+      vue: ^3.5.34
+
+  '@greendrake/vue-app@0.11.0':
+    resolution: {integrity: sha512-d1B6c+bHL6oEdMCNAf0IU/vu0aH8IFKl6bDRydLO5my6yzcIcblOSFPd5ekOq2PefiogzXsfQoJ0IvU4sOFA4Q==}
+    peerDependencies:
+      pinia: ^3.0.4
+      vue: ^3.5.34
+      vue-router: ^4.6.4
+
+  '@greendrake/vue-kit@0.10.0':
+    resolution: {integrity: sha512-s/l9Fcz4PAmug/vMtj84LlDY/Ye1qzSPYFgr4tsCou6fPuqEFl5Wqgsgao0WBopWxIh9mSENP6ffm0cWjFw9eg==}
+    peerDependencies:
+      pinia: ^3.0.4
+      vue: ^3.5.34
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -2425,9 +2532,126 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
+  '@greendrake/css-reset@0.7.1': {}
+
+  '@greendrake/dash@0.15.0(@greendrake/service-state@0.13.1(@greendrake/rpc-server@0.12.0))(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue-router@4.6.4(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/font-inter': 0.8.0
+      '@greendrake/rpc': 0.11.0
+      '@greendrake/theme': 0.8.0
+      '@greendrake/ui': 0.10.0(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/vite-preset': 0.9.0(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/vue-api': 0.13.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/vue-app': 0.11.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue-router@4.6.4(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/vue-kit': 0.10.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
+      vue: 3.5.45(typescript@6.0.3)
+      vue-router: 4.6.4(vue@3.5.45(typescript@6.0.3))
+    optionalDependencies:
+      '@greendrake/service-state': 0.13.1(@greendrake/rpc-server@0.12.0)
+    transitivePeerDependencies:
+      - vite
+
   '@greendrake/dev-config@0.7.0(typescript@6.0.3)':
     dependencies:
       typescript: 6.0.3
+
+  '@greendrake/dev-config@0.8.0(typescript@6.0.3)':
+    dependencies:
+      typescript: 6.0.3
+
+  '@greendrake/domains@0.7.0': {}
+
+  '@greendrake/e2e@0.10.0(@playwright/test@1.60.0)':
+    dependencies:
+      '@playwright/test': 1.60.0
+
+  '@greendrake/font-inter@0.8.0':
+    dependencies:
+      '@greendrake/scss-kit': 0.8.0
+
+  '@greendrake/ipcam@0.3.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/mse-video': 0.2.1(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/rpc': 0.11.0
+      '@greendrake/scss-kit': 0.8.0
+      '@greendrake/theme': 0.8.0
+      '@greendrake/ui': 0.10.0(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/util': 0.10.0
+      '@greendrake/vue-api': 0.13.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
+      vue: 3.5.45(typescript@6.0.3)
+
+  '@greendrake/mse-video@0.2.1(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/util': 0.10.0
+    optionalDependencies:
+      vue: 3.5.45(typescript@6.0.3)
+
+  '@greendrake/rpc-server@0.12.0':
+    dependencies:
+      '@greendrake/rpc': 0.11.0
+      '@greendrake/util': 0.10.0
+      '@standard-schema/spec': 1.1.0
+
+  '@greendrake/rpc@0.11.0':
+    dependencies:
+      '@greendrake/util': 0.10.0
+
+  '@greendrake/scss-kit@0.8.0': {}
+
+  '@greendrake/service-state@0.13.1(@greendrake/rpc-server@0.12.0)':
+    dependencies:
+      '@greendrake/rpc': 0.11.0
+    optionalDependencies:
+      '@greendrake/rpc-server': 0.12.0
+
+  '@greendrake/theme@0.8.0':
+    dependencies:
+      '@greendrake/css-reset': 0.7.1
+      '@greendrake/scss-kit': 0.8.0
+
+  '@greendrake/ui@0.10.0(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/domains': 0.7.0
+      '@greendrake/scss-kit': 0.8.0
+      '@greendrake/util': 0.10.0
+      vue: 3.5.45(typescript@6.0.3)
+      vue-tippy: 6.8.0(vue@3.5.45(typescript@6.0.3))
+
+  '@greendrake/util@0.10.0': {}
+
+  '@greendrake/vite-preset@0.9.0(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/util': 0.10.0
+      '@vitejs/plugin-vue': 6.0.10(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue@3.5.45(typescript@6.0.3))
+      vite: 8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0)
+    transitivePeerDependencies:
+      - vue
+
+  '@greendrake/vue-api@0.13.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/rpc': 0.11.0
+      '@greendrake/ui': 0.10.0(vue@3.5.45(typescript@6.0.3))
+      '@greendrake/util': 0.10.0
+      '@greendrake/vue-kit': 0.10.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
+      vue: 3.5.45(typescript@6.0.3)
+
+  '@greendrake/vue-app@0.11.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue-router@4.6.4(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/util': 0.10.0
+      '@greendrake/vue-kit': 0.10.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
+      vue: 3.5.45(typescript@6.0.3)
+      vue-router: 4.6.4(vue@3.5.45(typescript@6.0.3))
+
+  '@greendrake/vue-kit@0.10.0(pinia@3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@greendrake/scss-kit': 0.8.0
+      '@greendrake/util': 0.10.0
+      pinia: 3.0.4(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3))
+      vue: 3.5.45(typescript@6.0.3)
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -2691,6 +2915,12 @@ snapshots:
     dependencies:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.3.6(@types/node@24.19.2)(sass-embedded@1.108.0)(sass@1.108.0)
+      vue: 3.5.45(typescript@6.0.3)
+
+  '@vitejs/plugin-vue@6.0.10(vite@8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0))(vue@3.5.45(typescript@6.0.3))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.3.6(@types/node@26.6.6)(sass-embedded@1.108.0)(sass@1.108.0)
       vue: 3.5.45(typescript@6.0.3)
 
   '@volar/language-core@2.4.15':

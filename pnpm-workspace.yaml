@@ -44,4 +44,14 @@ overrides:
   "@greendrake/font-inter>@greendrake/dev-config": 0.7.0
   "@greendrake/theme>@greendrake/dev-config": 0.7.0
   "@greendrake/domains>@greendrake/dev-config": 0.7.0
+  "@greendrake/dash>@greendrake/rpc-server": 0.12.0
+  "@greendrake/dash>@greendrake/service-state": ^0.13.0
   "@greendrake/eslint-config>@greendrake/dev-config": 0.7.0
+  ipcam-app>@greendrake/dash: 0.15.0
+  ipcam-app>@greendrake/ipcam: 0.3.0
+  ipcam-app>@greendrake/rpc: 0.11.0
+  ipcam-app>@greendrake/scss-kit: 0.8.0
+  ipcam-app>@greendrake/vite-preset: 0.9.0
+  ipcam-app>@greendrake/dev-config: 0.8.0
+  ipcam-app>@greendrake/e2e: 0.10.0
+  ipcam-app>@greendrake/mse-video: 0.2.1

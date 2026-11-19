@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { RpcRequest, RpcResponse } from '@greendrake/rpc'
+import type { MethodMapConstraint, RpcRequest, RpcResponse } from '@greendrake/rpc'
 import { ApiError } from './errors'
 
 // Turns a credential into the principal it names, or null where it names
@@ -72,8 +72,8 @@ export interface MethodAccess<P> {
 
 // One method: what it requires of the caller, what shape its argument has, and
 // what runs. `A` defaults to void — a method with no `args` schema takes none,
-// and ClientMethods turns that into a zero-argument call. `P` defaults to
-// never, a service with no principals, whose callers are all null.
+// as a contract method declared with no parameter does. `P` defaults to never,
+// a service with no principals, whose callers are all null.
 export interface MethodDef<A = void, R = unknown, P = never> extends MethodAccess<P> {
     // Validates the single argument and types the handler's. Any Standard
     // Schema validator (zod, valibot, arktype) qualifies; failures answer
@@ -100,19 +100,33 @@ export const topicsOf = <P>(ctx: CallContext<P>): Topics => {
 }
 
 // Identity at runtime; inference is its whole job. A definition written inline
-// in a table has nowhere to get its argument type from — the table's own type
+// in a `Methods` table has nowhere to get its argument type from — that type
 // erases it — so the schema's output reaches the handler's parameter through
-// this. A definition with no schema takes no argument, and says so.
+// this. A definition with no schema takes no argument, and says so. A
+// `MethodDefs` table needs none of it: its contract types every entry.
 export const method = <A = void, R = unknown, P = never>(def: MethodDef<A, R, P>): MethodDef<A, R, P> => def
 
-type MethodArgs<A> = [A] extends [void] ? [] : [args: A]
+// The definition that serves a contract method, by the parameters it is
+// declared with. With none, it takes no argument and has no schema. With one
+// required parameter, the schema is required too, and has to produce the
+// argument the handler receives, so nothing reaches a handler unchecked.
+// Anything else is served by no definition. A method takes one argument at
+// most, and an optional one would need a schema that accepts its absence,
+// which no type can require. An optional value goes in a field of the
+// argument instead.
+type ContractDef<Params, R, P> = Params extends [] ? MethodDef<void, R, P> & { args?: never } : Params extends [infer A] ? MethodDef<A, R, P> & { args: StandardSchemaV1<unknown, A> } : never
 
-// The client-side view of a dispatch table: the method map a frontend hands
-// its typed client, derived from the definitions rather than restated beside
-// them. The pair's typing meets here — a method whose argument shape or result
-// changes server-side stops compiling in the frontend that calls it.
-export type ClientMethods<M extends Methods> = {
-    [K in keyof M]: M[K] extends MethodDef<infer A, infer R, never> ? (...args: MethodArgs<A>) => Awaited<R> : never
+// The dispatch table that serves a contract. The contract is the method map
+// its clients are typed by — method name to call signature, the form
+// @greendrake/rpc's MethodMap takes — declared where neither side's code is
+// imported. Every method it declares has to be defined, as ContractDef says,
+// and its handler has to return the method's result. So a handler or a caller
+// that disagrees with the contract does not compile, while a client's
+// type-check reads the contract alone and none of what the handlers import. A
+// schema is held only to producing a value the contract's argument accepts: an
+// optional field it leaves out still compiles.
+export type MethodDefs<C extends MethodMapConstraint<C>, P = never> = {
+    [K in keyof C]: ContractDef<Parameters<C[K]>, Awaited<ReturnType<C[K]>>, P>
 }
 
 // The WebSocket transport's additions to the wire: an id correlating a

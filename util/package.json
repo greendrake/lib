@@ -1,6 +1,6 @@
 {
     "name": "@greendrake/util",
-    "version": "0.10.0",
+    "version": "0.10.1",
     "description": "Framework-free, Node-safe utilities: typed event emitter, timing, retry, staleness, comparators, fetch helpers, markup escaping, misc; global stubs for bun test",
     "license": "MIT",
     "author": "Eugene Greendrake <eugene@greendrake.nz>",
